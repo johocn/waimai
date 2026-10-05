@@ -375,7 +375,8 @@ function loginWithSso(provider: any) {
         unifiedLoginUrl = `${origin}/#/pages/sso/login`;
         params = {
             app_code: provider.clientId,
-            return_url: window.location.origin + '/#/pages/login/index',
+            // BASE_URL = manifest h5.router.base（/waimai/），漏拼会导致回跳 404
+            return_url: window.location.origin + import.meta.env.BASE_URL + '#/pages/login/index',
         };
         if (provider.channelCode) params.channel_code = provider.channelCode;
     } else {
@@ -383,7 +384,7 @@ function loginWithSso(provider: any) {
         unifiedLoginUrl = provider.authorizeUrl;
         params = {
             client_id: provider.clientId,
-            redirect_uri: window.location.origin + '/#/pages/login/index',
+            redirect_uri: window.location.origin + import.meta.env.BASE_URL + '#/pages/login/index',
             response_type: 'code',
             scope: (provider.scopes || []).join(' '),
         };

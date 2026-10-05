@@ -375,15 +375,8 @@ async function switchTab(key: TabKey) {
     selectedPickupLocation.value = null;
 
     if (key === 'campus') {
-        // 校园配送：运费走邮寄类 shipping method（分区运费由后端 calculator 在 shippingLines 出价）
-        const mailTab = shippingTabs.value.find(t => t.key === 'shipping');
-        selectedShipping.value = mailTab?.method?.id || '';
-        if (selectedShipping.value) {
-            try {
-                const res: any = await setOrderShippingMethod([selectedShipping.value]);
-                if (res?.setOrderShippingMethod?.id) cart.setOrder(res.setOrderShippingMethod);
-            } catch (e) { console.warn('[checkout] setOrderShippingMethod failed', e); }
-        }
+        // 校园配送：运费 method（campus-errand-smoke）在 fulfillmentRoute 写入前不 eligible
+        // （campusErrandCalculator 对无路线单返回 undefined），故此处不预选，提交时先写 target 再选
         if (!zones.value.length && !zonesLoading.value) await loadCampusData();
         return;
     }
@@ -599,10 +592,18 @@ onMounted(async () => {
  */
 async function prepareOrderAddressAndShipping(): Promise<boolean> {
     if (activeTab.value === 'campus') {
-        // 校园配送：先写配送目标（zone/building/route/slot），shipping method 已在 switchTab 选中
+        // 校园配送：先写配送目标（zone/building/route/slot）——fulfillmentRoute 写入后
+        // campus-errand calculator 才对该单出价（分区运费），再重拉 eligible 选中该方法
         const ok = await saveCampusTarget();
         if (!ok) return false;
-        if (selectedShipping.value) await setOrderShippingMethod([selectedShipping.value]);
+        const eligibleRes: any = await getEligibleShippingMethods();
+        const all: any[] = eligibleRes?.eligibleShippingMethods || [];
+        const campusMethod = all.find((m: any) => m.code?.startsWith('campus-errand'))
+            || all.find((m: any) => categorizeShipping(m) === 'shipping');
+        if (campusMethod) {
+            const res: any = await setOrderShippingMethod([campusMethod.id]);
+            if (res?.setOrderShippingMethod?.id) cart.setOrder(res.setOrderShippingMethod);
+        }
         return true;
     }
     if (shippingCategory.value === 'shipping') {
@@ -678,6 +679,8 @@ async function submitOrder() {
         // Transition to ArrangingPayment
         await transitionOrderToState('ArrangingPayment');
         const code = await payCurrentOrder(selectedPayment.value);
+        // code 为空 = 支付未完成（addPaymentToOrder 报错/handlePayment 失败），不得伪装成功
+        if (!code) { ui.showToast('支付未完成，请重试或更换支付方式'); return; }
         uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(code)}&status=success` });
     } catch (e: any) { ui.showToast(e.message); }
     ui.hideLoading();

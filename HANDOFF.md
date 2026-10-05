@@ -19,7 +19,7 @@
 
 ## 3. 本仓库现状
 
-- `master` @ `c0845d4`：Task 1 项目骨架（package.json / vite.config / manifest / pages.json / env / uni.scss / App.vue / main.ts / tsconfig / .gitignore），`pnpm install` 已跑过（pnpm-lock.yaml 在库）
+- `master` @ `f1a1b99`：Task 1 项目骨架（package.json / vite.config / manifest / pages.json / env / uni.scss / App.vue / main.ts / tsconfig / .gitignore）+ 本交接文档；`pnpm install` 已跑过（pnpm-lock.yaml 在库）
 - App.vue 的品牌色注入比计划多了 `#ifdef H5` 条件编译（合理偏离，保留）
 - 主题 token：`--brand: #ff6600` / `--brand-soft: #fff3e6`，已定案**沃堡橙**（三方案 mockup 对比后用户选定），`VITE_BRAND_COLOR` 可运行时覆盖
 
@@ -58,9 +58,9 @@ cd e:\zhao\vendure\packages\campus-delivery-plugin && npx vitest --config vitest
 
 | 仓库 | 位置 | 状态 |
 |---|---|---|
-| waimai（本仓库） | `e:\zhao\waimai` → `github.com/johocn/waimai` | master c0845d4 |
-| vendure（后端） | `e:\zhao\vendure` → `github.com/johocn/vendure` | master 4925a1291 已推送，plan1 增补已部署 |
-| vshop（底座源 + 文档原产地） | `e:\zhao\vshop` | master b166562（含计划/手册原版） |
+| waimai（本仓库） | `e:\zhao\waimai` → `github.com/johocn/waimai` | master（以 `git log -1` 为准） |
+| vendure（后端） | `e:\zhao\vendure` → `github.com/johocn/vendure` | master 已推送，plan1 增补已部署（含 .secrets gitignore 收尾） |
+| vshop（底座源 + 文档原产地） | `e:\zhao\vshop` | master 已推送（含计划/手册原版） |
 
 ## 8. 验收清单（Plan 3 收口时逐项打勾）
 

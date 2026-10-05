@@ -5,26 +5,11 @@
       <text class="profile-page__email">{{ customer?.emailAddress || '' }}</text>
     </view>
     <view class="profile-page__menu">
-      <view class="menu-item" @click="navTo('/pkg-order/pages/orders')">
+      <view class="menu-item" @click="goOrders">
         <text>我的订单</text><text class="menu-arrow">></text>
       </view>
-      <view class="menu-item" @click="navTo('/pkg-user/pages/addresses')">
-        <text>地址管理</text><text class="menu-arrow">></text>
-      </view>
-      <view class="menu-item" @click="navTo('/pkg-user/pages/recharge')">
-        <text>充值卡</text><text class="menu-arrow">></text>
-      </view>
-      <view class="menu-item" @click="navTo('/pkg-user/pages/balance-history')">
-        <text>余额明细</text><text class="menu-arrow">></text>
-      </view>
-      <view class="menu-item" @click="navTo('/pkg-after-sale/pages/list')">
-        <text>售后记录</text><text class="menu-arrow">></text>
-      </view>
-      <view class="menu-item" @click="navTo('/pkg-promotion/pages/coupons')">
-        <text>优惠券</text><text class="menu-arrow">></text>
-      </view>
-      <view class="menu-item" @click="navTo('/pkg-user/pages/distribution')">
-        <text>分销中心</text><text class="menu-arrow">></text>
+      <view class="menu-item" @click="goRiderCenter">
+        <text>成为骑手</text><text class="menu-arrow">></text>
       </view>
     </view>
     <button class="profile-page__logout" @click="doLogout">退出登录</button>
@@ -36,7 +21,9 @@ import { ref, onMounted } from 'vue';
 import { getActiveCustomer } from '../../api/queries/user';
 import { useAuthStore } from '../../stores/auth';
 import { useCartStore } from '../../stores/cart';
+import { getSessionToken } from '../../api/client';
 import { logout } from '../../api/mutations/auth';
+import { fetchMyRiderProfile } from '../../api/mutations/campus';
 
 const authStore = useAuthStore();
 const cartStore = useCartStore();
@@ -46,7 +33,26 @@ onMounted(async () => {
     try { const res: any = await getActiveCustomer(); customer.value = res.activeCustomer; } catch (e) {}
 });
 
-function navTo(url: string) { uni.navigateTo({ url }); }
+function goOrders() { uni.switchTab({ url: '/pages/orders/index' }); }
+
+/**
+ * 骑手中心入口（常显「成为骑手」）：按骑手档案分流
+ * 未登录 → 登录页；APPROVED → 接单大厅；未入驻/审核中/被拒 → 入驻页（页内显示状态）
+ */
+async function goRiderCenter() {
+    if (!authStore.token && !getSessionToken()) {
+        authStore.requireLogin();
+        return;
+    }
+    try {
+        const profile = await fetchMyRiderProfile();
+        const status = profile?.riderStatus;
+        uni.navigateTo({ url: status === 'APPROVED' ? '/pkg-rider/pages/rider-home' : '/pkg-rider/pages/rider-join' });
+    } catch (e) {
+        // 查询失败多为会话失效（后端 requireCustomer 抛未授权），按未登录处理
+        authStore.requireLogin();
+    }
+}
 
 async function doLogout() {
     try { await logout(); } catch (e) {}

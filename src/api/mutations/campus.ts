@@ -33,6 +33,15 @@ export const CAMPUS_ORDER_RIDER = gql`
     query campusOrderRider($orderId: ID!) { campusOrderRider(orderId: $orderId) { realName credit } }
 `;
 
+/** 我的骑手档案：riderStatus 为 null/PENDING/REJECTED/APPROVED（未登录时后端直接报未授权） */
+export const MY_RIDER_PROFILE = gql`
+    query myRiderProfile {
+        myRiderProfile {
+            customerId riderStatus riderRealName riderStudentNo riderCampus riderCredit
+        }
+    }
+`;
+
 export function setDeliveryTarget(v: { zoneId: string; buildingId: string; route?: string; slotId?: number }) {
     return getGraphQLClient().request(CAMPUS_SET_DELIVERY_TARGET, v);
 }
@@ -40,3 +49,4 @@ export function fetchZones() { return getGraphQLClient().request(CAMPUS_ZONES).t
 export function fetchBuildings(zoneId?: string) { return getGraphQLClient().request(CAMPUS_BUILDINGS, { zoneId }).then((r: any) => r?.campusBuildings ?? []); }
 export function fetchSlots() { return getGraphQLClient().request(CAMPUS_SHOP_SLOTS).then((r: any) => r?.campusShopSlots ?? []); }
 export function fetchOrderRider(orderId: string) { return getGraphQLClient().request(CAMPUS_ORDER_RIDER, { orderId }).then((r: any) => r?.campusOrderRider); }
+export function fetchMyRiderProfile() { return getGraphQLClient().request(MY_RIDER_PROFILE).then((r: any) => r?.myRiderProfile); }

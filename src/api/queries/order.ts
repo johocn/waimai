@@ -1,4 +1,6 @@
-import { getGraphQLClient } from '../client';
+import { GraphQLClient } from 'graphql-request';
+import { getGraphQLClient, getShopApiUrl, getSessionToken } from '../client';
+import { useAuthStore } from '../../stores/auth';
 import { ORDER_FRAGMENT } from '../fragments';
 
 export async function getActiveOrder() {
@@ -27,6 +29,25 @@ export async function getOrderByCode(code: string) {
     const query = `${ORDER_FRAGMENT}
         query OrderByCode($code: String!) { orderByCode(code: $code) { ...OrderDetail } }`;
     return client.request(query, { code });
+}
+
+/**
+ * 指定渠道查询「我的订单」（跨渠道聚合用）。
+ * 会话（Authorization）是全局的，vendure-token 只切换 activeChannel；
+ * myOrders 按 ctx.channelId 过滤，故逐渠道查询后前端合并。
+ * 独立 GraphQLClient：ShopClient.request 每次都会用 tenantStore.token 覆盖请求头。
+ */
+export async function getOrdersForChannel(channelToken: string, options?: { take?: number; skip?: number; filter?: any }) {
+    const authStore = useAuthStore();
+    const headers: Record<string, string> = { 'vendure-token': channelToken };
+    const bearer = authStore.token || getSessionToken();
+    if (bearer) {
+        headers['Authorization'] = 'Bearer ' + bearer;
+    }
+    const client = new GraphQLClient(getShopApiUrl(), { headers });
+    const query = `${ORDER_FRAGMENT}
+        query OrdersInChannel($options: OrderListOptions) { myOrders(options: $options) { items { ...OrderDetail } totalItems } }`;
+    return client.request(query, { options: { take: 10, sort: { createdAt: 'DESC' }, ...options } });
 }
 
 export async function getEligibleShippingMethods() {

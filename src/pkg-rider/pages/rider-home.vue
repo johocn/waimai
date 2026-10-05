@@ -14,7 +14,7 @@
                     <text class="order-code">#{{ t.code }}<text v-if="isUrgent(t)" class="urgent">加急</text></text>
                     <text class="fee">¥{{ fmt(runnerFee(t)) }}</text>
                 </view>
-                <text class="task-addr">📍 {{ t.customFields?.campusZone || '' }} {{ buildingName(t) }}</text>
+                <text class="task-addr">{{ t.channelName || '' }} · {{ t.customFields?.campusZone || '' }} {{ buildingName(t) }}</text>
                 <text class="task-route">{{ t.customFields?.fulfillmentRoute === 'R1' ? '接力单（到校门口交接点取货）' : '直送单（档口取货）' }}</text>
                 <button class="grab" :disabled="grabbing || takenIds.has(t.id)" @tap="grab(t)">
                     {{ takenIds.has(t.id) ? '已被抢' : grabbing ? '锁定中…' : '一键接单' }}
@@ -91,7 +91,7 @@ async function toggleOnline() {
 async function grab(t: any) {
     grabbing.value = true;   // 乐观锁 UI：立即置灰（spec §6.1.2）
     try {
-        await grabOrder(t.id);   // 成功返回订单
+        await grabOrder(t.id, t.channelToken);   // 成功返回订单（带来源渠道 token 抢单）
         uni.redirectTo({ url: '/pkg-rider/pages/rider-delivering' });
     } catch (e: any) {
         const msg: string = e?.response?.errors?.[0]?.message || e?.message || '抢单失败';

@@ -10,9 +10,15 @@ import { useAuthStore } from '../../stores/auth';
 //   riderStatus 值域小写：null / 'pending' / 'approved' / 'suspended'
 const RIDER_CHANNEL_TOKEN = (import.meta.env?.VITE_CHANNEL_TOKEN as string) || '';
 
-export function riderClient(): GraphQLClient {
+/**
+ * 骑手请求客户端。
+ * 不传 channelToken → 默认渠道（profile/上下线/心跳等平台级操作）；
+ * 传店铺渠道 token → 大厅/任务/抢单等按渠道过滤的 campus* 接口
+ * （campusHall/campusMyTasks 按 ctx.channelId 过滤，跨店铺聚合见 hall.ts）。
+ */
+export function riderClient(channelToken?: string): GraphQLClient {
     const authStore = useAuthStore();
-    const headers: Record<string, string> = { 'vendure-token': RIDER_CHANNEL_TOKEN };
+    const headers: Record<string, string> = { 'vendure-token': channelToken || RIDER_CHANNEL_TOKEN };
     const bearer = authStore.token || getSessionToken();
     if (bearer) {
         headers['Authorization'] = 'Bearer ' + bearer;

@@ -68,7 +68,7 @@ async function refresh() {
 }
 
 async function begin() {
-    await startTask(task.value.id);
+    await startTask(task.value.id, task.value.channelToken);
     uni.showToast({ title: '已开始取货', icon: 'none' });
     await refresh();
 }
@@ -84,7 +84,7 @@ async function takePhoto(): Promise<string> {
 async function deliverFlow() {
     try {
         const photo = await takePhoto();          // 送达拍照必填（spec §6.2.2）
-        await deliverTask(task.value.id, [photo]);
+        await deliverTask(task.value.id, [photo], undefined, task.value.channelToken);
         uni.showToast({ title: '已送达，分成入账', icon: 'success' });
         await refresh();
     } catch (e: any) {
@@ -98,7 +98,7 @@ async function transfer(picked: boolean) {
     try {
         let photos: string[] = [];
         if (picked) photos = [await takePhoto()]; // 已取货转单强制拍照交接（spec §6.2.4）
-        await transferTask(task.value.id, photos);
+        await transferTask(task.value.id, photos, undefined, task.value.channelToken);
         uni.showToast({ title: '已转回大厅', icon: 'none' });
         await refresh();
     } catch (e: any) {
@@ -111,7 +111,7 @@ async function transfer(picked: boolean) {
 async function reportException() {
     // 一期固定类型 no_recipient（联系不上学生），后续扩 UI 选择器
     try {
-        await reportException(task.value.id, 'no_recipient', [], '学生电话未接通，已尝试催取');
+        await reportException(task.value.id, 'no_recipient', [], '学生电话未接通，已尝试催取', task.value.channelToken);
         uni.showToast({ title: '已上报，平台将介入', icon: 'none' });
         await refresh();
     } catch (e: any) {

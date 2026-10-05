@@ -1,7 +1,16 @@
-/* Theme Variables */
-/* 品牌色走 CSS 变量（运行时由模板库主题令牌注入），未注入时兜底默认橙 */
-$brand-color: var(--brand-color, #ff6600);
-$brand-color-light: var(--brand-color-light, #fff3e6);
+/* waimai 主题 token：全部组件只引用变量，一处换肤（spec §12.1） */
+$brand: var(--brand, #ff6600);
+$brand-soft: var(--brand-soft, #fff3e6);
+$text: #1a1a1a;
+$text-muted: #999999;
+$bg: #f5f5f5;
+$surface: #ffffff;
+$radius: 12rpx;
+$radius-card: 16rpx;
+
+/* ── vshop 兼容别名（复制页面沿用 vshop 变量名，便于日后 diff 同步） ── */
+$brand-color: var(--brand, #ff6600);
+$brand-color-light: var(--brand-soft, #fff3e6);
 $text-color: #333333;
 $text-color-secondary: #666666;
 $text-color-placeholder: #999999;

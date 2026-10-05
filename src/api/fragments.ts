@@ -1,0 +1,69 @@
+// GraphQL Fragments for Vendure Shop API
+
+export const PRODUCT_CARD_FRAGMENT = `
+    fragment ProductCard on SearchResult {
+        productId
+        productVariantId
+        productName
+        slug
+        productAsset { id preview }
+        priceWithTax {
+            ... on SinglePrice { value }
+            ... on PriceRange { min max }
+        }
+        currencyCode
+    }
+`;
+
+export const PRODUCT_DETAIL_FRAGMENT = `
+    fragment ProductDetail on Product {
+        id name slug description
+        featuredAsset { preview }
+        customFields { videoAssetId sellingPoint salesCount pointsReward }
+        translations { languageCode description }
+        assets { id preview source }
+        variants {
+            id name priceWithTax currencyCode stockLevel
+            featuredAsset { preview }
+            options { id name code }
+        }
+        optionGroups { id name code options { id name code } }
+        facetValues { id name facet { id name } }
+        collections { id name slug }
+    }
+`;
+
+export const ORDER_FRAGMENT = `
+    fragment OrderDetail on Order {
+        id code state active totalQuantity type
+        subTotalWithTax totalWithTax shippingWithTax
+        taxSummary { description taxRate taxTotal }
+        currencyCode createdAt updatedAt
+        lines {
+            id quantity linePriceWithTax unitPriceWithTax
+            featuredAsset { preview }
+            productVariant { id productId name enabled stockLevel options { name } customFields { shippingProfileId paymentProfileId } }
+        }
+        shippingAddress { fullName streetLine1 streetLine2 city province postalCode country phoneNumber }
+        billingAddress { fullName streetLine1 streetLine2 city province postalCode country phoneNumber }
+        shippingLines { shippingMethod { id name code } priceWithTax }
+        payments { id method amount state transactionId metadata }
+        couponCodes
+        discounts { description amountWithTax }
+        customFields { couponCode couponId }
+    }
+`;
+
+export const CART_FRAGMENT = `
+    fragment CartInfo on Order {
+        id code active totalQuantity
+        subTotalWithTax totalWithTax currencyCode
+        lines {
+            id quantity linePriceWithTax unitPriceWithTax
+            featuredAsset { preview }
+            productVariant { id name options { name } }
+        }
+        couponCodes
+        discounts { description amountWithTax }
+    }
+`;

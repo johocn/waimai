@@ -64,7 +64,8 @@ async function load() {
 
 function enterStore(s: any) {
     if (s.paused) return uni.showToast({ title: '店铺休息中', icon: 'none' });
-    uni.navigateTo({ url: `/pages/shop/menu?token=${s.channelToken}&name=${encodeURIComponent(s.name)}` });
+    const routes = (s.routesEnabled || []).join(',');
+    uni.navigateTo({ url: `/pages/shop/menu?token=${s.channelToken}&name=${encodeURIComponent(s.name)}&routes=${encodeURIComponent(routes)}` });
 }
 
 onMounted(load);

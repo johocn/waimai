@@ -1,23 +1,59 @@
 <template>
   <view class="checkout-page">
-    <!-- 配送方式（始终显示，置顶） -->
+    <!-- 配送方式（校园配送恒显置首，自提/邮寄按渠道启用情况显示） -->
     <view class="section">
       <text class="section__title">配送方式</text>
       <view class="seg-control">
         <view
           v-for="tab in shippingTabs"
-          :key="tab.category"
+          :key="tab.key"
           class="seg-control__item"
-          :class="{ active: activeTab === tab.category }"
-          @click="switchTab(tab.category)"
+          :class="{ active: activeTab === tab.key }"
+          @click="switchTab(tab.key)"
         >
           <text>{{ tab.label }}</text>
         </view>
       </view>
     </view>
 
+    <!-- 校园配送面板（waimai 核心方式）：分区 → 宿舍楼 → 送达时段 + 路线说明 -->
+    <view class="section" v-if="activeTab === 'campus'">
+      <text class="section__title">配送目标</text>
+      <view v-if="zonesLoading" class="campus-empty"><text>加载中...</text></view>
+      <view v-else-if="!zones.length" class="campus-empty">
+        <text>暂未配置配送分区</text>
+        <text class="campus-empty__hint">请选择其他配送方式</text>
+      </view>
+      <template v-else>
+        <view class="campus-label">选择分区</view>
+        <view class="chip-row">
+          <view v-for="z in zones" :key="z.id" class="chip" :class="{ on: zoneId === z.id }" @click="chooseZone(z)">
+            {{ z.name }}<text v-if="z.fee != null" class="chip__sub"> ¥{{ (z.fee / 100).toFixed(2) }}</text>
+          </view>
+        </view>
+        <view class="campus-label">选择宿舍楼</view>
+        <view class="chip-row">
+          <view v-for="b in buildings" :key="b.id" class="chip" :class="{ on: buildingId === b.id }" @click="buildingId = b.id">
+            {{ b.name }}<text v-if="b.detail" class="chip__sub"> {{ b.detail }}</text>
+          </view>
+          <view v-if="!buildings.length" class="campus-empty__hint">该分区暂无宿舍楼</view>
+        </view>
+        <view class="campus-label">送达时段（不选=尽快送）</view>
+        <view class="chip-row">
+          <view class="chip" :class="{ on: !slotId }" @click="slotId = ''">尽快送</view>
+          <view v-for="s in slotsWithRemain" :key="s.id" class="chip" :class="{ on: slotId === s.id }" @click="slotId = s.id">
+            {{ s.slotDate }} {{ s.startTime }}-{{ s.endTime }} 剩{{ s.capacity - s.lockedCount }}位
+          </view>
+        </view>
+        <view class="route-row" v-if="campusRoutes.length">
+          <text class="route-row__text">{{ routeText }}</text>
+          <text v-if="canSwitchRoute" class="route-row__switch" @click="toggleRoute">切换</text>
+        </view>
+      </template>
+    </view>
+
     <!-- 收货地址（仅邮寄方式显示） -->
-    <view class="section" v-if="shippingCategory === 'shipping'">
+    <view class="section" v-if="activeTab === 'shipping'">
       <text class="section__title">收货地址</text>
       <!-- 已有地址：显示当前选中地址 + 更换入口 -->
       <view v-if="selectedAddress" class="address-block" @click="showAddressPicker = true">
@@ -186,14 +222,16 @@ import RegionPicker from '../../components/RegionPicker.vue';
 import type { PickupLocation } from '../../types/pickup';
 import { useCartStore } from '../../stores/cart';
 import { useUIStore } from '../../stores/ui';
-import { getActiveOrder, getEligibleShippingMethods, getEligiblePaymentMethods } from '../../api/queries/order';
-import { getActiveCustomer } from '../../api/queries/user';
+import { getActiveOrder, getEligibleShippingMethods } from '../../api/queries/order';
+import { getActiveCustomer, getEligiblePaymentMethods } from '../../api/queries/user';
 import { getPickupLocations } from '../../api/queries/pickup';
 import { setOrderShippingAddress, setOrderShippingMethod, transitionOrderToState, addPaymentToOrder, setOrderPickupLocation } from '../../api/mutations/checkout';
+import { setDeliveryTarget, fetchZones, fetchBuildings, fetchSlots } from '../../api/mutations/campus';
 import { createCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from '../../api/mutations/address';
 import { handlePayment, type PaymentMethod } from '../../composables/usePayment';
 
 type ShippingCategory = 'shipping' | 'store-pickup';
+type TabKey = 'campus' | ShippingCategory;
 
 const cart = useCartStore();
 const ui = useUIStore();
@@ -217,25 +255,80 @@ const regionTarget = ref<'inline' | 'modal'>('inline');
 
 // 自提点相关 state
 const shippingCategory = ref<ShippingCategory>('shipping');
-const activeTab = ref<ShippingCategory>('shipping');
+const activeTab = ref<TabKey>('campus');
 const selectedPickupLocation = ref<PickupLocation | null>(null);
 const pickupLocations = ref<PickupLocation[]>([]);
 const userLocation = ref<{ lat: number; lng: number } | null>(null);
 const showPickupSheet = ref(false);
 const pickupLoading = ref(false);
 
+// ===== 校园配送（Task 6）：分区 → 宿舍楼 → 送达时段 + 路线判定 =====
+const campusRoutes = ref<string[]>([]);            // URL 透传的店铺 routesEnabled（R1/R3）
+const routeChoice = ref<'R3' | 'R1'>('R3');
+const zones = ref<any[]>([]);
+const buildings = ref<any[]>([]);
+const slots = ref<any[]>([]);
+const zoneId = ref('');
+const buildingId = ref('');
+const slotId = ref<string | number>('');
+const zonesLoading = ref(false);
+
+const canSwitchRoute = computed(() => campusRoutes.value.includes('R1') && campusRoutes.value.includes('R3'));
+const routeText = computed(() => {
+    if (!campusRoutes.value.length) return '配送路线以商家实际安排为准';
+    if (routeChoice.value === 'R1') return '商家送至校门口，校内骑手接力送达（R1）';
+    return '档口直送，校内骑手上楼（R3）';
+});
+// DeliverySlot 无 remaining 字段，余量 = capacity - lockedCount（schema 校准）
+const slotsWithRemain = computed(() => slots.value.filter(s => s.capacity - s.lockedCount > 0));
+
+function toggleRoute() { routeChoice.value = routeChoice.value === 'R3' ? 'R1' : 'R3'; }
+
+async function chooseZone(z: any) {
+    zoneId.value = z.id;
+    buildingId.value = '';
+    try {
+        buildings.value = await fetchBuildings(z.id);
+        if (buildings.value.length) buildingId.value = buildings.value[0].id;
+    } catch (e) { buildings.value = []; }
+}
+
+async function loadCampusData() {
+    zonesLoading.value = true;
+    try {
+        zones.value = await fetchZones();
+        if (zones.value.length) await chooseZone(zones.value[0]);
+        slots.value = await fetchSlots();
+    } catch (e) { zones.value = []; }
+    zonesLoading.value = false;
+}
+
+async function saveCampusTarget(): Promise<boolean> {
+    if (!zoneId.value || !buildingId.value) {
+        ui.showToast('请选择宿舍楼');
+        return false;
+    }
+    await setDeliveryTarget({
+        zoneId: zoneId.value,
+        buildingId: buildingId.value,
+        route: routeChoice.value,
+        slotId: slotId.value ? Number(slotId.value) : undefined,
+    });
+    return true;
+}
+
 // 商品原价小计（元，保留两位）
 const originalSubTotalYuan = computed(() => cart.formatPrice(cart.order?.subTotalWithTax || 0));
 // 当前运费（元）：shippingLines 已含分区运费（campus/zone 相关 calculator 出价）
 const shippingFee = computed(() => cart.formatPrice(cart.order?.shippingWithTax || 0));
 
-// 按启用的配送方式分组为 Tab（waimai：自提 / 邮寄；校园配送 Tab 由 Task 6 加入）
+// Tab = 校园配送（恒显置首）+ eligible 启用的自提/邮寄
 const shippingTabs = computed(() => {
-    const tabs: { category: ShippingCategory; label: string; method: any }[] = [];
+    const tabs: { key: TabKey; label: string; method?: any }[] = [{ key: 'campus', label: '校园配送' }];
     for (const sm of shippingMethods.value) {
         const cat = categorizeShipping(sm);
-        if (!tabs.find(t => t.category === cat)) {
-            tabs.push({ category: cat, label: tabLabel(cat), method: sm });
+        if (!tabs.find(t => t.key === cat)) {
+            tabs.push({ key: cat, label: tabLabel(cat), method: sm });
         }
     }
     return tabs;
@@ -277,16 +370,30 @@ async function resolveLocation(): Promise<{ lat: number; lng: number } | null> {
 }
 
 // 切换 Tab
-async function switchTab(category: ShippingCategory) {
-    activeTab.value = category;
-    shippingCategory.value = category;
+async function switchTab(key: TabKey) {
+    activeTab.value = key;
     selectedPickupLocation.value = null;
 
-    const tab = shippingTabs.value.find(t => t.category === category);
+    if (key === 'campus') {
+        // 校园配送：运费走邮寄类 shipping method（分区运费由后端 calculator 在 shippingLines 出价）
+        const mailTab = shippingTabs.value.find(t => t.key === 'shipping');
+        selectedShipping.value = mailTab?.method?.id || '';
+        if (selectedShipping.value) {
+            try {
+                const res: any = await setOrderShippingMethod([selectedShipping.value]);
+                if (res?.setOrderShippingMethod?.id) cart.setOrder(res.setOrderShippingMethod);
+            } catch (e) { console.warn('[checkout] setOrderShippingMethod failed', e); }
+        }
+        if (!zones.value.length && !zonesLoading.value) await loadCampusData();
+        return;
+    }
+
+    shippingCategory.value = key;
+    const tab = shippingTabs.value.find(t => t.key === key);
     if (!tab) return;
     selectedShipping.value = tab.method.id;
 
-    if (category === 'shipping') {
+    if (key === 'shipping') {
         // 快递方式：同步 shipping method 到后端，并用返回值更新订单（含运费）
         try {
             const res: any = await setOrderShippingMethod([tab.method.id]);
@@ -479,9 +586,9 @@ onMounted(async () => {
             return true;
         });
         if (paymentMethods.value.length > 0) selectedPayment.value = paymentMethods.value[0].code;
-        // 默认选中第一个 Tab
+        // 默认选中第一个 Tab（校园配送恒置首）
         if (shippingTabs.value.length > 0) {
-            await switchTab(shippingTabs.value[0].category);
+            await switchTab(shippingTabs.value[0].key);
         }
     } catch (e) { console.error(e); }
 });
@@ -491,6 +598,13 @@ onMounted(async () => {
  * 返回是否成功（校验失败时为 false）
  */
 async function prepareOrderAddressAndShipping(): Promise<boolean> {
+    if (activeTab.value === 'campus') {
+        // 校园配送：先写配送目标（zone/building/route/slot），shipping method 已在 switchTab 选中
+        const ok = await saveCampusTarget();
+        if (!ok) return false;
+        if (selectedShipping.value) await setOrderShippingMethod([selectedShipping.value]);
+        return true;
+    }
     if (shippingCategory.value === 'shipping') {
         // 邮寄方式：设置收货地址
         if (!selectedAddress.value) {
@@ -570,9 +684,11 @@ async function submitOrder() {
     submitting.value = false;
 }
 
-// 页面参数预留（Task 6 校园配送 Tab 会透传店铺 routes）
+// 页面参数：店铺 routesEnabled 透传（menu→checkout，决定校园配送 Tab 路线判定/切换）
 onLoad((q: any) => {
-    void q;
+    const routes = String(q?.routes || '').split(',').map(s => s.trim()).filter(Boolean);
+    campusRoutes.value = routes;
+    if (!routes.includes('R3') && routes.includes('R1')) routeChoice.value = 'R1';
 });
 </script>
 
@@ -594,4 +710,10 @@ onLoad((q: any) => {
 .summary-row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; color: $text-color-secondary; &--total { border-top: 1rpx solid $border-color; margin-top: 8rpx; padding-top: 16rpx; color: $text-color; font-size: 28rpx; } }
 .checkout-page__total { color: $price-color; font-size: 36rpx; font-weight: bold; }
 .checkout-page__submit { position: fixed; left: 20rpx; right: 20rpx; bottom: calc(20rpx + env(safe-area-inset-bottom)); height: 88rpx; line-height: 88rpx; background: $brand-color; color: #fff; font-size: 30rpx; border-radius: 999rpx; border: none; &[disabled] { opacity: 0.6; } }
+// ===== 校园配送面板 =====
+.campus-empty { text-align: center; padding: 30rpx 0; color: $text-color-secondary; font-size: 26rpx; &__hint { display: block; font-size: 22rpx; color: $text-color-placeholder; margin-top: 8rpx; } }
+.campus-label { font-size: 24rpx; color: $text-color-secondary; margin: 16rpx 0 12rpx; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.chip { padding: 12rpx 24rpx; font-size: 24rpx; border-radius: 999rpx; background: $bg-color; color: $text-color-secondary; border: 1rpx solid transparent; &.on { background: $brand-color-light; color: $brand-color; border-color: $brand-color; font-weight: 600; } &__sub { font-size: 22rpx; opacity: .8; } }
+.route-row { display: flex; align-items: center; justify-content: space-between; margin-top: 20rpx; padding: 16rpx 20rpx; background: $brand-color-light; border-radius: $radius-sm; &__text { font-size: 24rpx; color: $brand-color; flex: 1; } &__switch { font-size: 24rpx; color: #fff; background: $brand-color; border-radius: 999rpx; padding: 4rpx 20rpx; } }
 </style>

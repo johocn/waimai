@@ -45,6 +45,7 @@ import SkuSheet from '../../components/SkuSheet.vue';
 const tenant = useTenantStore();
 const cart = useCartStore();
 const shopToken = ref('');
+const shopRoutes = ref('');
 const promoText = ref('');
 const cats = ref([{ id: 'all', name: '全部' }]);
 const activeCat = ref('all');
@@ -57,6 +58,7 @@ const cartTotal = computed(() => cart.totalPrice);
 
 onLoad(async (q: any) => {
     shopToken.value = q?.token ?? '';
+    shopRoutes.value = decodeURIComponent(q?.routes ?? '');
     promoText.value = decodeURIComponent(q?.promo ?? '');
     // 关键：切到店铺渠道（activeOrder 随 session+渠道隔离 = 每店独立购物车）
     await tenant.switchTenant(shopToken.value);
@@ -122,7 +124,8 @@ async function onSkuAction(v: { action: 'cart' | 'buy'; variantId: string; quant
 
 function goCheckout() {
     if (!cartCount.value) return;
-    uni.navigateTo({ url: '/pkg-order/pages/checkout' });
+    const routes = encodeURIComponent(shopRoutes.value);
+    uni.navigateTo({ url: `/pkg-order/pages/checkout?routes=${routes}` });
 }
 </script>
 

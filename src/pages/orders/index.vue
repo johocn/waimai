@@ -36,6 +36,7 @@ import { onShow, onReachBottom, onPullDownRefresh } from '@dcloudio/uni-app';
 import { getOrdersForChannel } from '../../api/queries/order';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { fulfillmentBadge } from '../../utils/order-badge';
+import { storeDisplayName } from '../../utils/store-display';
 import VImage from '../../components/VImage.vue';
 import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
@@ -57,10 +58,6 @@ const PLATFORM_TOKEN = (import.meta.env.VITE_CHANNEL_TOKEN as string) || '__defa
 function normChannel(t: string): string {
     return !t || t === '__default_channel__' ? '__default_channel__' : t;
 }
-/** 后端店铺名取 channel.code，默认渠道 code 为 '__default_channel__'，显示兜底为「平台」 */
-function displayName(n: string | null | undefined): string {
-    return !n || n === '__default_channel__' ? '平台' : n;
-}
 let channels: Array<{ token: string; name: string }> = [{ token: normChannel(PLATFORM_TOKEN), name: '平台' }];
 let channelsLoaded = false;
 let page = 0;
@@ -80,7 +77,7 @@ async function loadChannels() {
         for (const s of stores) {
             const key = normChannel(s.channelToken || '');
             if (!map.has(key) || key === normChannel(PLATFORM_TOKEN)) {
-                map.set(key, displayName(s.name) || map.get(key) || '平台'); // 店铺挂在站点渠道时显示店铺名
+                map.set(key, storeDisplayName(s.name) || map.get(key) || '平台'); // 店铺挂在站点渠道时显示店铺名
             }
         }
     } catch (e) { console.error(e); }

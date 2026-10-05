@@ -1,0 +1,1 @@
+import{W as o,r as n,X as t,Y as a,p as s}from"./index-BSrKExuk.js";const i=o("ui",()=>{const o=n(!1),i=n("");return{loading:o,toastMessage:i,showLoading:function(){o.value=!0,t({title:"加载中..."})},hideLoading:function(){o.value=!1,a()},showToast:function(o,n="none"){s({title:o,icon:n,duration:2e3})}}});export{i as u};

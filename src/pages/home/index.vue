@@ -36,6 +36,7 @@ import { ref, computed, onMounted } from 'vue';
 import { onPullDownRefresh } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { filterStores } from '../../utils/store-filter';
+import { storeDisplayName } from '../../utils/store-display';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 import EmptyState from '../../components/EmptyState.vue';
 
@@ -59,7 +60,10 @@ function routeText(routes: string[]): string {
 
 async function load() {
     loading.value = true;
-    try { stores.value = await fetchStoreList(); } finally { loading.value = false; }
+    try {
+        const list = await fetchStoreList();
+        stores.value = list.map((s: any) => ({ ...s, name: storeDisplayName(s.name) }));
+    } finally { loading.value = false; }
 }
 
 function enterStore(s: any) {

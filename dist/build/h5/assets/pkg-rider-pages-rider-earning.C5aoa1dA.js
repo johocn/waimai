@@ -1,0 +1,1 @@
+import{b as s,w as a,i as e,e as t,f as r,g as o,h as n}from"./index-BSrKExuk.js";import{_ as u}from"./_plugin-vue_export-helper.BCo6x5W8.js";const d=u({},[["render",function(u,d){const f=o,l=e;return t(),s(l,{class:"stub"},{default:a(()=>[r(f,null,{default:a(()=>[n("我的收入 · 开发中")]),_:1})]),_:1})}],["__scopeId","data-v-2d5be33f"]]);export{d as default};

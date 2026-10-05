@@ -1,0 +1,1 @@
+import{b as s,w as a,i as e,e as t,f as r,g as o,h as n}from"./index-BSrKExuk.js";import{_ as u}from"./_plugin-vue_export-helper.BCo6x5W8.js";const f=u({},[["render",function(u,f){const l=o,d=e;return t(),s(d,{class:"stub"},{default:a(()=>[r(l,null,{default:a(()=>[n("接单大厅 · 开发中")]),_:1})]),_:1})}],["__scopeId","data-v-b247fa10"]]);export{f as default};

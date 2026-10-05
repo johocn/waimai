@@ -12,7 +12,7 @@
                     <VImage :src="g.featuredAsset?.preview" width="140rpx" height="140rpx" class="good-img" />
                     <view class="good-info">
                         <text class="good-name">{{ g.name }}</text>
-                        <text class="good-desc">{{ g.description }}</text>
+                        <text class="good-desc">{{ plainDescription(g.description) }}</text>
                         <PriceTag :price="g.variants[0]?.priceWithTax || 0" />
                     </view>
                     <view class="add-btn" @tap.stop="addToCart(g)">+</view>
@@ -35,6 +35,7 @@ import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { fetchProductList } from '../../api/queries/waimai';
+import { plainDescription } from '../../utils/store-display';
 import { addItemToOrder } from '../../api/mutations/cart';
 import { getActiveOrder } from '../../api/queries/order';
 import VImage from '../../components/VImage.vue';

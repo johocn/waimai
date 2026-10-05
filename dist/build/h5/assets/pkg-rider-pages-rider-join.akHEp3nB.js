@@ -1,0 +1,1 @@
+import{b as s,w as e,i as a,e as t,f as r,g as o,h as n}from"./index-BSrKExuk.js";import{_ as u}from"./_plugin-vue_export-helper.BCo6x5W8.js";const l=u({},[["render",function(u,l){const d=o,f=a;return t(),s(f,{class:"stub"},{default:e(()=>[r(d,null,{default:e(()=>[n("骑手入驻 · 开发中")]),_:1})]),_:1})}],["__scopeId","data-v-156eeb28"]]);export{l as default};

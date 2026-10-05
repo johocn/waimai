@@ -1,8 +1,8 @@
 import { useTenantStore } from '../../stores/tenant';
 import { useAuthStore } from '../../stores/auth';
-import { getSessionToken, setSessionToken } from '../client';
+import { getSessionToken, setSessionToken, getShopApiUrl } from '../client';
 
-const API_URL = (import.meta.env?.VITE_API_URL || 'http://localhost:3000') + '/shop-api';
+const API_URL = getShopApiUrl();   // 复用 client.ts 的动态 origin 兜底（graphql-request v7 要求绝对 URL；勿硬编码 localhost/域名）
 
 interface AuthResult {
     token: string;

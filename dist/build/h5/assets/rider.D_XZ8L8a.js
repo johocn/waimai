@@ -1,4 +1,4 @@
-import{g as e}from"./index.Bc0dvPHy.js";import{x as n,A as r,a0 as t,a1 as a}from"./index-CW-2Xq5Z.js";function i(e){const i={"vendure-token":e||"cnx87ezvmjx8nn3bth6c"},s=n().token||r();return s&&(i.Authorization="Bearer "+s),new t(a(),{headers:i})}const s=e`
+import{g as e}from"./index.B4ijoULH.js";import{x as n,A as r,a1 as t,P as a}from"./index-BN1h0gBN.js";function i(e){const i={"vendure-token":e||"cnx87ezvmjx8nn3bth6c"},s=n().token||r();return s&&(i.Authorization="Bearer "+s),new t(a(),{headers:i})}const s=e`
     mutation applyRider($realName: String!, $studentNo: String!, $campus: String!, $idImg: String) {
         applyRider(realName: $realName, studentNo: $studentNo, campus: $campus, idImg: $idImg) { status }
     }

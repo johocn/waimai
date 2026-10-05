@@ -1,4 +1,4 @@
-import{g as e}from"./index.Bc0dvPHy.js";import{M as r}from"./index-CW-2Xq5Z.js";const d=e`
+import{g as e}from"./index.B4ijoULH.js";import{M as r}from"./index-BN1h0gBN.js";const d=e`
     mutation campusSetDeliveryTarget($zoneId: ID!, $buildingId: ID!, $route: String, $slotId: Int) {
         campusSetDeliveryTarget(zoneId: $zoneId, buildingId: $buildingId, route: $route, slotId: $slotId) {
             id

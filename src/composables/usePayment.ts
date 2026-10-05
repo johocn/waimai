@@ -50,7 +50,7 @@ export async function handlePayment(
                     pub.payUrl ||
                     paymentData.payUrl;
                 if (rawUrl) {
-                    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                    const baseUrl = import.meta.env.VITE_API_URL || (import.meta.env.BASE_URL ? window.location.origin : '');   // H5 同源动态 origin（勿硬编码域名）
                     const fullUrl = rawUrl.startsWith('http')
                         ? rawUrl
                         : `${baseUrl}${rawUrl}`;

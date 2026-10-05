@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+
+# Build output
+# 部署铁律：本地构建产物需提交到 git（服务器只 git pull，禁止服务器构建）
+# 仅纳入 H5 静态站产物 dist/build/h5，其余 dist 目录（dev/mp 等）保持忽略
+dist/*
+!dist/build/
+dist/build/*
+!dist/build/h5/
+.hbuilderx/
+
+# web-admin 产物不入库：部署走 web-admin/scripts/deploy.mjs（本地构建 → scp → 服务器解压）
+# 注：上方铁律针对根目录 dist/（H5 商城站走 git pull），与 web-admin 无关
+web-admin/dist/
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env.local
+.env.*.local
+
+# 本机密钥区（admin token、微信支付证书材料、联调脚本）——严禁入库
+.secrets/
+
+# Logs
+*.log
+npm-debug.log*
+
+# uni-app
+unpackage/
+
+# Type auto-generated
+types/auto-imports.d.ts
+types/components.d.ts
+
+# E2E screenshots (test artifacts)
+web-admin/_e2e/*.png
+# 打印像素基线：红标差异取证图（本地生成，不入库）
+web-admin/_e2e/baselines/print/_diff/
+# 自动化测试/验收截图输出目录（本地产物，不进仓库）
+web-admin/e2e-shots/
+__pycache__/
+*.pyc
+
+# AI 工具（superpowers brainstorming）会话 scratch：mockup 预览 HTML 与运行态标记
+# 属一次性中间产物，正式设计稿请落到 docs/superpowers/ 下再提交
+.superpowers/
+web-admin/.superpowers/
+
+# 部署脚本临时产物（本地打包，用完即删，勿提交）
+_wa_admin.tar
+vshop-h5.tgz
+

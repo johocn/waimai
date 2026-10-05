@@ -1,37 +1,38 @@
 # waimai 校园外卖 — 开发交接文档
 
-> 交接时间：2026-10-05 · 交接人：AI 开发会话（johocn 授权） · 接手人：新开发者
+> 交接时间：2026-10-06 · 交接人：AI 开发会话（johocn 授权） · 接手人：新开发者
 
 ## 1. 项目一句话
 
-独立 uniapp（H5 先行）外卖 C 端模板，部署于 `www.yourbao.cn/waimai/`，对接 vendure 校园外卖模块（campus-delivery-plugin）。channel = 餐饮店铺，含学生端四页 + pkg-rider 骑手端四页。
+独立 uniapp（H5 先行）外卖 C 端模板，已上线 **https://www.yourbao.cn/waimai/**，对接 vendure 校园外卖模块（campus-delivery-plugin）。channel = 餐饮店铺，含学生端四页 + pkg-rider 骑手端四页。
 
 ## 2. 当前进度总览
 
 | 阶段 | 状态 | 位置 |
 |---|---|---|
 | 设计 spec（含 §12 增补定案） | ✅ 定稿 | `docs/2026-10-05-waimai-template-design.md` |
-| Plan 1 后端缺口（5 项） | ✅ **已上线生产** | `docs/2026-10-05-waimai-plan1-backend.md` |
-| Plan 2 学生端（9 Tasks） | 🔄 **Task 1 骨架完成**，Task 2-9 未做 | `docs/2026-10-05-waimai-plan2-student-frontend.md` |
-| Plan 3 骑手端+部署（6 Tasks） | ❌ 未开始 | `docs/2026-10-05-waimai-plan3-rider-deploy.md` |
+| Plan 1 后端缺口（5 项） | ✅ 已上线生产 | `docs/2026-10-05-waimai-plan1-backend.md` |
+| Plan 2 学生端（9 Tasks） | ✅ **全部完成并上线** | `docs/2026-10-05-waimai-plan2-student-frontend.md` |
+| Plan 3 骑手端+部署（6 Tasks） | ✅ **全部完成并上线**（2026-10-06 验收收口） | `docs/2026-10-05-waimai-plan3-rider-deploy.md` |
 
-**下一步 = Plan 2 Task 2（交易底座复制）**，按计划文档逐 Task TDD 执行即可，文档自包含。
+**当前状态 = 一期全量交付**：学生端四页 + 骑手端四页 + 全链路冒烟 S1-S8 PASS + 8 页手机截图目检合格 + 操作手册（`vshop/docs/waimai-操作手册.md`）+ verify 排障沉淀（`vshop/docs/verify/2026-10-waimai-e2e.md`）。
 
 ## 3. 本仓库现状
 
-- `master` @ `f1a1b99`：Task 1 项目骨架（package.json / vite.config / manifest / pages.json / env / uni.scss / App.vue / main.ts / tsconfig / .gitignore）+ 本交接文档；`pnpm install` 已跑过（pnpm-lock.yaml 在库）
-- App.vue 的品牌色注入比计划多了 `#ifdef H5` 条件编译（合理偏离，保留）
-- 主题 token：`--brand: #ff6600` / `--brand-soft: #fff3e6`，已定案**沃堡橙**（三方案 mockup 对比后用户选定），`VITE_BRAND_COLOR` 可运行时覆盖
+- `master` @ `2b8d3e7`（以 `git log -1` 为准）：生产 P0 修复（graphql-request v7 绝对 URL）+ riderEarning 展示修复
+- 主题 token：`--brand: #ff6600` / `--brand-soft: #fff3e6`（沃堡橙），`VITE_BRAND_COLOR` 可运行时覆盖
+- `.env.development` 的 `VITE_API_URL` 已置空（与生产同形态；vite proxy 按路径匹配仍生效，dev 5181 正常）
 
 ## 4. 必读知识（接手前 10 分钟）
 
-1. **后端接口已全部就绪（生产 e.joho.cn/shop-api）**：`waimaiStoreList`（含 promoText）、`campusSetDeliveryTarget(zoneId, buildingId, route?, slotId?)`（R1/R3 + 时段写入+服务端校验）、`campusOrderRider`、`campusZones/campusBuildings/campusShopSlots`。插件源码在 `e:\zhao\vendure\packages\campus-delivery-plugin`（本地），gql 字段名以其 `lib/src/*.js` schema 定义为准
-2. **渠道即店铺**：进店铺 = `switchTenant(channelToken)` 切 vendure 渠道，activeOrder 随 session+渠道隔离 = 每店独立购物车，无需自己做购物车隔离
-3. **vshop 是底座复制源**：`e:\zhao\vshop\src\`（api/stores/components/login/webview/checkout/order-detail）；复制时删 i18n、以编译报错为清单迭代。注意 vshop 本地有 dev server 停止状态，只需要读源码
-4. **测试规范**：vitest 只测纯逻辑（store-filter / timeline）；时间线映射的 hallStatus 枚举拼写先 Grep 插件 lib（`hall.service` 状态推进）校准
-5. **验收截图规范**：Playwright 手机视口 **390×844, dpr=2**，逐张目检（子代理的 PASS 汇报不可信，历史多次实证）
-6. **部署**（Plan 3 Task 6 才做）：本地 `pnpm build:h5` → tar → scp → 解压 `/opt/1panel/apps/openresty/openresty/www/sites/e.joho.cn/yourbao/waimai/`；nginx `location /waimai/` try_files + index no-cache 需先加；**严禁在服务器构建**（内存不足）
-7. **上线前人工项**：微信商户平台为 JSAPI 支付追加 `/waimai/` 授权目录（用户操作，不阻塞开发）
+1. **后端接口已全部就绪（生产 e.joho.cn/shop-api）**：`waimaiStoreList`（含 promoText，已过滤默认渠道）、`campusSetDeliveryTarget`、`campusHall/campusGrabOrder/campusMyTasks/campusStartTask/campusDeliverTask/campusTransferTask`、`campusOrderRider`、`myRiderEarnings`、`campusRiderOnline/Heartbeat`。插件源码 `d:\zhao\vendure\packages\campus-delivery-plugin`
+2. **渠道即店铺**：进店铺 = `switchTenant(channelToken)` 切 vendure 渠道，activeOrder 随 session+渠道隔离 = 每店独立购物车
+3. **骑手是平台角色**：走默认渠道会话，`riderClient(channelToken?)` 不传 token = 平台操作，传店铺 token = 大厅/任务（campus* 按 ctx.channelId 过滤，前端逐店铺聚合，mutation 须回传同渠道 token）
+4. **骑手信用分 ≥60 才能抢单**（CREDIT_LIMIT）：冒烟骑手多轮拒单会掉分导致 grab FORBIDDEN；恢复：admin-api `updateCustomer(input:{id:"150",customFields:{riderCredit:100}})`
+5. **graphql-request v7 硬要求绝对 URL**：H5 下 `client.ts` 已做 `window.location.origin` 动态兜底，新增独立 GraphQLClient 一律走 `getShopApiUrl()`，勿硬编码 localhost/域名
+6. **测试规范**：vitest 只测纯逻辑（store-filter / timeline）；验收截图 Playwright **390×844 dpr=2** 逐张目检（子代理 PASS 汇报不可信）
+7. **部署**：`node d:\zhao\waimai\.secrets\deploy-waimai.mjs`（本地构建 → 产物校验 → tar → scp → 服务器解压 `/opt/1panel/apps/openresty/openresty/www/sites/e.joho.cn/yourbao/waimai/`，静态替换即时生效无需 reload）。**严禁在服务器构建**（内存不足）
+8. **上线前人工项**：微信商户平台为 JSAPI 支付追加 `/waimai/` 授权目录（用户操作，不阻塞其余功能）
 
 ## 5. 常用命令
 
@@ -45,28 +46,42 @@ npx vitest run
 # 生产构建（产物 dist/build/h5/，路径带 /waimai/ 前缀）
 pnpm build:h5
 
+# H5 部署生产
+node .secrets/deploy-waimai.mjs
+
+# 生产冒烟（期望 E2E SMOKE PASS，幂等）
+node d:\zhao\vshop\docs\verify\waimai-e2e-smoke.cjs
+
 # 后端单测（改动插件时）
-cd e:\zhao\vendure\packages\campus-delivery-plugin && npx vitest --config vitest.config.mts --run   # 当前基线 59 全绿
+cd d:\zhao\vendure\packages\campus-delivery-plugin && npx vitest --config vitest.config.mts --run
 ```
 
 ## 6. 环境凭据边界
 
-- 生产 admin 凭据 superadmin/z123123；测试客户 etao（native 登录，凭据见 vshop `.secrets/verify-paymode.cjs`）——**凭据一律留在 `.secrets/`（已 gitignore），严禁入库**
-- waimai 后端联调走同源反代：生产 `VITE_API_URL` 留空 = 同源 `/shop-api`；本地 dev 走 5181 代理
+- 生产 admin 凭据 superadmin/z123123；冒烟账号 `smoke-order@yourbao.cn` / `smoke-rider@yourbao.cn`（Wm@Smoke123）——**凭据一律留在 `.secrets/`（已 gitignore），严禁入库**
+- waimai 后端联调走同源反代：生产 `VITE_API_URL` 留空 = 同源 `/shop-api`（nginx location `/shop-api` 无尾斜杠，注意 301 丢 body 坑）
 
 ## 7. 相关仓库
 
 | 仓库 | 位置 | 状态 |
 |---|---|---|
-| waimai（本仓库） | `e:\zhao\waimai` → `github.com/johocn/waimai` | master（以 `git log -1` 为准） |
-| vendure（后端） | `e:\zhao\vendure` → `github.com/johocn/vendure` | master 已推送，plan1 增补已部署（含 .secrets gitignore 收尾） |
-| vshop（底座源 + 文档原产地） | `e:\zhao\vshop` | master 已推送（含计划/手册原版） |
+| waimai（本仓库） | `d:\zhao\waimai` → `github.com/johocn/waimai` | master @ 2b8d3e7 已推送 |
+| vendure（后端） | `d:\zhao\vendure` → `github.com/johocn/vendure` | master 已推送；waimaiStoreList 默认渠道过滤（e6e51865a）已部署 |
+| vshop（底座源 + 文档原产地） | `d:\zhao\vshop` | master @ 60c2823 已推送（含操作手册/verify/8 页截图） |
 
-## 8. 验收清单（Plan 3 收口时逐项打勾）
+## 8. 验收清单（全部完成）
 
-- [ ] vitest 全绿（store-filter + timeline）
-- [ ] build:h5 成功，产物带 /waimai/ 前缀
-- [ ] 全链路冒烟 8 步 PASS（waimai-e2e-smoke.cjs，Plan 3 Task 5 编写）
-- [ ] 8 张手机截图逐张目检（学生端 4 + 骑手端 4）
-- [ ] 操作手册 + 验收手册提交 vshop docs
-- [ ] 生产部署 + curl 200 + JSAPI 授权目录确认
+- [x] vitest 全绿（store-filter + timeline）
+- [x] build:h5 成功，产物带 /waimai/ 前缀
+- [x] 全链路冒烟 8 步 PASS（2026-10-06 生产验收轮：订单 246/247）
+- [x] 8 张手机截图逐张目检（学生端 4 + 骑手端 4，`vshop/docs/screenshots/waimai/`）
+- [x] 操作手册（`vshop/docs/waimai-操作手册.md`）+ verify 排障沉淀（`vshop/docs/verify/2026-10-waimai-e2e.md`）
+- [x] 生产部署 + curl 200（JSAPI 授权目录待用户在微信商户平台操作）
+
+## 9. 已知限制 / 二期待办
+
+- 骑手收入页提现功能二期开放（分成随送达实时入账 status=credited）
+- 微信 JSAPI 支付待商户参数配置；当前冒烟走 COD 授权链路
+- 大厅单滞留 >5 分钟自动加急置顶；强派调度（DispatchJobService T2/T3）已具备，默认关闭
+- 0 分成单（shipping=0 且 tip=0）送达写库成功但 addBalance 抛错（真实跑腿单不触发）
+- nginx `www.yourbao.cn.conf` 改前备份 `.bak_waimai_20261006`（root 补齐前主站一直显示 openresty 欢迎页的历史问题已修复）

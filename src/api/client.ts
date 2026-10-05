@@ -2,7 +2,8 @@ import { GraphQLClient } from 'graphql-request';
 import { useTenantStore } from '../stores/tenant';
 import { useAuthStore } from '../stores/auth';
 
-const API_URL = (import.meta.env?.VITE_API_URL || 'http://localhost:3000') + '/shop-api';
+// 生产 VITE_API_URL 留空 = 同源 /shop-api（部署在 e.joho.cn 同源反代下）；dev 由 .env.development 提供完整 origin
+const API_URL = (import.meta.env?.VITE_API_URL || '') + '/shop-api';
 const SESSION_TOKEN_KEY = 'vendure_session_token';
 const AUTH_TOKEN_HEADER = 'vendure-auth-token';
 

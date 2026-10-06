@@ -50,3 +50,36 @@ export function fetchBuildings(zoneId?: string) { return getGraphQLClient().requ
 export function fetchSlots() { return getGraphQLClient().request(CAMPUS_SHOP_SLOTS).then((r: any) => r?.campusShopSlots ?? []); }
 export function fetchOrderRider(orderId: string) { return getGraphQLClient().request(CAMPUS_ORDER_RIDER, { orderId }).then((r: any) => r?.campusOrderRider); }
 export function fetchMyRiderProfile() { return getGraphQLClient().request(MY_RIDER_PROFILE).then((r: any) => r?.myRiderProfile); }
+
+/** R2: 确认快递已到校（幂等；后端校验归属/R2/状态） */
+export const CAMPUS_MARK_ARRIVED = gql`
+    mutation campusMarkArrived($orderId: ID!) { campusMarkArrived(orderId: $orderId) { leg1Status } }
+`;
+
+/** R2 原单动态反查接力单状态（null=暂无接力单） */
+export const CAMPUS_R2_RELAY = gql`
+    query campusR2Relay($orderId: ID!) {
+        campusR2Relay(orderId: $orderId) { orderId orderCode state hallStatus deliveryStatus errandTo tip totalWithTax }
+    }
+`;
+
+/** R5 发单第一步：0 元载体 variantId + 跑腿起步价（分） */
+export const CAMPUS_ERRAND_VARIANT = gql`
+    query campusErrandVariant { campusErrandVariant { variantId sku errandBaseFee } }
+`;
+
+/** T0 运力预检：在线传信者数量（不阻断发单，仅提示） */
+export const CAMPUS_CAPACITY_CHECK = gql`
+    query campusCapacityCheck { campusCapacityCheck { paused ridersOnline } }
+`;
+
+/** R5/R2 接力第二步：写 errand 标记（须先 addItemToOrder 建购物车） */
+export const CAMPUS_SET_ERRAND_INFO = gql`
+    mutation campusSetErrandInfo($input: CampusErrandInput!) { campusSetErrandInfo(input: $input) { orderId } }
+`;
+
+export function markArrived(orderId: string) { return getGraphQLClient().request(CAMPUS_MARK_ARRIVED, { orderId }).then((r: any) => r?.campusMarkArrived); }
+export function fetchR2Relay(orderId: string) { return getGraphQLClient().request(CAMPUS_R2_RELAY, { orderId }).then((r: any) => r?.campusR2Relay ?? null); }
+export function fetchErrandVariant() { return getGraphQLClient().request(CAMPUS_ERRAND_VARIANT).then((r: any) => r?.campusErrandVariant); }
+export function capacityCheck() { return getGraphQLClient().request(CAMPUS_CAPACITY_CHECK).then((r: any) => r?.campusCapacityCheck); }
+export function setErrandInfo(input: any) { return getGraphQLClient().request(CAMPUS_SET_ERRAND_INFO, { input }).then((r: any) => r?.campusSetErrandInfo); }

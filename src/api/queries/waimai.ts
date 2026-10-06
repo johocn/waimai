@@ -6,7 +6,7 @@ export const WAIMAI_STORE_LIST = gql`
     query waimaiStoreList {
         waimaiStoreList {
             channelId channelToken name logo tags monthlySales promoText paused routesEnabled
-            deliveryMinutes minOrderAmount deliveryFee storeAddress storePhone storeNotice
+            deliveryMinutes minOrderAmount deliveryFee storeAddress storePhone storeNotice errandBaseFee
         }
     }
 `;

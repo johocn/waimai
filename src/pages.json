@@ -24,7 +24,14 @@
                 { "path": "pages/rider-delivering", "style": { "navigationBarTitleText": "配送中" } },
                 { "path": "pages/rider-earning", "style": { "navigationBarTitleText": "我的收入" } }
             ]
-        }
+        },
+        {
+            "root": "pkg-campus",
+            "pages": [
+                { "path": "errand/create", "style": { "navigationBarTitleText": "校内拾光达" } },
+                { "path": "errand/list", "style": { "navigationBarTitleText": "我的跑腿单" } }
+            ]
+        },
     ],
     "tabBar": {
         "color": "#999999",

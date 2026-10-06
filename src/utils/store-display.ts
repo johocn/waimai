@@ -8,3 +8,9 @@ export function storeDisplayName(name: string | null | undefined): string {
 export function plainDescription(html: string | null | undefined): string {
     return (html ?? '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 }
+
+/** 配送方式文案：R1=商家自送+骑手接力，其余=档口直送；空=未开通 */
+export function routeText(routes: string[] | null | undefined): string {
+    if (!routes?.length) return '暂未开通配送';
+    return routes.includes('R1') ? '商家自送 + 校内骑手接力' : '档口直送 · 校内骑手上楼';
+}

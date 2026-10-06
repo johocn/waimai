@@ -148,31 +148,31 @@ watch(
 
 <style lang="scss" scoped>
 .sku-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: flex-end; }
-.sku-sheet { width: 100%; background: #fff; border-top-left-radius: 24rpx; border-top-right-radius: 24rpx; max-height: 80vh; display: flex; flex-direction: column;
-    &__head { display: flex; gap: 20rpx; padding: 24rpx; border-bottom: 1rpx solid $border-color; position: relative; }
+.sku-sheet { width: 100%; background: var(--w-surface, #fff); border-top-left-radius: 24rpx; border-top-right-radius: 24rpx; max-height: 80vh; display: flex; flex-direction: column;
+    &__head { display: flex; gap: 20rpx; padding: 24rpx; border-bottom: 1rpx solid var(--w-border, #eee); position: relative; }
     &__head-info { flex: 1; display: flex; flex-direction: column; gap: 8rpx; }
-    &__stock { font-size: 24rpx; color: #999; }
-    &__picked { font-size: 24rpx; color: $text-color-secondary; }
-    &__close { position: absolute; right: 24rpx; top: 16rpx; font-size: 32rpx; color: #ccc; }
+    &__stock { font-size: 24rpx; color: var(--w-text-muted, #999); }
+    &__picked { font-size: 24rpx; color: var(--w-text, #666); }
+    &__close { position: absolute; right: 24rpx; top: 16rpx; font-size: 32rpx; color: var(--w-text-muted, #ccc); }
     &__body { flex: 1; padding: 0 24rpx; }
-    &__bar { display: flex; gap: 16rpx; padding: 20rpx 24rpx calc(20rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid $border-color; }
+    &__bar { display: flex; gap: 16rpx; padding: 20rpx 24rpx calc(20rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid var(--w-border, #eee); }
     &__btn { flex: 1; height: 80rpx; font-size: 28rpx; border-radius: $radius-md; border: none;
-        &--cart { background: $brand-color-light; color: $brand-color; }
+        &--cart { background: $brand-color-light; color: var(--w-brand-text, #ff6600); }
         &--buy { background: $brand-color; color: #fff; }
     }
 }
 .sku-group { padding: 20rpx 0;
-    &__label { font-size: 26rpx; color: $text-color; }
+    &__label { font-size: 26rpx; color: var(--w-text, #333); }
     &__options { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 12rpx; }
 }
-.sku-option { padding: 10rpx 28rpx; font-size: 24rpx; border: 1rpx solid $border-color; border-radius: $radius-sm; color: $text-color;
-    &.active { border-color: $brand-color; color: $brand-color; background: $brand-color-light; }
-    &.disabled { color: #ccc; background: #f7f7f7; border-color: #eee; }
+.sku-option { padding: 10rpx 28rpx; font-size: 24rpx; border: 1rpx solid var(--w-border, #eee); border-radius: $radius-sm; color: var(--w-text, #333);
+    &.active { border-color: $brand-color; color: var(--w-brand-text, #ff6600); background: $brand-color-light; }
+    &.disabled { color: var(--w-text-muted, #ccc); background: var(--w-surface-muted, #f7f7f7); border-color: var(--w-border, #eee); }
 }
 .sku-qty { display: flex; align-items: center; justify-content: space-between; padding: 20rpx 0 30rpx;
-    &__label { font-size: 26rpx; color: $text-color; }
+    &__label { font-size: 26rpx; color: var(--w-text, #333); }
 }
-.qty-control { display: flex; align-items: center; border: 1rpx solid $border-color; border-radius: $radius-sm; }
-.qty-btn { width: 56rpx; height: 48rpx; text-align: center; line-height: 48rpx; font-size: 28rpx; background: #f5f5f5; }
-.qty-num { width: 64rpx; height: 48rpx; text-align: center; line-height: 48rpx; font-size: 26rpx; border-left: 1rpx solid $border-color; border-right: 1rpx solid $border-color; }
+.qty-control { display: flex; align-items: center; border: 1rpx solid var(--w-border, #eee); border-radius: $radius-sm; }
+.qty-btn { width: 56rpx; height: 48rpx; text-align: center; line-height: 48rpx; font-size: 28rpx; background: var(--w-surface-muted, #f5f5f5); color: var(--w-text, #333); }
+.qty-num { width: 64rpx; height: 48rpx; text-align: center; line-height: 48rpx; font-size: 26rpx; border-left: 1rpx solid var(--w-border, #eee); border-right: 1rpx solid var(--w-border, #eee); color: var(--w-text, #333); }
 </style>

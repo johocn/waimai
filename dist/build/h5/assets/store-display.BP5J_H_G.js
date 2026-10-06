@@ -1,0 +1,1 @@
+function n(n){return n&&"__default_channel__"!==n?n:"平台"}function e(n){return(n??"").replace(/<[^>]*>/g,"").replace(/\s+/g," ").trim()}function r(n){return(null==n?void 0:n.length)?n.includes("R1")?"商家自送 + 校内骑手接力":"档口直送 · 校内骑手上楼":"暂未开通配送"}export{e as p,r,n as s};

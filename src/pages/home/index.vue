@@ -71,7 +71,7 @@ import { ref, computed, onMounted } from 'vue';
 import { onPullDownRefresh } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { filterStores } from '../../utils/store-filter';
-import { storeDisplayName } from '../../utils/store-display';
+import { storeDisplayName, routeText } from '../../utils/store-display';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 import EmptyState from '../../components/EmptyState.vue';
@@ -98,11 +98,6 @@ const promoStore = computed(() => stores.value.find((s: any) => s.promoText && !
 
 function tagIcon(t: string): string {
     return TAG_ICONS[t] ?? '🍴';
-}
-
-function routeText(routes: string[]): string {
-    if (!routes?.length) return '暂未开通配送';
-    return routes.includes('R1') ? '商家自送 + 校内骑手接力' : '档口直送 · 校内骑手上楼';
 }
 
 function goOrders() {

@@ -27,6 +27,6 @@ const formatOriginal = computed(() => props.originalPrice ? (props.originalPrice
     &__value { font-size: 32rpx; font-weight: bold; }
     &--large &__value { font-size: 48rpx; }
     &--large &__symbol { font-size: 28rpx; }
-    &__original { font-size: 22rpx; color: #999; text-decoration: line-through; margin-left: 8rpx; }
+    &__original { font-size: 22rpx; color: var(--w-text-muted, #999); text-decoration: line-through; margin-left: 8rpx; }
 }
 </style>

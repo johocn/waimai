@@ -98,6 +98,9 @@
                     <text v-for="(t, i) in r.tags" :key="i" class="rv-tag">{{ t }}</text>
                 </view>
                 <view v-if="r.reply" class="rv-reply"><text class="rv-reply__who">商家回复</text>{{ r.reply }}</view>
+                <view v-for="fu in r.followUps ?? []" :key="fu.id" class="rv-reply">
+                    <text class="rv-reply__who">追加评价</text>{{ fu.content }}
+                </view>
             </view>
             <view v-if="reviewLoading" class="rv-more">加载中…</view>
             <view v-else-if="reviewList.length && !reviewHasMore" class="rv-more">没有更多了</view>

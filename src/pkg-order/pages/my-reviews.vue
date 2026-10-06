@@ -12,12 +12,19 @@
         <VImage v-for="(img, i) in r.images" :key="i" :src="img" width="140rpx" height="140rpx" />
       </view>
       <view v-if="r.reply" class="reply"><text class="reply__who">商家回复</text>{{ r.reply }}</view>
+      <view v-for="fu in r.followUps ?? []" :key="fu.id" class="reply">
+        <text class="reply__who">追加评价</text>{{ fu.content }}
+      </view>
       <view class="foot">
         <text class="date">{{ formatDate(r.createdAt) }}</text>
-        <text
-          v-if="r.status !== 'deleted' && !r.parentId"
-          class="del" @tap="del(r)"
-        >删除</text>
+        <view class="acts">
+          <text v-if="canFollowUp(r)" class="followup" @tap="goFollowUp(r)">追评</text>
+          <text v-else-if="r.followUps?.length" class="followed">已追评</text>
+          <text
+            v-if="r.status !== 'deleted' && !r.parentId"
+            class="del" @tap="del(r)"
+          >删除</text>
+        </view>
       </view>
     </view>
   </view>
@@ -50,6 +57,21 @@ function statusLabel(s: string) {
 }
 function formatDate(d: string) {
   return d ? new Date(d).toLocaleDateString('zh-CN') : '';
+}
+
+/** 追评窗口与后端一致（默认审核后 7 天，reviewedAt 缺失回退 createdAt）；权威校验在服务端 */
+const FOLLOW_UP_WINDOW_MS = 7 * 86400000;
+function canFollowUp(r: any) {
+  if (r.parentId || r.status !== 'approved' || r.followUps?.length) return false;
+  const base = r.reviewedAt ?? r.createdAt;
+  if (!base) return false;
+  return Date.now() - new Date(base).getTime() <= FOLLOW_UP_WINDOW_MS;
+}
+function goFollowUp(r: any) {
+  uni.navigateTo(
+    '/pkg-order/pages/review-create?followUp=1&reviewId=' + r.id
+    + '&name=' + encodeURIComponent('我的评价'),
+  );
 }
 
 function del(r: any) {
@@ -93,6 +115,9 @@ function del(r: any) {
   &__who { color: #16a34a; margin-right: 12rpx; }
 }
 .foot { display: flex; justify-content: space-between; align-items: center; }
+.acts { display: flex; align-items: center; gap: 24rpx; }
 .date { font-size: 22rpx; color: #8a919c; }
+.followup { font-size: 24rpx; color: #16a34a; }
+.followed { font-size: 24rpx; color: #8a919c; }
 .del { font-size: 24rpx; color: #dc2626; }
 </style>

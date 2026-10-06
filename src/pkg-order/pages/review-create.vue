@@ -5,14 +5,14 @@
         <VImage :src="thumb" width="120rpx" height="120rpx" />
         <text class="goods__name">{{ name }}</text>
       </view>
-      <view class="stars" @tap="onStarTap">
+      <view v-if="!isFollowUp" class="stars" @tap="onStarTap">
         <text v-for="i in 5" :key="i" class="star" :class="{ off: i > rating }">★</text>
       </view>
-      <text class="stars__label">{{ ratingLabel }}</text>
+      <text v-if="!isFollowUp" class="stars__label">{{ ratingLabel }}</text>
     </view>
 
     <view class="section">
-      <view class="tags">
+      <view v-if="!isFollowUp" class="tags">
         <text
           v-for="t in TAGS" :key="t"
           class="tag" :class="{ on: picked.includes(t) }"
@@ -23,20 +23,20 @@
         v-model="content"
         class="content"
         :maxlength="300"
-        placeholder="这次的用餐体验如何～"
+        :placeholder="isFollowUp ? '补充说说使用/食用后的感受吧～' : '这次的用餐体验如何～'"
         placeholder-class="content-ph"
       />
       <view class="imgs">
         <VImageUpload v-model="images" :maxCount="3" />
       </view>
-      <view class="meta">
+      <view v-if="!isFollowUp" class="meta">
         <text>匿名评价</text>
         <switch :checked="anonymous" color="#16a34a" style="transform: scale(0.7)" @change="(e: any) => (anonymous = e.detail.value)" />
       </view>
     </view>
 
     <button class="submit" :disabled="submitting" @tap="submit">
-      {{ submitting ? '发布中…' : '发布评价' }}
+      {{ submitting ? '发布中…' : isFollowUp ? '发布追评' : '发布评价' }}
     </button>
   </view>
 </template>
@@ -44,7 +44,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { createReview } from '../../api/queries/review';
+import { createReview, createFollowUpReview } from '../../api/queries/review';
 import VImage from '../../components/VImage.vue';
 import VImageUpload from '../../components/ImageUpload.vue';
 
@@ -56,6 +56,9 @@ const orderLineId = ref('');
 const variantId = ref('');
 const name = ref('');
 const thumb = ref('');
+const followUpReviewId = ref('');
+
+const isFollowUp = computed(() => !!followUpReviewId.value);
 
 const rating = ref(5);
 const picked = ref<string[]>([]);
@@ -72,6 +75,10 @@ onLoad((q: any) => {
   variantId.value = q.variantId || '';
   name.value = decodeURIComponent(q.name || '');
   thumb.value = decodeURIComponent(q.thumb || '');
+  // 追评模式：query 带 followUp=1&reviewId= → 隐藏星级/标签/匿名，提交走 createFollowUpReview
+  if (q.followUp === '1' && q.reviewId) {
+    followUpReviewId.value = q.reviewId;
+  }
 });
 
 function onStarTap(e: any) {
@@ -97,17 +104,25 @@ async function submit() {
   }
   submitting.value = true;
   try {
-    await createReview({
-      productId: productId.value,
-      orderLineId: orderLineId.value,
-      variantId: variantId.value || undefined,
-      rating: rating.value,
-      content: content.value.trim(),
-      images: images.value.length ? images.value : undefined,
-      tags: picked.value.length ? picked.value : undefined,
-      isAnonymous: anonymous.value,
-    });
-    uni.showToast({ title: '评价已提交，审核通过后展示', icon: 'none' });
+    if (isFollowUp.value) {
+      await createFollowUpReview(followUpReviewId.value, {
+        content: content.value.trim(),
+        images: images.value.length ? images.value : undefined,
+      });
+      uni.showToast({ title: '追评已提交，审核通过后展示', icon: 'none' });
+    } else {
+      await createReview({
+        productId: productId.value,
+        orderLineId: orderLineId.value,
+        variantId: variantId.value || undefined,
+        rating: rating.value,
+        content: content.value.trim(),
+        images: images.value.length ? images.value : undefined,
+        tags: picked.value.length ? picked.value : undefined,
+        isAnonymous: anonymous.value,
+      });
+      uni.showToast({ title: '评价已提交，审核通过后展示', icon: 'none' });
+    }
     setTimeout(() => uni.navigateBack(), 1200);
   } catch (err: any) {
     uni.showToast({ title: err?.message || '发布失败', icon: 'none' });

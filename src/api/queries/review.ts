@@ -4,7 +4,12 @@ import { getGraphQLClient } from '../client';
 const REVIEW_FIELDS = `
     id customerId customerName productId variantId orderLineId parentId
     rating content images tags isAnonymous status reply repliedAt helpfulCount
-    createdAt
+    createdAt reviewedAt
+`;
+
+/** 追评嵌套字段（主评下挂的 approved 追评，正序） */
+const FOLLOW_UP_FIELDS = `
+    id rating content images isAnonymous createdAt
 `;
 
 /** 商品评价列表：public；ratingMin/ratingMax 为服务端分档筛选（见 vendure review-plugin S6） */
@@ -46,7 +51,7 @@ export async function getMyReviews() {
     const client = getGraphQLClient();
     const query = `
         query GetMyReviews {
-            myReviews { ${REVIEW_FIELDS} }
+            myReviews { ${REVIEW_FIELDS} followUps { ${FOLLOW_UP_FIELDS} } }
         }
     `;
     return client.request(query);
@@ -81,6 +86,22 @@ export async function deleteReview(id: string) {
     );
 }
 
+/** 追加评价：authenticated；挂本人 approved 主评下，窗口（默认审核后 7 天）由服务端校验 */
+export async function createFollowUpReview(reviewId: string, input: {
+    content?: string;
+    rating?: number;
+    images?: string[];
+    isAnonymous?: boolean;
+}) {
+    const client = getGraphQLClient();
+    const query = `
+        mutation CreateFollowUpReview($reviewId: ID!, $input: FollowUpReviewInput!) {
+            createFollowUpReview(reviewId: $reviewId, input: $input) { ${REVIEW_FIELDS} }
+        }
+    `;
+    return client.request(query, { reviewId, input });
+}
+
 /** 店铺级评论流：当前渠道全部 approved 主评（menu 评论 tab）；ratingMin/ratingMax/hasImages 分档筛选 */
 export async function getChannelReviews(options?: {
     take?: number;
@@ -94,7 +115,7 @@ export async function getChannelReviews(options?: {
         query GetChannelReviews($options: ReviewListOptions) {
             channelReviews(options: $options) {
                 totalItems
-                items { ${REVIEW_FIELDS} }
+                items { ${REVIEW_FIELDS} followUps { ${FOLLOW_UP_FIELDS} } }
             }
         }
     `;

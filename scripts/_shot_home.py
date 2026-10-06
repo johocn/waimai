@@ -38,6 +38,18 @@ def main():
         page.get_by_text("骑手加入").first.tap()
         page.wait_for_timeout(1200)
         page.screenshot(path=os.path.join(OUT, "4-quick-rider-join.png"), full_page=True)
+        # ── 暗色主题：注入 localStorage 后刷新（waimai_theme=dark） ──
+        page.goto(BASE + "?t=dark#/pages/home/index", wait_until="networkidle")
+        page.evaluate("localStorage.setItem('waimai_theme','dark')")
+        page.reload(wait_until="networkidle")
+        page.wait_for_timeout(2000)
+        page.screenshot(path=os.path.join(OUT, "5-home-dark.png"))
+        page.screenshot(path=os.path.join(OUT, "6-home-dark-full.png"), full_page=True)
+        # 点 ☀️ 切回亮色，验证 toggle 交互 + 持久化
+        page.locator(".theme-btn").tap()
+        page.wait_for_timeout(600)
+        page.screenshot(path=os.path.join(OUT, "7-dark-toggle-to-light.png"))
+        print("storage after toggle:", page.evaluate("localStorage.getItem('waimai_theme')"))
         browser.close()
         print("saved:", OUT)
 

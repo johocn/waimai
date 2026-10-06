@@ -42,6 +42,48 @@
 | 7 | 搜索关键词 | 区块标题变「搜索"xxx"」，结果过滤 | ✅（filterStores 单测覆盖） |
 | 8 | 店铺休息中 | 点击 toast「店铺休息中」 | ✅（逻辑未动） |
 
+## 双主题（明亮/黑暗，方案 A「橙头」）
+
+同日追加：首页支持明亮/黑暗双主题。用户从两版 mockup 中选定**方案 A「橙头」**——暗色下头部/搜索框**保持品牌橙与白底搜索框不换肤**，仅页面背景、卡片、文字、标签、tabBar 跟随主题。范围首页先行，其余页面后续按同一 token 体系接入。
+
+### 实现机制
+
+- `src/utils/theme.ts`（新增）：模块级单例 `theme = ref<'light'|'dark'>`，初始读 `uni.getStorageSync('waimai_theme')`；`toggleTheme()` 翻转 + 持久化 + H5 下 `document.documentElement.classList.toggle('dark-html')` + `uni.setTabBarStyle` 切 tabBar 样式；`initTheme()` 供页面 onMounted 调用（刷新/直达也能恢复暗色）。
+- `src/pages/home/index.vue`：根节点 `:class="{ dark: theme === 'dark' }"`；头部定位行右侧新增圆形主题按钮（亮色显 🌙 / 暗色显 ☀️）；样式全部改为 `var(--w-*)`，`.page` 定义亮色 token、`.page.dark` 覆盖暗色 token。
+- `src/App.vue`：全局样式追加 `html.dark-html` / `html.dark-html page` 暗色背景，防 overscroll 露白。
+- `src/components/LoadingSkeleton.vue` / `EmptyState.vue`：写死颜色改 `var(--w-xxx, 原值)` fallback 形式，随页面主题自动跟随。
+
+### 暗色 token 对照表
+
+| token | 亮色 | 暗色 | 用途 |
+|---|---|---|---|
+| `--w-bg` | `#f5f5f5` | `#161618` | 页面背景 |
+| `--w-surface` | `#ffffff` | `#242428` | 卡片/胶囊底 |
+| `--w-surface-muted` | `#f0f0f0` | `#1e1e21` | 次级面 |
+| `--w-text` | `#1a1a1a` | `#ececf0` | 主文字 |
+| `--w-text-muted` | `#999999` | `#9a9aa3` | 次文字 |
+| `--w-border` | `#ececec` | `#35353a` | 边框 |
+| `--w-brand-soft` | `#fff3e6` | `rgba(255,102,0,.16)` | 品牌浅底 |
+| `--w-brand-text` | `#ff6600` | `#ff8a3d` | 品牌浅底上的文字 |
+| `--w-skel-from/-to` | `#f0f0f0/#e0e0e0` | `#2a2a2f/#34343a` | 骨架屏渐变 |
+
+tabBar：暗色 `bg #202024 / 文字 #9a9aa3 / 选中 #ff6600`；亮色保持 pages.json 原值。
+
+### 截图（390×844 dpr=2，scripts/_shot_home.py 已扩展暗色步骤）
+
+- `docs/screenshots/home-revamp/5-home-dark.png` 暗色首页默认态
+- `docs/screenshots/home-revamp/6-home-dark-full.png` 暗色整页
+- `docs/screenshots/home-revamp/7-dark-toggle-to-light.png` 暗色点 ☀️ 切回亮色
+
+### 测试用例（双主题追加）
+
+| # | 用例 | 预期 | 结果 |
+|---|---|---|---|
+| 9 | 首页点 🌙 | 切暗色：背景/卡片/文字/tabBar 变暗，头部仍品牌橙，按钮变 ☀️ | ✅ |
+| 10 | 暗色刷新页面 | localStorage 恢复暗色（initTheme 同步 html 类与 tabBar） | ✅ |
+| 11 | 暗色点 ☀️ | 切回亮色，storage 变 light | ✅ |
+| 12 | 骨架屏/空态在暗色下 | 颜色跟随 `--w-*`，无白块残留 | ✅ |
+
 ## 部署
 
 本地构建 `pnpm build:h5` → `node .secrets/deploy-waimai.mjs`（scp 解压到 openresty 站点目录，静态替换即时生效）→ 线上 https://www.yourbao.cn/waimai/ 验证。

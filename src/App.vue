@@ -25,4 +25,7 @@ onLaunch(async () => {
     --brand-soft: #fff3e6;
 }
 page { background: #f5f5f5; }
+/* 暗色主题（utils/theme.ts 切换 html.dark-html）：页面与 overscroll 区域不露白 */
+html.dark-html { background: #161618; }
+html.dark-html page { background: #161618; }
 </style>

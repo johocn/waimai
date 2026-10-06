@@ -37,7 +37,7 @@ defineProps<{
 
 <style lang="scss" scoped>
 .skeleton-animate {
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background: linear-gradient(90deg, var(--w-skel-from, #f0f0f0) 25%, var(--w-skel-to, #e0e0e0) 50%, var(--w-skel-from, #f0f0f0) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
     border-radius: $radius-sm;
@@ -48,7 +48,7 @@ defineProps<{
 }
 .skeleton-product {
     display: flex; flex-wrap: wrap; padding: 16rpx;
-    &__item { width: calc(50% - 16rpx); margin: 8rpx; background: #fff; border-radius: $radius-md; overflow: hidden; }
+    &__item { width: calc(50% - 16rpx); margin: 8rpx; background: var(--w-surface, #fff); border-radius: $radius-md; overflow: hidden; }
     &__img { width: 100%; height: 320rpx; }
     &__info { padding: 16rpx; }
     &__title { height: 36rpx; margin-bottom: 12rpx; }
@@ -56,14 +56,14 @@ defineProps<{
 }
 .skeleton-list {
     padding: 20rpx;
-    &__item { display: flex; gap: 20rpx; padding: 20rpx 0; border-bottom: 1rpx solid #f5f5f5; }
+    &__item { display: flex; gap: 20rpx; padding: 20rpx 0; border-bottom: 1rpx solid var(--w-border, #f5f5f5); }
     &__avatar { width: 100rpx; height: 100rpx; border-radius: $radius-md; flex-shrink: 0; }
     &__content { flex: 1; display: flex; flex-direction: column; gap: 16rpx; }
     &__line { height: 28rpx; }
 }
 .skeleton-card {
     padding: 20rpx;
-    &__block { background: #fff; border-radius: $radius-md; padding: 20rpx; margin-bottom: 20rpx; }
+    &__block { background: var(--w-surface, #fff); border-radius: $radius-md; padding: 20rpx; margin-bottom: 20rpx; }
     &__header { height: 36rpx; width: 50%; margin-bottom: 20rpx; }
     &__body { height: 120rpx; margin-bottom: 16rpx; }
     &__footer { height: 28rpx; width: 30%; }

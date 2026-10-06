@@ -1,9 +1,12 @@
 <template>
-    <view class="page">
+    <view class="page" :class="{ dark: theme === 'dark' }">
         <view class="head">
             <view class="loc-row">
                 <text class="loc">📍 东门校内站</text>
-                <text class="hlink" @tap="goOrders">我的订单</text>
+                <view class="head-right">
+                    <view class="theme-btn" @tap="toggleTheme">{{ theme === 'dark' ? '☀️' : '🌙' }}</view>
+                    <text class="hlink" @tap="goOrders">我的订单</text>
+                </view>
             </view>
             <input class="search" v-model="keyword" placeholder="搜索店铺：麻辣香锅 / 奶茶" confirm-type="search" />
         </view>
@@ -69,6 +72,7 @@ import { onPullDownRefresh } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { filterStores } from '../../utils/store-filter';
 import { storeDisplayName } from '../../utils/store-display';
+import { theme, initTheme, toggleTheme } from '../../utils/theme';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 import EmptyState from '../../components/EmptyState.vue';
 
@@ -125,44 +129,77 @@ function enterStore(s: any) {
     uni.navigateTo({ url: `/pages/shop/menu?token=${s.channelToken}&name=${encodeURIComponent(s.name)}&routes=${encodeURIComponent(routes)}` });
 }
 
-onMounted(load);
+onMounted(() => {
+    initTheme();
+    load();
+});
 onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh(); });
 </script>
 
 <style scoped lang="scss">
-.page { padding-bottom: 24rpx; }
+/* ── 双主题 token（亮色默认，.dark 覆盖；头部保持品牌橙不换肤=方案A「橙头」） ── */
+.page {
+    --w-bg: #f5f5f5;
+    --w-surface: #ffffff;
+    --w-surface-muted: #f0f0f0;
+    --w-text: #1a1a1a;
+    --w-text-muted: #999999;
+    --w-border: #ececec;
+    --w-brand-soft: #fff3e6;
+    --w-brand-text: #ff6600;
+    --w-skel-from: #f0f0f0;
+    --w-skel-to: #e0e0e0;
+
+    background: var(--w-bg);
+    min-height: 100vh;
+    padding-bottom: 24rpx;
+}
+.page.dark {
+    --w-bg: #161618;
+    --w-surface: #242428;
+    --w-surface-muted: #1e1e21;
+    --w-text: #ececf0;
+    --w-text-muted: #9a9aa3;
+    --w-border: #35353a;
+    --w-brand-soft: rgba(255, 102, 0, 0.16);
+    --w-brand-text: #ff8a3d;
+    --w-skel-from: #2a2a2f;
+    --w-skel-to: #34343a;
+}
 .head { padding: 24rpx 24rpx 28rpx; background: $brand; }
 .loc-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
 .loc { color: #fff; font-size: 28rpx; font-weight: 600; }
-.hlink { color: #fff; font-size: 24rpx; opacity: .92; padding: 4rpx 0 4rpx 24rpx; }
+.head-right { display: flex; align-items: center; gap: 8rpx; }
+.theme-btn { width: 56rpx; height: 56rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.22); display: flex; align-items: center; justify-content: center; font-size: 28rpx; }
+.hlink { color: #fff; font-size: 24rpx; opacity: .92; padding: 4rpx 0 4rpx 8rpx; }
 .search { background: #fff; border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; }
 .body { padding: 0 24rpx; }
-.quick { margin-top: 20rpx; background: $surface; border-radius: $radius-card; padding: 24rpx 0; display: flex; }
+.quick { margin-top: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx 0; display: flex; }
 .qk { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
-.qico { width: 76rpx; height: 76rpx; border-radius: 999rpx; background: $brand-soft; display: flex; align-items: center; justify-content: center; font-size: 38rpx; }
-.qtxt { font-size: 22rpx; color: $text; }
+.qico { width: 76rpx; height: 76rpx; border-radius: 999rpx; background: var(--w-brand-soft); display: flex; align-items: center; justify-content: center; font-size: 38rpx; }
+.qtxt { font-size: 22rpx; color: var(--w-text); }
 .pills { white-space: nowrap; padding: 20rpx 0 4rpx; }
-.pill { display: inline-flex; align-items: center; gap: 6rpx; padding: 10rpx 24rpx; margin-right: 16rpx; border-radius: 999rpx; font-size: 24rpx; color: $text-muted; background: $surface; border: 1rpx solid #ececec; }
+.pill { display: inline-flex; align-items: center; gap: 6rpx; padding: 10rpx 24rpx; margin-right: 16rpx; border-radius: 999rpx; font-size: 24rpx; color: var(--w-text-muted); background: var(--w-surface); border: 1rpx solid var(--w-border); }
 .pill.on { background: $brand; border-color: $brand; color: #fff; }
 .pico { font-size: 24rpx; }
-.notice { margin-top: 20rpx; display: flex; align-items: center; background: $brand-soft; color: $brand; border-radius: 999rpx; padding: 14rpx 24rpx; font-size: 24rpx; }
+.notice { margin-top: 20rpx; display: flex; align-items: center; background: var(--w-brand-soft); color: var(--w-brand-text); border-radius: 999rpx; padding: 14rpx 24rpx; font-size: 24rpx; }
 .ntext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nmore { margin-left: 8rpx; flex-shrink: 0; }
 .sec { display: flex; justify-content: space-between; align-items: baseline; padding: 28rpx 4rpx 8rpx; }
-.sec-t { font-size: 32rpx; font-weight: 600; color: $text; }
-.sec-n { font-size: 22rpx; color: $text-muted; }
+.sec-t { font-size: 32rpx; font-weight: 600; color: var(--w-text); }
+.sec-n { font-size: 22rpx; color: var(--w-text-muted); }
 .cards { display: flex; flex-direction: column; gap: 16rpx; padding-bottom: 8rpx; }
-.card { display: flex; align-items: center; gap: 20rpx; background: $surface; border-radius: $radius-card; padding: 24rpx; }
+.card { display: flex; align-items: center; gap: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx; }
 .logo { width: 120rpx; height: 120rpx; border-radius: $radius; flex-shrink: 0; }
-.logo-text { background: $brand-soft; color: $brand; font-size: 48rpx; text-align: center; line-height: 120rpx; }
+.logo-text { background: var(--w-brand-soft); color: var(--w-brand-text); font-size: 48rpx; text-align: center; line-height: 120rpx; }
 .info { flex: 1; min-width: 0; }
 .name-row { display: flex; align-items: center; gap: 12rpx; }
-.name { font-size: 30rpx; font-weight: 600; color: $text; }
-.paused { font-size: 20rpx; color: #999; border: 1rpx solid #ddd; border-radius: 6rpx; padding: 0 8rpx; }
-.meta { display: block; font-size: 24rpx; color: $text-muted; margin-top: 6rpx; }
+.name { font-size: 30rpx; font-weight: 600; color: var(--w-text); }
+.paused { font-size: 20rpx; color: var(--w-text-muted); border: 1rpx solid var(--w-border); border-radius: 6rpx; padding: 0 8rpx; }
+.meta { display: block; font-size: 24rpx; color: var(--w-text-muted); margin-top: 6rpx; }
 .tags { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 12rpx; }
 .tag { font-size: 20rpx; padding: 2rpx 12rpx; border-radius: 8rpx; }
-.tag-route { color: $text-muted; background: $bg; }
-.tag-promo { color: $brand; background: $brand-soft; }
-.chev { color: #bbb; font-size: 32rpx; margin-left: 8rpx; flex-shrink: 0; }
+.tag-route { color: var(--w-text-muted); background: var(--w-bg); }
+.tag-promo { color: var(--w-brand-text); background: var(--w-brand-soft); }
+.chev { color: var(--w-text-muted); font-size: 32rpx; margin-left: 8rpx; flex-shrink: 0; }
 </style>

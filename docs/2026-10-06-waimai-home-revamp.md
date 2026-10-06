@@ -74,6 +74,7 @@ tabBar：暗色 `bg #202024 / 文字 #9a9aa3 / 选中 #ff6600`；亮色保持 pa
 - `docs/screenshots/home-revamp/5-home-dark.png` 暗色首页默认态
 - `docs/screenshots/home-revamp/6-home-dark-full.png` 暗色整页
 - `docs/screenshots/home-revamp/7-dark-toggle-to-light.png` 暗色点 ☀️ 切回亮色
+- `docs/screenshots/home-revamp/8-live-light.png` / `9-live-dark.png` 线上明暗两态核对（yourbao.cn/waimai）
 
 ### 测试用例（双主题追加）
 

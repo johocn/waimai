@@ -13,18 +13,19 @@
 
 ## 阶段一：跑通营业闭环（P0）
 
-### 1.1 商家接单/出餐端（pkg-merchant 分包）
-- 身份：微信号登录后，后端按 Customer 绑定渠道（customFields）识别商家店铺；未绑定则引导绑定流程（输店铺绑定码 → 写 Customer customFields.merchantChannelToken）
-- 页面：
-  - merchant-home：今日待处理（新单红点）/配送中/已完成、营业中开关
-  - merchant-orders：新单列表+接单确认、已接单列表+「开始出餐/出餐完成」（驱动 leg1Status）
-  - merchant-order-detail：单品明细、配送目标（宿舍楼/时段）、打印小票按钮（蓝牙对接后续轮）
-- 后端（campus-delivery-plugin 新增）：
-  - merchantOrders(channelToken)：本店新单/进行中（shop-api）
-  - merchantAcceptOrder / merchantCookingDone：写 hallStatus（进入抢单大厅）与 leg1Status='ready'
-  - 商家身份 guard：customer.customFields.merchantChannelToken 与订单渠道一致性校验
-  - 新单通知：来单→公众号模板消息推商家 openid（复用 wechat-auth-plugin sendTemplate；商家绑定码流程中存 openid）
-- 前端：pages.json 注册 pkg-merchant 三页；apis/merchant.ts；渠道隔离同骑手端模式
+### 1.1 商家接单/出餐端（复用 web-admin，2026-10-07 变更）
+> 原方案（waimai 内 pkg-merchant 分包）废弃；商家端改为 web-admin 页面，商家 = administrator 账号 +「商家」角色（权限点 CampusMerchant，角色绑定本店渠道）。
+- 页面：web-admin `pages/campus/merchant.vue`（商家接单工作台）
+  - 顶部：今日完成单数/金额、营业中开关（写 config.paused）
+  - 四栏 tab：待接单 / 备餐中 / 待取货 / 配送中；订单卡含单品明细、楼栋/分区、时段、路线
+  - 操作：接单（pending→accepted）、出餐完成（accepted→open 入大厅）
+  - 10s 轮询 + 新单提示音（Web Audio）；未开启确认模式时展示提示条
+- 后端（campus-delivery-plugin）：
+  - 权限 `CampusMerchant`；admin API：campusMerchantBoard / campusMerchantAcceptOrder / campusMerchantCookingDone / campusMerchantSetPaused（渠道隔离 = ctx.channelId）
+  - 状态机：hallStatus 扩展 pending_merchant → accepted → open；`CampusFulfillmentConfig.merchantConfirmEnabled`（默认 false，向后兼容）+ `merchantAutoOpenMinutes`（默认 15，商家超时未处理调度 job 自动入厅 campusCause='merchant_timeout'）
+  - 商家确认模式下支付后仍先锁预约时段容量（防超卖）
+  - 权限目录：cjk-plugin PERMISSION_CATALOG 增加 campus 组，商家角色可在 web-admin 角色管理页配置
+  - 新单通知：第一轮 = 页面轮询 + 提示音；公众号模板消息待商家模板申请后接入
 
 ### 1.2 调度操作台（web-admin 页面，零后端改动）
 - 位置：工作台→配送管理→调度中心（menus.ts 注册，超管可见）

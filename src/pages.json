@@ -24,7 +24,9 @@
                 { "path": "pages/rider-join", "style": { "navigationBarTitleText": "传信者入驻" } },
                 { "path": "pages/rider-home", "style": { "navigationBarTitleText": "接单大厅" } },
                 { "path": "pages/rider-delivering", "style": { "navigationBarTitleText": "配送中" } },
-                { "path": "pages/rider-earning", "style": { "navigationBarTitleText": "我的收入" } }
+                { "path": "pages/rider-earning", "style": { "navigationBarTitleText": "我的收入" } },
+                { "path": "pages/rider-wallet", "style": { "navigationBarTitleText": "骑手钱包" } },
+                { "path": "pages/rider-withdraw", "style": { "navigationBarTitleText": "申请提现" } }
             ]
         },
         {

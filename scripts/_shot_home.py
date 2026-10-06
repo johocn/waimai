@@ -35,7 +35,7 @@ def main():
         page.get_by_text("知道了").tap()
         page.wait_for_timeout(400)
         # 快捷入口跳转：骑手加入
-        page.get_by_text("骑手加入").first.tap()
+        page.get_by_text("传信者加入").first.tap()
         page.wait_for_timeout(1200)
         page.screenshot(path=os.path.join(OUT, "4-quick-rider-join.png"), full_page=True)
         # ── 暗色主题：注入 localStorage 后刷新（waimai_theme=dark） ──

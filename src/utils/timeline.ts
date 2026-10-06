@@ -31,7 +31,7 @@ export function buildTimeline(route: string | null, hallStatus: string | null, d
     }
     return [
         { key: 'merchant_accept', label: '商家接单', done: true },
-        { key: 'pickup', label: '骑手取餐', done: p >= 2 },
+        { key: 'pickup', label: '传信者取餐', done: p >= 2 },
         { key: 'delivering', label: '配送中', done: p >= 3 },
         { key: 'delivered', label: '已送达', done: p >= 3 },
     ];

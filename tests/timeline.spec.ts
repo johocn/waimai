@@ -37,7 +37,7 @@ describe('buildTimeline', () => {
     it('未知路线（R5 跑腿）回退单段四节点', () => {
         const tl = buildTimeline('R5', 'grabbed', 'assigned');
         expect(tl).toHaveLength(4);
-        expect(tl[1].label).toBe('骑手取餐');
+        expect(tl[1].label).toBe('传信者取餐');
     });
     it('空入参兜底（下单未支付）', () => {
         const tl = buildTimeline(null, null, null);

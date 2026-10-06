@@ -11,12 +11,12 @@ export function plainDescription(html: string | null | undefined): string {
 
 /**
  * 配送路线语义（campus-delivery-plugin）：
- * R1=商家自送至校门口+校内骑手接力；R2=快递到校代取；R3=档口直送·骑手上楼；R4=到店自取；R5=跑腿代取。
+ * R1=商家自送至校门口+传信者接力；R2=快递到校·接力代取；R3=档口直送·传信者上楼；R4=到店自取；R5=跑腿代取。
  */
 const ROUTE_LABELS: Record<string, string> = {
-    R1: '商家自送 + 校内骑手接力',
-    R2: '快递到校代取',
-    R3: '档口直送 · 校内骑手上楼',
+    R1: '商家自送 · 传信者接力',
+    R2: '快递到校 · 接力代取',
+    R3: '档口直送 · 传信者上楼',
     R4: '到店自取',
     R5: '跑腿代取',
 };
@@ -38,4 +38,12 @@ export function routeText(routes: string[] | null | undefined): string {
 /** 店铺页/商家页全量路线文案列表（按优先级排序） */
 export function routeDetail(routes: string[] | null | undefined): string[] {
     return knownRoutes(routes).map(r => ROUTE_LABELS[r]);
+}
+
+/** 店铺卡配送 tag：deliveryMinutes 有值时前缀「N分钟 ·」；无可用路线返回 null（调用方回退 routeText） */
+export function deliveryTag(store: { deliveryMinutes?: number | null; routesEnabled: string[] | null | undefined }): string | null {
+    const base = routeText(store.routesEnabled);
+    if (base === '暂未开通配送') return null;
+    const m = store.deliveryMinutes;
+    return m && m > 0 ? `${m}分钟 · ${base}` : base;
 }

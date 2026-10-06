@@ -57,7 +57,7 @@
         <scroll-view scroll-y class="panel solo" v-show="tab === 'merchant'">
             <view class="mcard">
                 <view class="mrow"><text class="mico">🏪</text><text class="mval">{{ shopName }}</text></view>
-                <view class="mrow"><text class="mico">🛵</text><text class="mlab">配送服务：</text><text class="mval">{{ routesText }}</text></view>
+                <view class="mrow"><text class="mico">🛵</text><text class="mlab">配送服务：</text><text class="mval">{{ routeDetailText }}</text></view>
                 <view class="mrow"><text class="mico">🕐</text><text class="mlab">营业时间：</text><text class="mval">10:00–22:00</text></view>
                 <view class="mrow"><text class="mico">📍</text><text class="mlab">配送范围：</text><text class="mval">校内宿舍楼与教学楼</text></view>
             </view>
@@ -97,7 +97,7 @@ import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { fetchProductList } from '../../api/queries/waimai';
-import { plainDescription, routeText } from '../../utils/store-display';
+import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
 import { theme, initTheme } from '../../utils/theme';
 import { addItemToOrder } from '../../api/mutations/cart';
 import { getActiveOrder } from '../../api/queries/order';
@@ -122,6 +122,9 @@ const skuProduct = ref<any>(null);
 
 const cartCount = computed(() => cart.totalQuantity);
 const cartTotal = computed(() => cart.totalPrice);
+const routeDetailText = computed(() =>
+    routeDetail(shopRoutes.value.split(',').filter(Boolean)).join('、') || '暂未开通配送'
+);
 
 onLoad(async (q: any) => {
     initTheme();

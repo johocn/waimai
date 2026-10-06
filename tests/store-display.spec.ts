@@ -30,6 +30,38 @@ describe('routeText（配送路线主文案）', () => {
     it('未知路线编号：不虚构文案', () => {
         expect(routeText(['R9'])).toBe('暂未开通配送');
     });
+
+    it('null 输入：等同未配置', () => {
+        expect(routeText(null)).toBe('暂未开通配送');
+    });
+
+    it('数组含空字符串：忽略，不影响识别（模拟 split(',') 尾逗号）', () => {
+        expect(routeText(['R1', ''])).toBe('商家自送 + 校内骑手接力');
+    });
+
+    it('重复编号：按去重计数，不虚报种数', () => {
+        expect(routeText(['R1', 'R1', 'R3', 'R3'])).toBe('商家自送 + 校内骑手接力 等2种方式');
+    });
+
+    it('小写编号不识别（后端约定大写，不做宽容匹配）', () => {
+        expect(routeText(['r1', 'r3'])).toBe('暂未开通配送');
+    });
+
+    it('五条路线全配置：等5种方式', () => {
+        expect(routeText(['R1', 'R2', 'R3', 'R4', 'R5'])).toBe('商家自送 + 校内骑手接力 等5种方式');
+    });
+
+    it('R3+R4：主路线取优先级更高的 R3', () => {
+        expect(routeText(['R3', 'R4'])).toBe('档口直送 · 校内骑手上楼 等2种方式');
+    });
+
+    it('R4+R2：主路线取优先级更高的 R2（快递代取 > 到店自取）', () => {
+        expect(routeText(['R4', 'R2'])).toBe('快递到校代取 等2种方式');
+    });
+
+    it('R5+R4：主路线取优先级更高的 R4（到店自取 > 跑腿代取）', () => {
+        expect(routeText(['R5', 'R4'])).toBe('到店自取 等2种方式');
+    });
 });
 
 describe('routeDetail（商家页全量路线文案）', () => {
@@ -47,5 +79,29 @@ describe('routeDetail（商家页全量路线文案）', () => {
 
     it('空输入返回空数组', () => {
         expect(routeDetail([])).toEqual([]);
+    });
+
+    it('仅未知编号返回空数组', () => {
+        expect(routeDetail(['R9', 'R10'])).toEqual([]);
+    });
+
+    it('五条路线全配置：按优先级输出全部 5 项', () => {
+        expect(routeDetail(['R5', 'R4', 'R3', 'R2', 'R1'])).toEqual([
+            '商家自送 + 校内骑手接力',
+            '档口直送 · 校内骑手上楼',
+            '快递到校代取',
+            '到店自取',
+            '跑腿代取',
+        ]);
+    });
+
+    it('与 routeText 主路线一致（routeDetail 首项 = routeText 主文案，单条时）', () => {
+        const routes = ['R5', 'R2'];
+        expect(routeDetail(routes)[0]).toBe('快递到校代取');
+        expect(routeText(routes)).toBe('快递到校代取 等2种方式');
+    });
+
+    it('重复编号输出去重后的文案', () => {
+        expect(routeDetail(['R3', 'R3'])).toEqual(['档口直送 · 校内骑手上楼']);
     });
 });

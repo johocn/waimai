@@ -49,6 +49,7 @@
           <text class="route-row__text">{{ routeText }}</text>
           <text v-if="canSwitchRoute" class="route-row__switch" @click="toggleRoute">切换</text>
         </view>
+        <text v-if="routeChoice === 'R2'" class="route-fee-hint">快递运费按商家快递标准收取；校内接力段 ¥0，接力费用在「发接力单」时单独支付</text>
       </template>
     </view>
 
@@ -231,12 +232,16 @@ import { setOrderShippingAddress, setOrderShippingMethod, transitionOrderToState
 import { setDeliveryTarget, fetchZones, fetchBuildings, fetchSlots } from '../../api/mutations/campus';
 import { createCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from '../../api/mutations/address';
 import { handlePayment, type PaymentMethod } from '../../composables/usePayment';
+import { useTenantStore } from '../../stores/tenant';
+import { fetchStoreList } from '../../api/queries/waimai';
+import { filterCampusRoutes } from '../../utils/errand';
 
 type ShippingCategory = 'shipping' | 'store-pickup';
 type TabKey = 'campus' | ShippingCategory;
 
 const cart = useCartStore();
 const ui = useUIStore();
+const tenantStore = useTenantStore();
 const shippingMethods = ref<any[]>([]);
 const paymentMethods = ref<any[]>([]);
 const selectedShipping = ref('');
@@ -265,8 +270,8 @@ const showPickupSheet = ref(false);
 const pickupLoading = ref(false);
 
 // ===== 校园配送（Task 6）：分区 → 宿舍楼 → 送达时段 + 路线判定 =====
-const campusRoutes = ref<string[]>([]);            // URL 透传的店铺 routesEnabled（R1/R3）
-const routeChoice = ref<'R3' | 'R1'>('R3');
+const campusRoutes = ref<string[]>([]);            // 店铺 routesEnabled（URL 透传兜底，onLoad 后动态刷新）
+const routeChoice = ref<'R3' | 'R1' | 'R2'>('R3');
 const zones = ref<any[]>([]);
 const buildings = ref<any[]>([]);
 const slots = ref<any[]>([]);
@@ -277,16 +282,37 @@ const zonesLoading = ref(false);
 const minOrderFen = ref<number | null>(null);   // 起送价（分，URL 透传；null=未配置）
 const deliveryFeeFen = ref<number | null>(null); // 配送费（分，仅展示）
 
-const canSwitchRoute = computed(() => campusRoutes.value.includes('R1') && campusRoutes.value.includes('R3'));
+// checkout 可选路线（R1/R2/R3 保序）；R2 二期加入轮换
+const campusRouteOptions = computed(() => filterCampusRoutes(campusRoutes.value));
+const canSwitchRoute = computed(() => campusRouteOptions.value.length > 1);
 const routeText = computed(() => {
     if (!campusRoutes.value.length) return '配送路线以商家实际安排为准';
     if (routeChoice.value === 'R1') return '商家送至校门口，拾光传信者接力送到手（R1）';
+    if (routeChoice.value === 'R2') return '快递到校，拾光传信者接力送到手（R2）';
     return '档口现做，拾光传信者送至楼层（R3）';
 });
 // DeliverySlot 无 remaining 字段，余量 = capacity - lockedCount（schema 校准）
 const slotsWithRemain = computed(() => slots.value.filter(s => s.capacity - s.lockedCount > 0));
 
-function toggleRoute() { routeChoice.value = routeChoice.value === 'R3' ? 'R1' : 'R3'; }
+function toggleRoute() {
+    const opts = campusRouteOptions.value;
+    if (opts.length < 2) return;
+    const i = opts.indexOf(routeChoice.value);
+    routeChoice.value = opts[(i + 1) % opts.length] as 'R3' | 'R1' | 'R2';
+}
+
+// 二期 §5.1：路线组按店铺 routesEnabled 动态刷新（URL 透传作兜底）
+async function loadStoreRoutes() {
+    try {
+        const stores = await fetchStoreList();
+        const store = stores.find((s: any) => s.channelToken === tenantStore.token);
+        const routes = filterCampusRoutes(store?.routesEnabled);
+        if (routes.length) {
+            campusRoutes.value = routes;
+            if (!routes.includes(routeChoice.value)) routeChoice.value = routes[0] as 'R3' | 'R1' | 'R2';
+        }
+    } catch (e) { /* 拉取失败保留 URL 兜底 */ }
+}
 
 async function chooseZone(z: any) {
     zoneId.value = z.id;
@@ -691,7 +717,7 @@ async function submitOrder() {
         // code 为空 = 支付未完成（addPaymentToOrder 报错/handlePayment 失败），不得伪装成功
         if (!code) { ui.showToast('支付未完成，请重试或更换支付方式'); return; }
         uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(code)}&status=success` });
-    } catch (e: any) { ui.showToast(e.message); }
+    } catch (e: any) { ui.showToast(e?.response?.errors?.[0]?.message || e.message); }
     ui.hideLoading();
     submitting.value = false;
 }
@@ -703,11 +729,12 @@ onLoad((q: any) => {
     if (!routes.includes('R3') && routes.includes('R1')) routeChoice.value = 'R1';
     minOrderFen.value = q?.minOrder ? Number(q.minOrder) : null;
     deliveryFeeFen.value = q?.dfee ? Number(q.dfee) : null;
+    loadStoreRoutes();
 });
 </script>
 
 <style lang="scss" scoped>
-.checkout-page { padding: 20rpx 20rpx 180rpx; }
+.checkout-page { padding: 20rpx 20rpx 180rpx; .route-fee-hint { display: block; font-size: 22rpx; color: $text-color-secondary; margin-top: 8rpx; } }
 .section { background: #fff; border-radius: $radius-md; padding: 24rpx; margin-bottom: 20rpx; &__title { font-size: 28rpx; font-weight: bold; display: block; margin-bottom: 20rpx; } }
 .seg-control { display: flex; gap: 16rpx; &__item { flex: 1; text-align: center; padding: 18rpx 0; font-size: 26rpx; border-radius: $radius-md; background: $bg-color; color: $text-color-secondary; border: 1rpx solid transparent; &.active { background: $brand-color-light; color: $brand-color; border-color: $brand-color; font-weight: 600; } } }
 .input { width: 100%; height: 80rpx; background: $bg-color; border-radius: $radius-sm; padding: 0 20rpx; font-size: 26rpx; margin-bottom: 16rpx; box-sizing: border-box; }

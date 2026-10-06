@@ -1,7 +1,7 @@
 {
     "name": "waimai",
     "appid": "__UNI__WAIMAI",
-    "description": "校园外卖学生端",
+    "description": "拾光达学生端",
     "versionName": "1.0.0",
     "versionCode": "100",
     "transformPx": false,
@@ -51,7 +51,7 @@
         "lazyCodeLoading": "requiredComponents"
     },
     "h5": {
-        "title": "校园外卖",
+        "title": "拾光达",
         "router": {
             "mode": "hash",
             "base": "/waimai/"

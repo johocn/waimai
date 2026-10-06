@@ -67,8 +67,8 @@
             <view class="mcard">
                 <view class="msrv">
                     <text>商家服务</text>
-                    <text class="tag">校内配送</text>
-                    <text class="tag">校内骑手接力送达</text>
+                    <text class="tag">拾光达配送</text>
+                    <text class="tag">拾光传信者接力送达</text>
                 </view>
             </view>
         </scroll-view>
@@ -111,7 +111,7 @@ const cart = useCartStore();
 const shopToken = ref('');
 const shopRoutes = ref('');
 const shopName = ref('校内店铺');
-const routesText = ref('校内骑手配送');
+const routesText = ref('拾光传信者配送');
 const promoText = ref('');
 const tab = ref<'goods' | 'reviews' | 'merchant'>('goods');
 const cats = ref([{ id: 'all', name: '全部' }]);

@@ -9,7 +9,7 @@
         <text>我的订单</text><text class="menu-arrow">></text>
       </view>
       <view class="menu-item" @click="goRiderCenter">
-        <text>成为骑手</text><text class="menu-arrow">></text>
+        <text>成为传信者</text><text class="menu-arrow">></text>
       </view>
     </view>
     <button class="profile-page__logout" @click="doLogout">退出登录</button>

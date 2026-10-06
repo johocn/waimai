@@ -2,7 +2,7 @@
     <view class="join">
         <view class="status-card" v-if="profile && profile.riderStatus === 'approved'">
             <text class="status-title">已通过审核</text>
-            <text class="status-desc">您已是认证骑手，可以开始接单啦</text>
+            <text class="status-desc">您已是认证传信者，可以开始接单啦</text>
             <button class="submit" @tap="goHall">进入接单大厅</button>
         </view>
         <view class="status-card" v-else-if="profile && profile.riderStatus === 'pending'">
@@ -19,7 +19,7 @@
                 <view v-else class="id-upload" @tap="chooseImg">＋ 上传</view>
             </view>
             <button class="submit" :disabled="submitting" @tap="submit">{{ submitting ? '提交中…' : '提交申请' }}</button>
-            <text class="tips">审核通过后即可在「我的-骑手中心」接单赚跑腿费</text>
+            <text class="tips">审核通过后即可在「我的-传信者中心」接单赚跑腿费</text>
         </view>
     </view>
 </template>

@@ -18,7 +18,7 @@
                 </view>
                 <view class="qk" @tap="goRider">
                     <view class="qico">🛵</view>
-                    <text class="qtxt">骑手加入</text>
+                    <text class="qtxt">传信者加入</text>
                 </view>
                 <view class="qk" @tap="showNotice">
                     <view class="qico">📣</view>
@@ -78,7 +78,7 @@ import EmptyState from '../../components/EmptyState.vue';
 
 const TAGS = ['全部', '米饭快餐', '奶茶甜品', '面食', '夜宵'];
 const TAG_ICONS: Record<string, string> = { 全部: '🍽️', 米饭快餐: '🍚', 奶茶甜品: '🧋', 面食: '🍜', 夜宵: '🌙' };
-const NOTICE_TEXT = '本平台为校内配送：范围覆盖校内宿舍楼与教学楼，营业时间 10:00–22:00，由商家与校内骑手接力送达。';
+const NOTICE_TEXT = '本平台为拾光达校内配送：范围覆盖校内宿舍楼与教学楼，营业时间 10:00–22:00，由商家与拾光传信者接力送达。';
 const keyword = ref('');
 const activeTag = ref('全部');
 const loading = ref(true);

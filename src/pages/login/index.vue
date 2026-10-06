@@ -2,7 +2,7 @@
   <view class="login-page">
     <view class="login-page__logo">
       <text class="login-logo-icon">🍜</text>
-      <text class="login-logo-text">校园外卖</text>
+      <text class="login-logo-text">拾光达</text>
     </view>
     <view class="login-page__form" v-if="mode === 'phone'">
       <input class="login-page__input" v-model="phone" type="number" placeholder="手机号" />

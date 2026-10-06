@@ -31,7 +31,7 @@
         <view class="rider__avatar"><text>骑</text></view>
         <view class="rider__info">
           <text class="rider__name">{{ rider.realName }}</text>
-          <text class="rider__sub">信用分 {{ rider.credit ?? '—' }}<text v-if="campusRoute === 'R1'"> · 接力骑手 · 第二程</text></text>
+          <text class="rider__sub">信用分 {{ rider.credit ?? '—' }}<text v-if="campusRoute === 'R1'"> · 接力传信者 · 第二程</text></text>
         </view>
       </view>
       <text v-else class="rider__hint">{{ riderHint }}</text>
@@ -124,9 +124,9 @@ const dispatching = computed(() => {
 });
 const riderHint = computed(() => {
     const cf = order.value?.customFields;
-    if (isNoRiderFinal(cf?.hallStatus ?? null)) return '暂无骑手接单，平台人工介入处理中';
+    if (isNoRiderFinal(cf?.hallStatus ?? null)) return '暂无传信者接单，平台人工介入处理中';
     if (dispatching.value) return '平台调度中，正在为您加急派单';
-    return '等待骑手接单…';
+    return '等待传信者接单…';
 });
 onMounted(async () => {
     const pages = getCurrentPages(); const page = pages[pages.length - 1] as any;

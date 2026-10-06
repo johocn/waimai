@@ -276,8 +276,8 @@ const zonesLoading = ref(false);
 const canSwitchRoute = computed(() => campusRoutes.value.includes('R1') && campusRoutes.value.includes('R3'));
 const routeText = computed(() => {
     if (!campusRoutes.value.length) return '配送路线以商家实际安排为准';
-    if (routeChoice.value === 'R1') return '商家送至校门口，校内骑手接力送达（R1）';
-    return '档口直送，校内骑手上楼（R3）';
+    if (routeChoice.value === 'R1') return '商家送至校门口，拾光传信者接力送达（R1）';
+    return '档口直送，拾光传信者上楼（R3）';
 });
 // DeliverySlot 无 remaining 字段，余量 = capacity - lockedCount（schema 校准）
 const slotsWithRemain = computed(() => slots.value.filter(s => s.capacity - s.lockedCount > 0));
@@ -324,7 +324,7 @@ const shippingFee = computed(() => cart.formatPrice(cart.order?.shippingWithTax 
 
 // Tab = 校园配送（恒显置首）+ eligible 启用的自提/邮寄
 const shippingTabs = computed(() => {
-    const tabs: { key: TabKey; label: string; method?: any }[] = [{ key: 'campus', label: '校园配送' }];
+    const tabs: { key: TabKey; label: string; method?: any }[] = [{ key: 'campus', label: '拾光达配送' }];
     for (const sm of shippingMethods.value) {
         const cat = categorizeShipping(sm);
         if (!tabs.find(t => t.key === cat)) {

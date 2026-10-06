@@ -1,32 +1,64 @@
 <template>
     <view class="page">
         <view class="head">
-            <text class="loc">📍 东门校内站</text>
+            <view class="loc-row">
+                <text class="loc">📍 东门校内站</text>
+                <text class="hlink" @tap="goOrders">我的订单</text>
+            </view>
             <input class="search" v-model="keyword" placeholder="搜索店铺：麻辣香锅 / 奶茶" confirm-type="search" />
         </view>
-        <scroll-view scroll-x class="pills" v-if="!keyword">
-            <view
-                v-for="t in tagList" :key="t"
-                class="pill" :class="{ on: t === activeTag }"
-                @tap="activeTag = t"
-            >{{ t }}</view>
-        </scroll-view>
-        <LoadingSkeleton v-if="loading" />
-        <EmptyState v-else-if="!shown.length" text="没有找到相关店铺" />
-        <view v-else class="cards">
-            <view v-for="s in shown" :key="s.channelId" class="card" @tap="enterStore(s)">
-                <image v-if="s.logo" class="logo" :src="s.logo" mode="aspectFill" />
-                <view v-else class="logo logo-text">{{ s.name.slice(0, 1) }}</view>
-                <view class="info">
-                    <view class="name-row">
-                        <text class="name">{{ s.name }}</text>
-                        <text v-if="s.paused" class="paused">休息中</text>
-                    </view>
-                    <text class="meta">月售 {{ s.monthlySales }}</text>
-                    <text class="meta">{{ routeText(s.routesEnabled) }}</text>
-                    <text v-if="s.promoText" class="promo">{{ s.promoText }}</text>
+        <view class="body">
+            <view class="quick">
+                <view class="qk" @tap="goOrders">
+                    <view class="qico">🧾</view>
+                    <text class="qtxt">我的订单</text>
+                </view>
+                <view class="qk" @tap="goRider">
+                    <view class="qico">🛵</view>
+                    <text class="qtxt">骑手加入</text>
+                </view>
+                <view class="qk" @tap="showNotice">
+                    <view class="qico">📣</view>
+                    <text class="qtxt">校园公告</text>
                 </view>
             </view>
+            <scroll-view scroll-x class="pills" v-if="!keyword">
+                <view
+                    v-for="t in tagList" :key="t"
+                    class="pill" :class="{ on: t === activeTag }"
+                    @tap="activeTag = t"
+                ><text class="pico">{{ tagIcon(t) }}</text>{{ t }}</view>
+            </scroll-view>
+            <view v-if="promoStore" class="notice" @tap="enterStore(promoStore)">
+                <text class="ntext">🔥 {{ promoStore.name }} · {{ promoStore.promoText }}</text>
+                <text class="nmore">›</text>
+            </view>
+            <LoadingSkeleton v-if="loading" />
+            <template v-else>
+                <view class="sec" v-if="shown.length">
+                    <text class="sec-t">{{ secTitle }}</text>
+                    <text class="sec-n">附近 {{ shown.length }} 家</text>
+                </view>
+                <EmptyState v-if="!shown.length" text="没有找到相关店铺" />
+                <view v-else class="cards">
+                    <view v-for="s in shown" :key="s.channelId" class="card" @tap="enterStore(s)">
+                        <image v-if="s.logo" class="logo" :src="s.logo" mode="aspectFill" />
+                        <view v-else class="logo logo-text">{{ s.name.slice(0, 1) }}</view>
+                        <view class="info">
+                            <view class="name-row">
+                                <text class="name">{{ s.name }}</text>
+                                <text v-if="s.paused" class="paused">休息中</text>
+                            </view>
+                            <text class="meta">月售 {{ s.monthlySales }}</text>
+                            <view class="tags">
+                                <text class="tag tag-route">{{ routeText(s.routesEnabled) }}</text>
+                                <text v-if="s.promoText" class="tag tag-promo">{{ s.promoText }}</text>
+                            </view>
+                        </view>
+                        <text class="chev">›</text>
+                    </view>
+                </view>
+            </template>
         </view>
     </view>
 </template>
@@ -41,6 +73,8 @@ import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 import EmptyState from '../../components/EmptyState.vue';
 
 const TAGS = ['全部', '米饭快餐', '奶茶甜品', '面食', '夜宵'];
+const TAG_ICONS: Record<string, string> = { 全部: '🍽️', 米饭快餐: '🍚', 奶茶甜品: '🧋', 面食: '🍜', 夜宵: '🌙' };
+const NOTICE_TEXT = '本平台为校内配送：范围覆盖校内宿舍楼与教学楼，营业时间 10:00–22:00，由商家与校内骑手接力送达。';
 const keyword = ref('');
 const activeTag = ref('全部');
 const loading = ref(true);
@@ -52,10 +86,29 @@ const tagList = computed(() => {
     return TAGS.filter(t => t === '全部' || used.has(t));
 });
 const shown = computed(() => filterStores(stores.value, keyword.value, activeTag.value));
+const secTitle = computed(() => {
+    if (keyword.value) return `搜索“${keyword.value}”`;
+    return activeTag.value === '全部' ? '全部店铺' : activeTag.value;
+});
+const promoStore = computed(() => stores.value.find((s: any) => s.promoText && !s.paused));
+
+function tagIcon(t: string): string {
+    return TAG_ICONS[t] ?? '🍴';
+}
 
 function routeText(routes: string[]): string {
     if (!routes?.length) return '暂未开通配送';
     return routes.includes('R1') ? '商家自送 + 校内骑手接力' : '档口直送 · 校内骑手上楼';
+}
+
+function goOrders() {
+    uni.switchTab({ url: '/pages/orders/index' });
+}
+function goRider() {
+    uni.navigateTo({ url: '/pkg-rider/pages/rider-join' });
+}
+function showNotice() {
+    uni.showModal({ title: '校园公告', content: NOTICE_TEXT, showCancel: false, confirmText: '知道了' });
 }
 
 async function load() {
@@ -78,14 +131,28 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh(); });
 
 <style scoped lang="scss">
 .page { padding-bottom: 24rpx; }
-.head { padding: 24rpx; background: $brand; }
-.loc { color: #fff; font-size: 26rpx; font-weight: 600; display: block; margin-bottom: 16rpx; }
+.head { padding: 24rpx 24rpx 28rpx; background: $brand; }
+.loc-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
+.loc { color: #fff; font-size: 28rpx; font-weight: 600; }
+.hlink { color: #fff; font-size: 24rpx; opacity: .92; padding: 4rpx 0 4rpx 24rpx; }
 .search { background: #fff; border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; }
-.pills { white-space: nowrap; padding: 16rpx 24rpx; background: $surface; }
-.pill { display: inline-block; padding: 6rpx 24rpx; margin-right: 16rpx; border-radius: 999rpx; font-size: 24rpx; color: $text-muted; background: $bg; }
-.pill.on { background: $brand; color: #fff; }
-.cards { padding: 16rpx 24rpx; display: flex; flex-direction: column; gap: 16rpx; }
-.card { display: flex; gap: 20rpx; background: $surface; border-radius: $radius-card; padding: 24rpx; }
+.body { padding: 0 24rpx; }
+.quick { margin-top: 20rpx; background: $surface; border-radius: $radius-card; padding: 24rpx 0; display: flex; }
+.qk { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
+.qico { width: 76rpx; height: 76rpx; border-radius: 999rpx; background: $brand-soft; display: flex; align-items: center; justify-content: center; font-size: 38rpx; }
+.qtxt { font-size: 22rpx; color: $text; }
+.pills { white-space: nowrap; padding: 20rpx 0 4rpx; }
+.pill { display: inline-flex; align-items: center; gap: 6rpx; padding: 10rpx 24rpx; margin-right: 16rpx; border-radius: 999rpx; font-size: 24rpx; color: $text-muted; background: $surface; border: 1rpx solid #ececec; }
+.pill.on { background: $brand; border-color: $brand; color: #fff; }
+.pico { font-size: 24rpx; }
+.notice { margin-top: 20rpx; display: flex; align-items: center; background: $brand-soft; color: $brand; border-radius: 999rpx; padding: 14rpx 24rpx; font-size: 24rpx; }
+.ntext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nmore { margin-left: 8rpx; flex-shrink: 0; }
+.sec { display: flex; justify-content: space-between; align-items: baseline; padding: 28rpx 4rpx 8rpx; }
+.sec-t { font-size: 32rpx; font-weight: 600; color: $text; }
+.sec-n { font-size: 22rpx; color: $text-muted; }
+.cards { display: flex; flex-direction: column; gap: 16rpx; padding-bottom: 8rpx; }
+.card { display: flex; align-items: center; gap: 20rpx; background: $surface; border-radius: $radius-card; padding: 24rpx; }
 .logo { width: 120rpx; height: 120rpx; border-radius: $radius; flex-shrink: 0; }
 .logo-text { background: $brand-soft; color: $brand; font-size: 48rpx; text-align: center; line-height: 120rpx; }
 .info { flex: 1; min-width: 0; }
@@ -93,5 +160,9 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh(); });
 .name { font-size: 30rpx; font-weight: 600; color: $text; }
 .paused { font-size: 20rpx; color: #999; border: 1rpx solid #ddd; border-radius: 6rpx; padding: 0 8rpx; }
 .meta { display: block; font-size: 24rpx; color: $text-muted; margin-top: 6rpx; }
-.promo { display: inline-block; margin-top: 10rpx; font-size: 20rpx; color: $brand; background: $brand-soft; border-radius: 6rpx; padding: 2rpx 12rpx; }
+.tags { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 12rpx; }
+.tag { font-size: 20rpx; padding: 2rpx 12rpx; border-radius: 8rpx; }
+.tag-route { color: $text-muted; background: $bg; }
+.tag-promo { color: $brand; background: $brand-soft; }
+.chev { color: #bbb; font-size: 32rpx; margin-left: 8rpx; flex-shrink: 0; }
 </style>

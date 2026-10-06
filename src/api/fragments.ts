@@ -50,7 +50,7 @@ export const ORDER_FRAGMENT = `
         payments { id method amount state transactionId metadata }
         couponCodes
         discounts { description amountWithTax }
-        customFields { couponCode couponId hallStatus fulfillmentRoute deliveryStatus hallEnteredAt deliverySlotText campusZone orderKind errandKind errandFrom errandTo errandNote tip buildingId leg1Status handoverAt }
+        customFields { couponCode couponId hallStatus fulfillmentRoute deliveryStatus hallEnteredAt deliverySlotText campusZone orderKind errandKind errandFrom errandTo errandNote tip buildingId leg1Status handoverAt urged }
     }
 `;
 

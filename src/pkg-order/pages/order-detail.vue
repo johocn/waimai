@@ -6,7 +6,7 @@
     </view>
 
     <!-- 履约时间线（校园单：按路线 R1/R3 区分节点，spec §5.4） -->
-    <view class="section" v-if="campusRoute">
+    <view class="section" v-if="campusRoute && campusRoute !== 'R4'">
       <text class="section__title">配送进度</text>
       <view class="tl">
         <view
@@ -25,8 +25,34 @@
       </view>
     </view>
 
+    <!-- R2 快递到校卡（二期 spec §5.2）：preparing=确认到校；arrived_gate=选取件方式 -->
+    <view class="section r2-card" v-if="campusRoute === 'R2'">
+      <text class="section__title">快递到校</text>
+      <template v-if="(order.customFields?.leg1Status ?? 'preparing') === 'preparing'">
+        <text class="r2-hint">快递配送中，到达校内代收点后请点击确认</text>
+        <button class="action-btn action-btn--primary r2-btn" @click="confirmArrived">快递已到校</button>
+      </template>
+      <template v-else>
+        <text class="r2-hint">快递已到校 · 请选择取件方式</text>
+        <text class="r2-hint" v-if="relayLabel">{{ relayLabel }}</text>
+        <view class="r2-actions">
+          <button class="action-btn r2-btn" @click="selfPickup">我去自取</button>
+          <button class="action-btn action-btn--primary r2-btn" @click="goRelay" :disabled="relayActive">发 R5 接力</button>
+        </view>
+      </template>
+    </view>
+
+    <!-- R4 到店自取核销码（二期 spec §5.4） -->
+    <view class="section pickup-code" v-if="isR4 && pickupCode">
+      <text class="section__title">到店自取核销码</text>
+      <text class="code-text">{{ pickupCode.code }}</text>
+      <text class="r2-hint" v-if="pickupCode.status === 'redeemed'">已核销</text>
+      <button class="action-btn r2-btn" v-else-if="canSelfRedeem" @click="selfRedeem">自助核销</button>
+      <text class="r2-hint" v-else>到店出示给店员核销</text>
+    </view>
+
     <!-- 骑手卡：有骑手显示姓名/信用分；无骑手显示等待/调度中/人工介入提示（10s 轮询） -->
-    <view class="section rider" v-if="campusRoute && (rider || !timelineFinished)">
+    <view class="section rider" v-if="campusRoute && !['R2','R4'].includes(campusRoute) && (rider || !timelineFinished)">
       <view v-if="rider" class="rider__row">
         <view class="rider__avatar"><text>骑</text></view>
         <view class="rider__info">
@@ -94,7 +120,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getOrderByCode } from '../../api/queries/order';
 import { getGraphQLClient } from '../../api/client';
-import { fetchOrderRider } from '../../api/mutations/campus';
+import { fetchOrderRider, fetchR2Relay, markArrived } from '../../api/mutations/campus';
+import { fetchMyPickupCode, claimPickup } from '../../api/queries/pickup';
+import { relayStatusLabel } from '../../utils/errand';
 import { buildTimeline, isNoRiderFinal } from '../../utils/timeline';
 import VImage from '../../components/VImage.vue';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
@@ -108,10 +136,13 @@ const statusHint = computed(() => statusHintMap[order.value?.state] || '');
 const discountTotal = computed(() => order.value?.discounts?.reduce((s:number,d:any)=>s+d.amountWithTax,0) || 0);
 // —— 校园履约（spec §5.4）：customFields 驱动时间线与骑手卡 ——
 const campusRoute = computed(() => order.value?.customFields?.fulfillmentRoute || '');
-const timeline = computed(() => buildTimeline(campusRoute.value, order.value?.customFields?.hallStatus ?? null, order.value?.customFields?.deliveryStatus ?? null));
+const timeline = computed(() => buildTimeline(campusRoute.value, order.value?.customFields?.hallStatus ?? null, order.value?.customFields?.deliveryStatus ?? null, order.value?.customFields?.leg1Status ?? null));
 const timelineFinished = computed(() => timeline.value.every(n => n.done));
 const activeTimelineIndex = computed(() => timeline.value.findIndex(n => !n.done));
-const canReceive = computed(() => ['Delivered','PartiallyDelivered','Shipped'].includes(order.value?.state));
+const canReceive = computed(() =>
+    ['Delivered','PartiallyDelivered','Shipped'].includes(order.value?.state)
+    || (campusRoute.value === 'R2' && order.value?.state === 'PaymentSettled'
+        && (order.value?.customFields?.leg1Status ?? '') === 'arrived_gate'));
 const canAfterSale = computed(() => ['Delivered','PaymentSettled','PaymentAuthorized'].includes(order.value?.state));
 const canInvoice = computed(() => ['Delivered','Completed','PartiallyDelivered'].includes(order.value?.state));
 const canCancel = computed(() => ['Created','AddingItems','ArrangingPayment'].includes(order.value?.state));
@@ -137,13 +168,21 @@ onMounted(async () => {
         const tRes: any = await client.request(`query { afterSalesRequest(id: "${order.value?.id}") { returnTrackingNo } }`);
         if (tRes?.afterSalesRequest?.returnTrackingNo) trackingNo.value = tRes.afterSalesRequest.returnTrackingNo;
     } catch (e) {}
+    loadPickupCode();
     startRiderPolling();
 });
-// 骑手卡 10s 轮询：送达 / 无骑手终态即停
+// 轮询：R2 原单轮询接力状态（10s，动态反查不写回标记）；其余校园单轮询骑手卡（送达/无骑手终态即停）
 let riderTimer: ReturnType<typeof setInterval> | null = null;
 function startRiderPolling() {
     stopRiderPolling();
-    if (!order.value?.id || !campusRoute.value) return;
+    if (!order.value?.id || !campusRoute.value || campusRoute.value === 'R4') return;
+    if (campusRoute.value === 'R2') {
+        if ((order.value?.customFields?.leg1Status ?? 'preparing') === 'arrived_gate') {
+            loadRelay();
+            riderTimer = setInterval(loadRelay, 10000);
+        }
+        return;
+    }
     pollRiderOnce();
     riderTimer = setInterval(pollRiderOnce, 10000);
 }
@@ -153,8 +192,80 @@ async function pollRiderOnce() {
     if (cf?.deliveryStatus === 'delivered' || isNoRiderFinal(cf?.hallStatus ?? null)) return stopRiderPolling();
     try { rider.value = await fetchOrderRider(String(order.value.id)); } catch (e) {}
 }
+// R2 接力状态动态反查（spec §3.5/§4.3）；接力送达即停轮询（退款终态继续轮询，学生可重发）
+async function loadRelay() {
+    if (campusRoute.value !== 'R2' || !order.value?.id) return;
+    try { relay.value = await fetchR2Relay(String(order.value.id)); } catch (e) {}
+    if (relay.value?.deliveryStatus === 'delivered') stopRiderPolling();
+}
 function stopRiderPolling() { if (riderTimer) { clearInterval(riderTimer); riderTimer = null; } }
 onUnmounted(stopRiderPolling);
+// —— R2 快递到校（二期 spec §5.2）——
+const relay = ref<any>(null);
+const relayLabel = computed(() => relayStatusLabel(relay.value));
+// 进行中接力单禁止重复发单（已送达/退款终态放开：已送达应去确认收货，退款可重发）
+const relayActive = computed(() => {
+    if (!relay.value) return false;
+    return !(relay.value.state === 'Cancelled' || relay.value.hallStatus === 'no_rider_final' || relay.value.deliveryStatus === 'delivered');
+});
+
+function confirmArrived() {
+    uni.showModal({
+        title: '确认快递已到达校内代收点？',
+        content: '确认后不可撤销，可直接自取或发接力单',
+        success: async (r: any) => {
+            if (!r.confirm) return;
+            try {
+                await markArrived(String(order.value.id));
+                await reloadOrder();
+                startRiderPolling(); // leg1Status 已变 arrived_gate，重启轮询进入接力状态轮询
+            } catch (e: any) {
+                uni.showToast({ title: e?.response?.errors?.[0]?.message || '确认失败', icon: 'none' });
+            }
+        },
+    });
+}
+async function reloadOrder() {
+    const pages = getCurrentPages(); const page = pages[pages.length - 1] as any;
+    const code = page?.options?.code; if (!code) return;
+    try { const res: any = await getOrderByCode(code); order.value = res.orderByCode; } catch (e) {}
+}
+function selfPickup() {
+    uni.showModal({
+        title: '去自取',
+        content: '请凭取件通知前往校内代收点自取；取到后点击「确认收货」完成订单',
+        showCancel: false,
+    });
+}
+// 发 R5 接力：预填 A 点=校内代收点、B 点=原单 campusZone（默认宿舍楼）、buildingId=原单楼栋（spec §5.2）
+function goRelay() {
+    const o = order.value; if (!o?.code) return;
+    const cf = o.customFields ?? {};
+    const a = encodeURIComponent('校内代收点');
+    const b = encodeURIComponent(cf.campusZone || '');
+    const buildingId = cf.buildingId || '';
+    uni.navigateTo({ url: `/pkg-campus/errand/create?from=R2&code=${o.code}&a=${a}&b=${b}&buildingId=${buildingId}` });
+}
+// —— R4 到店自取核销码（fetchMyPickupCode 返回 { myPickupCode } 由调用方解包，Task 12 Step 4）——
+const isR4 = computed(() => campusRoute.value === 'R4');
+const pickupCode = ref<any>(null);
+// 前端简化：到店收款（cod）单由店员核销；判断偏差由后端 claimMyPickup 拒绝并 toast
+const canSelfRedeem = computed(() =>
+    pickupCode.value?.status === 'generated' && order.value?.payments?.[0]?.method !== 'cash-on-delivery');
+
+async function loadPickupCode() {
+    if (campusRoute.value !== 'R4' || !order.value?.id) return;
+    try { const r: any = await fetchMyPickupCode(String(order.value.id)); pickupCode.value = r?.myPickupCode ?? null; } catch (e) {}
+}
+async function selfRedeem() {
+    try {
+        await claimPickup(String(order.value.id), pickupCode.value.code);
+        await loadPickupCode();
+        uni.showToast({ title: '核销成功', icon: 'success' });
+    } catch (e: any) {
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || '核销失败', icon: 'none' });
+    }
+}
 function formatTime(t: string) { return t ? new Date(t).toLocaleString('zh-CN') : ''; }
 function copyCode() { uni.setClipboardData({ data: order.value.code }); uni.showToast({ title: '已复制', icon: 'success' }); }
 function confirmReceive() { uni.showModal({ title: '确认收货', content: '确认已收到商品?', success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { transitionOrderToState(state: "Delivered") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: '已确认收货' }); order.value.state = 'Delivered'; } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
@@ -182,4 +293,7 @@ function reorder() { uni.switchTab({ url: '/pages/home/index' }); }
 .info { &__row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; color: $text-color-secondary; } }
 .order-detail__actions { padding: 20rpx; display: flex; gap: 16rpx; flex-wrap: wrap; }
 .action-btn { flex: 1; min-width: 200rpx; height: 80rpx; font-size: 28rpx; border-radius: $radius-md; border: none; display: flex; align-items: center; justify-content: center; &--primary { background: $brand-color; color: #fff; } &--ghost { background: #fff; color: #999; border: 1rpx solid $border-color; } }
+.r2-hint { font-size: 26rpx; color: $text-color-secondary; display: block; margin-top: 8rpx; }
+.r2-actions { display: flex; gap: 16rpx; margin-top: 16rpx; }
+.code-text { font-size: 48rpx; font-weight: bold; letter-spacing: 8rpx; text-align: center; display: block; padding: 16rpx 0; color: $text-color; }
 </style>

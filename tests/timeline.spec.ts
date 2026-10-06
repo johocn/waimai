@@ -43,6 +43,16 @@ describe('buildTimeline', () => {
         const tl = buildTimeline(null, null, null);
         expect(tl.map(n => n.done)).toEqual([true, false, false, false]);
     });
+    it('R2 preparing → 三节点，快递配送中为当前活跃节点', () => {
+        const tl = buildTimeline('R2', null, null);
+        expect(tl).toHaveLength(3);
+        expect(tl.map(n => n.done)).toEqual([true, false, false]);
+        expect(tl[2].label).toBe('快递已到校内代收点');
+    });
+    it('R2 arrived_gate → 全部完成（接力进度由接力子卡动态反查展示）', () => {
+        const tl = buildTimeline('R2', null, null, 'arrived_gate');
+        expect(tl.map(n => n.done)).toEqual([true, true, true]);
+    });
 });
 
 describe('isNoRiderFinal', () => {

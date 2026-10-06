@@ -17,8 +17,8 @@ function deliveryProgress(deliveryStatus: string | null): number {
     }
 }
 
-/** R3 单段四节点；R1 接力五节点（校门口交接点插入）；其余路线回退单段 */
-export function buildTimeline(route: string | null, hallStatus: string | null, deliveryStatus: string | null): TimelineNode[] {
+/** R3 单段四节点；R1 接力五节点（校门口交接点插入）；R2 快递段三节点（leg1Status 驱动）；其余路线回退单段 */
+export function buildTimeline(route: string | null, hallStatus: string | null, deliveryStatus: string | null, leg1Status?: string | null): TimelineNode[] {
     const p = deliveryProgress(deliveryStatus);
     if (route === 'R1') {
         return [
@@ -27,6 +27,14 @@ export function buildTimeline(route: string | null, hallStatus: string | null, d
             { key: 'handover', label: '接力取货完成（拍照确认）', done: p >= 2 },
             { key: 'upstairs', label: '第二程 · 配送上楼', done: p >= 3 },
             { key: 'delivered', label: '已送达', done: p >= 3 },
+        ];
+    }
+    if (route === 'R2') {
+        const arrived = (leg1Status ?? '') === 'arrived_gate';
+        return [
+            { key: 'merchant_accept', label: '商家接单', done: true },
+            { key: 'express_shipping', label: '快递配送中', done: arrived },
+            { key: 'arrived_gate', label: '快递已到校内代收点', done: arrived },
         ];
     }
     return [

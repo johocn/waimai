@@ -56,6 +56,8 @@ async function loadData() {
         ));
         items.value = results.flat()
             .filter((o: any) => o.customFields?.orderKind === 'errand')
+            // Vendure 订单同属 default channel：平台渠道与店铺渠道会返回同单，按 id 去重（同 pages/orders/index.vue）
+            .filter((o: any, i: number, arr: any[]) => arr.findIndex(x => x.id === o.id) === i)
             .sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     } finally {
         loading.value = false;

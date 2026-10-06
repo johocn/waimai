@@ -249,9 +249,12 @@ function goRelay() {
 // —— R4 到店自取核销码（fetchMyPickupCode 返回 { myPickupCode } 由调用方解包，Task 12 Step 4）——
 const isR4 = computed(() => campusRoute.value === 'R4');
 const pickupCode = ref<any>(null);
-// 前端简化：到店收款（cod）单由店员核销；判断偏差由后端 claimMyPickup 拒绝并 toast
-const canSelfRedeem = computed(() =>
-    pickupCode.value?.status === 'generated' && order.value?.payments?.[0]?.method !== 'cash-on-delivery');
+// 前端简化：到店收款（cod*）单由店员核销；判断偏差由后端 claimMyPickup 拒绝并 toast
+const canSelfRedeem = computed(() => {
+    if (pickupCode.value?.status !== 'generated') return false;
+    const method = order.value?.payments?.[0]?.method ?? '';
+    return !method.startsWith('cod'); // 实际 COD 模板 code 为 cod-payment-template
+});
 
 async function loadPickupCode() {
     if (campusRoute.value !== 'R4' || !order.value?.id) return;

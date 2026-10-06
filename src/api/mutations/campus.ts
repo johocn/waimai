@@ -93,3 +93,11 @@ export const CAMPUS_RIDER_REPORT_LOCATION = gql`
 export function riderReportLocation(orderId: string, lat: number, lng: number) {
     return getGraphQLClient().request(CAMPUS_RIDER_REPORT_LOCATION, { orderId, lat, lng });
 }
+
+/** plan 2.4 用户催单：本人 + 未终态 + 10min 频控（后端校验），标记 urged=true 供骑手端轮询可见 */
+export const CAMPUS_URGE_ORDER = gql`
+    mutation campusUrgeOrder($orderId: ID!) { campusUrgeOrder(orderId: $orderId) { id } }
+`;
+export function urgeOrder(orderId: string) {
+    return getGraphQLClient().request(CAMPUS_URGE_ORDER, { orderId });
+}

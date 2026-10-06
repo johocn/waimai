@@ -6,6 +6,8 @@
             <text class="addr">📍 {{ task.customFields?.campusZone || '' }} {{ buildingName }}</text>
             <text class="slot" v-if="task.customFields?.deliverySlotText">期望送达 {{ task.customFields.deliverySlotText }}</text>
             <text class="sla">建议 45 分钟内送达</text>
+            <!-- plan 2.4：用户催单标记（后端 campusUrgeOrder 写入，8s 轮询自动带出） -->
+            <text class="urged" v-if="task.customFields?.urged">⚠ 用户已催单，请尽快送达</text>
 
             <!-- 状态推进区：deliveryStatus 域 assigned/in_progress/delivered/exception（小写，已校准） -->
             <view class="actions">
@@ -146,6 +148,7 @@ async function reportException() {
 .addr { display: block; font-size: 34rpx; font-weight: 600; color: $text; margin-bottom: 8rpx; }
 .slot { display: block; font-size: 24rpx; color: $text-muted; margin-bottom: 8rpx; }
 .sla { display: block; font-size: 22rpx; color: #efa500; margin-bottom: 32rpx; }
+.urged { display: block; font-size: 26rpx; color: #e02020; font-weight: 600; margin-bottom: 16rpx; }
 .picked, .done { display: block; font-size: 28rpx; color: #1dc981; margin-bottom: 24rpx; }
 .exc { display: block; font-size: 28rpx; color: #e02020; margin-bottom: 24rpx; }
 .actions { display: flex; flex-direction: column; gap: 16rpx; }

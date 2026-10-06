@@ -60,8 +60,13 @@
           <text class="rider__name">{{ rider.realName }}</text>
           <text class="rider__sub">信用分 {{ rider.credit ?? '—' }}<text v-if="campusRoute === 'R1'"> · 接力传信者 · 第二程</text></text>
         </view>
+        <text class="rider__contact" @tap="callStore">联系商家</text>
       </view>
       <text v-else class="rider__hint">{{ riderHint }}</text>
+      <view class="rider__urge" v-if="canUrge">
+        <text v-if="urged" class="rider__urged-tag">已催单，正在加急配送</text>
+        <button v-else class="rider__urge-btn" @tap="onUrge">催单</button>
+      </view>
       <map
         v-if="rider?.location"
         class="rider__map"
@@ -129,7 +134,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getOrderByCode } from '../../api/queries/order';
 import { getGraphQLClient } from '../../api/client';
-import { fetchOrderRider, fetchR2Relay, markArrived } from '../../api/mutations/campus';
+import { fetchOrderRider, fetchR2Relay, markArrived, urgeOrder } from '../../api/mutations/campus';
+import { fetchStoreList } from '../../api/queries/waimai';
 import { fetchMyPickupCode, claimPickup } from '../../api/queries/pickup';
 import { relayStatusLabel } from '../../utils/errand';
 import { buildTimeline, isNoRiderFinal } from '../../utils/timeline';
@@ -186,6 +192,39 @@ const riderHint = computed(() => {
     if (dispatching.value) return '平台调度中，正在为您加急派单';
     return '等待传信者接单…';
 });
+// —— 催单/联系商家（plan 2.4）——
+const urged = computed(() => !!order.value?.customFields?.urged);
+const canUrge = computed(() => {
+    const st = order.value?.customFields?.deliveryStatus;
+    return campusRoute.value && !!st && !['delivered', 'exception'].includes(st);
+});
+function onUrge() {
+    uni.showModal({
+        title: '确认催单？',
+        content: '将通知平台与骑手加急配送（10 分钟内仅可催一次）',
+        success: async (r: any) => {
+            if (!r.confirm) return;
+            try {
+                await urgeOrder(String(order.value.id));
+                uni.showToast({ title: '已收到催单', icon: 'success' });
+                await reloadOrder();
+            } catch (e: any) {
+                uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '催单失败', icon: 'none' });
+            }
+        },
+    });
+}
+/** 拨门店电话（虚拟号回拨下一轮）；Order 有 channelToken 时精确匹配店铺，否则回退第一家 */
+async function callStore() {
+    try {
+        const list: any[] = await fetchStoreList();
+        const token = order.value?.channelToken;
+        const store = (token && list.find(s => s.channelToken === token)) || list[0];
+        const phone = store?.storePhone;
+        if (!phone) return uni.showToast({ title: '暂无商家电话', icon: 'none' });
+        uni.makePhoneCall({ phoneNumber: phone });
+    } catch { uni.showToast({ title: '获取商家电话失败', icon: 'none' }); }
+}
 onMounted(async () => {
     const pages = getCurrentPages(); const page = pages[pages.length - 1] as any;
     const code = page?.options?.code; if (!code) return;
@@ -327,7 +366,7 @@ function reorder() { uni.switchTab({ url: '/pages/home/index' }); }
 .tl { &__item { display: flex; align-items: flex-start; } &__rail { display: flex; flex-direction: column; align-items: center; margin-right: 20rpx; } &__dot { width: 32rpx; height: 32rpx; border-radius: 50%; background: #eee; color: #fff; font-size: 20rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; } &__label { font-size: 26rpx; color: #999; padding: 4rpx 0 28rpx; } &__item:last-child &__label { padding-bottom: 4rpx; } &__item--done &__dot { background: $brand-color; } &__item--done &__label { color: $text-color; } &__item--active &__dot { background: $brand-color; box-shadow: 0 0 0 8rpx rgba(255, 102, 0, 0.15); } &__item--active &__label { color: $brand-color; font-weight: bold; } }
 .tl-meta { display: flex; flex-direction: column; gap: 6rpx; border-top: 1rpx solid $border-color; padding-top: 16rpx; font-size: 24rpx; color: $text-color-secondary; }
 // 骑手卡
-.rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__hint { font-size: 26rpx; color: $brand-color; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } }
+.rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__hint { font-size: 26rpx; color: $brand-color; } &__contact { font-size: 24rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 8rpx 20rpx; flex-shrink: 0; } &__urge { margin-top: 16rpx; display: flex; justify-content: center; } &__urge-btn { width: 240rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; border-radius: 999rpx; background: #fff; color: $brand-color; border: 1rpx solid $brand-color; padding: 0; margin: 0; } &__urged-tag { font-size: 24rpx; color: #e02020; background: #fdeaea; border-radius: 999rpx; padding: 8rpx 24rpx; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } }
 .logistics { &__no { font-size: 26rpx; color: $brand-color; display: block; margin-top: 8rpx; } &__empty { font-size: 26rpx; color: #999; } }
 .order-line { display: flex; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid #f5f5f5; &:last-child { border-bottom: none; } &__info { flex: 1; display: flex; flex-direction: column; justify-content: space-between; } &__name { font-size: 26rpx; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } &__spec { font-size: 22rpx; color: #999; margin-top: 4rpx; } &__bottom { display: flex; justify-content: space-between; align-items: center; } &__price { font-size: 28rpx; color: $price-color; } &__qty { font-size: 24rpx; color: #999; } }
 .summary { &__row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; &--total { padding-top: 16rpx; margin-top: 8rpx; border-top: 1rpx solid $border-color; font-size: 28rpx; } } &__total { font-size: 36rpx; color: $price-color; font-weight: bold; } }

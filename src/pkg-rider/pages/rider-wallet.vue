@@ -96,6 +96,8 @@ function fmtTime(v: any) {
 
 function switchTab(t: 'history' | 'withdraw') {
     tab.value = t;
+    // 切到提现记录时首屏主动加载（该列表不随 onShow 初始化）
+    if (t === 'withdraw' && !withdraws.value.length && !withdrawDone.value) void loadMore();
 }
 
 async function loadMore() {

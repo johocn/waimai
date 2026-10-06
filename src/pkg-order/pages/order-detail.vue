@@ -53,7 +53,7 @@
 
     <!-- 骑手卡：有骑手显示姓名/信用分；无骑手显示等待/调度中/人工介入提示（10s 轮询）
          plan 2.2：配送中（assigned/in_progress）且有坐标时内嵌腾讯地图显示骑手 Marker（送达/转单后端即不返回位置） -->
-    <view class="section rider" v-if="campusRoute && !['R2','R4'].includes(campusRoute) && (rider || !timelineFinished)">
+    <view class="section rider" v-if="campusRoute && !['R2','R4'].includes(campusRoute) && !isScheduled && (rider || !timelineFinished)">
       <view v-if="rider" class="rider__row">
         <view class="rider__avatar"><text>骑</text></view>
         <view class="rider__info">
@@ -180,6 +180,8 @@ const canAfterSale = computed(() => ['Delivered','PaymentSettled','PaymentAuthor
 const canInvoice = computed(() => ['Delivered','Completed','PartiallyDelivered'].includes(order.value?.state));
 const canCancel = computed(() => ['Created','AddingItems','ArrangingPayment'].includes(order.value?.state));
 const canReview = computed(() => ['Delivered', 'Completed'].includes(order.value?.state));
+// 预约单（plan 3.1）：未放量进大厅前不显示骑手等待卡（时间线首节点已表达预约态）
+const isScheduled = computed(() => ((order.value?.customFields?.hallStatus ?? '') + '').toLowerCase() === 'scheduled');
 // 「平台调度中」降级（spec §5.4）：无骑手且在大厅停留超 2 分钟
 const dispatching = computed(() => {
     const cf = order.value?.customFields;

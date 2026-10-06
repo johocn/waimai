@@ -16,6 +16,7 @@
 | Plan 3 骑手端+部署（6 Tasks） | ✅ **全部完成并上线**（2026-10-06 验收收口） | `docs/2026-10-05-waimai-plan3-rider-deploy.md` |
 | 首页改版（方案 B 轻量版） | ✅ 已上线（2026-10-06，`master` @ `3ff0290`） | `docs/2026-10-06-waimai-home-revamp.md` |
 | 首页双主题（明亮/黑暗，方案 A 橙头；暗色搜索框同步变暗） | ✅ 已上线（2026-10-06，`master` @ `2d06bfd`） | `docs/2026-10-06-waimai-home-revamp.md` §双主题 |
+| 店铺内页三 Tab 改版（版式 A 橙头浮卡 + 双主题） | ✅ 已上线（2026-10-06，`master` @ `8109aac`） | `docs/2026-10-06-waimai-shop-revamp.md` |
 
 **当前状态 = 一期全量交付**：学生端四页 + 骑手端四页 + 全链路冒烟 S1-S8 PASS + 8 页手机截图目检合格 + 操作手册（`vshop/docs/waimai-操作手册.md`）+ verify 排障沉淀（`vshop/docs/verify/2026-10-waimai-e2e.md`）。
 

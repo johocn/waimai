@@ -38,13 +38,20 @@
           </view>
           <view v-if="!buildings.length" class="campus-empty__hint">该分区暂无宿舍楼</view>
         </view>
-        <view class="campus-label">送达时段（不选=尽快送）</view>
+        <view class="campus-label">送达时段（不选=尽快送，可选未来日期预约）</view>
         <view class="chip-row">
-          <view class="chip" :class="{ on: !slotId }" @click="slotId = ''">尽快送</view>
-          <view v-for="s in slotsWithRemain" :key="s.id" class="chip" :class="{ on: slotId === s.id }" @click="slotId = s.id">
-            {{ s.slotDate }} {{ s.startTime }}-{{ s.endTime }} 剩{{ s.capacity - s.lockedCount }}位
+          <view class="chip" :class="{ on: !slotDate }" @click="clearSlotPick">尽快送</view>
+          <view v-for="d in slotDates" :key="d" class="chip" :class="{ on: slotDate === d }" @click="pickDate(d)">
+            {{ dateLabel(d) }}
           </view>
         </view>
+        <view class="chip-row" v-if="slotDate">
+          <view v-for="s in slotsOfDate" :key="s.id" class="chip" :class="{ on: slotId === s.id }" @click="slotId = s.id">
+            {{ s.startTime }}-{{ s.endTime }} 剩{{ s.capacity - s.lockedCount }}位
+          </view>
+          <view v-if="!slotsOfDate.length" class="campus-empty__hint">该日期暂无可订时段</view>
+        </view>
+        <view v-if="selectedSlotFuture" class="slot-schedule-hint">预约单将在送达时段前 30 分钟自动进入配送调度</view>
         <view class="route-row" v-if="campusRoutes.length">
           <text class="route-row__text">{{ routeText }}</text>
           <text v-if="canSwitchRoute" class="route-row__switch" @click="toggleRoute">切换</text>
@@ -278,6 +285,7 @@ const slots = ref<any[]>([]);
 const zoneId = ref('');
 const buildingId = ref('');
 const slotId = ref<string | number>('');
+const slotDate = ref('');                        // 预约日期筛选（plan 3.1；''=尽快送）
 const zonesLoading = ref(false);
 const minOrderFen = ref<number | null>(null);   // 起送价（分，URL 透传；null=未配置）
 const deliveryFeeFen = ref<number | null>(null); // 配送费（分，仅展示）
@@ -293,6 +301,24 @@ const routeText = computed(() => {
 });
 // DeliverySlot 无 remaining 字段，余量 = capacity - lockedCount（schema 校准）
 const slotsWithRemain = computed(() => slots.value.filter(s => s.capacity - s.lockedCount > 0));
+
+// ===== 预约日期（plan 3.1）：日期 tab → 时段 chips 两级选择 =====
+const fmtDate = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+const todayStr = fmtDate(new Date());
+const tomorrowStr = fmtDate(new Date(Date.now() + 86_400_000));
+const slotDates = computed(() => [...new Set(slotsWithRemain.value.map(s => s.slotDate))].sort());
+const slotsOfDate = computed(() => slotsWithRemain.value.filter(s => s.slotDate === slotDate.value));
+const selectedSlotFuture = computed(() => {
+    const s = slotsWithRemain.value.find(x => x.id === slotId.value);
+    return !!s && s.slotDate > todayStr; // 今天余下时段照旧即时调度，仅未来日期提示预约
+});
+function dateLabel(d: string): string {
+    if (d === todayStr) return '今天';
+    if (d === tomorrowStr) return '明天';
+    return d.slice(5); // MM-DD
+}
+function pickDate(d: string) { slotDate.value = d; slotId.value = ''; }
+function clearSlotPick() { slotDate.value = ''; slotId.value = ''; }
 
 function toggleRoute() {
     const opts = campusRouteOptions.value;
@@ -336,6 +362,11 @@ async function loadCampusData() {
 async function saveCampusTarget(): Promise<boolean> {
     if (!zoneId.value || !buildingId.value) {
         ui.showToast('请选择宿舍楼');
+        return false;
+    }
+    // 选了预约日期但没选具体时段 → 提示补全（或切回尽快送）
+    if (slotDate.value && !slotId.value) {
+        ui.showToast('请选择具体送达时段，或点「尽快送」');
         return false;
     }
     await setDeliveryTarget({
@@ -756,5 +787,6 @@ onLoad((q: any) => {
 .campus-label { font-size: 24rpx; color: $text-color-secondary; margin: 16rpx 0 12rpx; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 16rpx; }
 .chip { padding: 12rpx 24rpx; font-size: 24rpx; border-radius: 999rpx; background: $bg-color; color: $text-color-secondary; border: 1rpx solid transparent; &.on { background: $brand-color-light; color: $brand-color; border-color: $brand-color; font-weight: 600; } &__sub { font-size: 22rpx; opacity: .8; } }
+.slot-schedule-hint { display: block; margin-top: 16rpx; padding: 12rpx 20rpx; font-size: 22rpx; color: $brand-color; background: $brand-color-light; border-radius: $radius-sm; }
 .route-row { display: flex; align-items: center; justify-content: space-between; margin-top: 20rpx; padding: 16rpx 20rpx; background: $brand-color-light; border-radius: $radius-sm; &__text { font-size: 24rpx; color: $brand-color; flex: 1; } &__switch { font-size: 24rpx; color: #fff; background: $brand-color; border-radius: 999rpx; padding: 4rpx 20rpx; } }
 </style>

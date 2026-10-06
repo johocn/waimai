@@ -20,6 +20,14 @@ function deliveryProgress(deliveryStatus: string | null): number {
 /** R3 单段四节点；R1 接力五节点（校门口交接点插入）；R2 快递段三节点（leg1Status 驱动）；其余路线回退单段 */
 export function buildTimeline(route: string | null, hallStatus: string | null, deliveryStatus: string | null, leg1Status?: string | null): TimelineNode[] {
     const p = deliveryProgress(deliveryStatus);
+    // 预约单（plan 3.1）：已支付未放量，到点前 30min 自动进入调度——首节点替换为预约提示
+    if ((hallStatus ?? '').toLowerCase() === 'scheduled') {
+        return [
+            { key: 'scheduled', label: '预约单 · 到点前30分钟自动进入调度', done: false },
+            { key: 'merchant_accept', label: '商家接单', done: false },
+            ...buildTimeline(route, null, null, leg1Status).slice(1).filter(n => n.key !== 'merchant_accept'),
+        ];
+    }
     if (route === 'R1') {
         return [
             { key: 'merchant_accept', label: '商家接单', done: true },

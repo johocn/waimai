@@ -147,6 +147,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh(); });
     --w-border: #ececec;
     --w-brand-soft: #fff3e6;
     --w-brand-text: #ff6600;
+    --w-search-bg: #ffffff;
     --w-skel-from: #f0f0f0;
     --w-skel-to: #e0e0e0;
 
@@ -163,6 +164,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh(); });
     --w-border: #35353a;
     --w-brand-soft: rgba(255, 102, 0, 0.16);
     --w-brand-text: #ff8a3d;
+    --w-search-bg: #2a2a2f;
     --w-skel-from: #2a2a2f;
     --w-skel-to: #34343a;
 }
@@ -172,7 +174,8 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh(); });
 .head-right { display: flex; align-items: center; gap: 8rpx; }
 .theme-btn { width: 56rpx; height: 56rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.22); display: flex; align-items: center; justify-content: center; font-size: 28rpx; }
 .hlink { color: #fff; font-size: 24rpx; opacity: .92; padding: 4rpx 0 4rpx 8rpx; }
-.search { background: #fff; border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; }
+.search { background: var(--w-search-bg); color: var(--w-text); border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; }
+.search :deep(.uni-input-placeholder) { color: var(--w-text-muted); }
 .body { padding: 0 24rpx; }
 .quick { margin-top: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx 0; display: flex; }
 .qk { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }

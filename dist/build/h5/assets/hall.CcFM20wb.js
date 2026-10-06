@@ -1,4 +1,4 @@
-import{g as a}from"./index.DJFzyN-d.js";import{c as e}from"./rider.B47GYdFS.js";import{f as n}from"./waimai.BICTulK0.js";const t=a`
+import{g as a}from"./index.DpmnvQ1X.js";import{c as e}from"./rider.LbzKni-N.js";import{f as n}from"./waimai.BUtgYYe7.js";const t=a`
     query campusHall {
         campusHall {
             id code total shipping createdAt

@@ -1,4 +1,4 @@
-import{g as n}from"./index.DJFzyN-d.js";import{Q as e}from"./index-Dd_xe2mm.js";const t=n`
+import{g as n}from"./index.DpmnvQ1X.js";import{Q as e}from"./index-DtbfYPYM.js";const t=n`
     query waimaiStoreList {
         waimaiStoreList {
             channelId channelToken name logo tags monthlySales promoText paused routesEnabled

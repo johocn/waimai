@@ -214,7 +214,11 @@
       <view class="summary-row"><text>商品总额</text><text>¥{{ originalSubTotalYuan }}</text></view>
       <view class="summary-row" v-if="activeTab === 'campus' && deliveryFeeFen != null"><text>配送费</text><text>¥{{ (deliveryFeeFen / 100).toFixed(2) }}</text></view>
       <view class="summary-row" v-if="activeTab === 'campus' && minOrderFen != null"><text>起送价</text><text>满 ¥{{ (minOrderFen / 100).toFixed(2) }} 起送</text></view>
-      <view class="summary-row"><text>运费</text><text>¥{{ shippingFee }}</text></view>
+      <view class="summary-row"><text>运费</text>
+        <text v-if="freeShipOn"><text class="ship-orig">¥{{ shipOriginalYuan }}</text>¥0.00<text class="ship-tag">满¥{{ freeShipYuan }}免配送费</text></text>
+        <text v-else>¥{{ shipDisplayYuan }}</text>
+      </view>
+      <view class="ship-free-hint" v-if="freeShipShortYuan">满 ¥{{ freeShipYuan }} 免配送费，再买 ¥{{ freeShipShortYuan }} 即免</view>
       <view class="summary-row summary-row--total"><text>应付</text><text class="checkout-page__total">¥{{ cart.formatPrice(cart.order.totalWithTax) }}</text></view>
     </view>
 
@@ -289,6 +293,7 @@ const slotDate = ref('');                        // 预约日期筛选（plan 3.
 const zonesLoading = ref(false);
 const minOrderFen = ref<number | null>(null);   // 起送价（分，URL 透传；null=未配置）
 const deliveryFeeFen = ref<number | null>(null); // 配送费（分，仅展示）
+const freeShipFen = ref<number | null>(null);    // 满X元免配送费门槛（分；null/0=不启用，plan 3.2）
 
 // checkout 可选路线（R1/R2/R3 保序）；R2 二期加入轮换
 const campusRouteOptions = computed(() => filterCampusRoutes(campusRoutes.value));
@@ -332,6 +337,7 @@ async function loadStoreRoutes() {
     try {
         const stores = await fetchStoreList();
         const store = stores.find((s: any) => s.channelToken === tenantStore.token);
+        freeShipFen.value = store?.freeShippingThreshold ?? null;
         const routes = filterCampusRoutes(store?.routesEnabled);
         if (routes.length) {
             campusRoutes.value = routes;
@@ -382,6 +388,31 @@ async function saveCampusTarget(): Promise<boolean> {
 const originalSubTotalYuan = computed(() => cart.formatPrice(cart.order?.subTotalWithTax || 0));
 // 当前运费（元）：shippingLines 已含分区运费（campus/zone 相关 calculator 出价）
 const shippingFee = computed(() => cart.formatPrice(cart.order?.shippingWithTax || 0));
+
+// ===== plan 3.2 满X免配送费（方案A：运费行内减免明细） =====
+const campusRouteSel = computed(() => activeTab.value === 'campus' && ['R1', 'R3'].includes(routeChoice.value));
+const selectedZoneFeeFen = computed(() => {
+    const z = zones.value.find(x => String(x.id) === String(zoneId.value));
+    return z ? Number(z.fee) : null;   // 分区运费（campusZones 出价，提交前预估口径）
+});
+const goodsFen = computed(() => cart.order?.subTotalWithTax || 0);
+const freeShipOn = computed(() =>
+    campusRouteSel.value && freeShipFen.value != null && freeShipFen.value > 0
+    && goodsFen.value >= freeShipFen.value);
+const freeShipShortFen = computed(() => {
+    if (!campusRouteSel.value || freeShipFen.value == null || freeShipFen.value <= 0) return 0;
+    return goodsFen.value < freeShipFen.value ? freeShipFen.value - goodsFen.value : 0;
+});
+// 运费行展示值：校园 R1/R3 提交前未出价（shippingWithTax=0），有分区时预显示分区运费
+const shipDisplayYuan = computed(() => {
+    if (campusRouteSel.value && selectedZoneFeeFen.value != null && !freeShipOn.value) {
+        return (selectedZoneFeeFen.value / 100).toFixed(2);
+    }
+    return shippingFee.value;
+});
+const shipOriginalYuan = computed(() => selectedZoneFeeFen.value != null ? (selectedZoneFeeFen.value / 100).toFixed(2) : '');
+const freeShipYuan = computed(() => freeShipFen.value != null ? (freeShipFen.value / 100).toFixed(2) : '');
+const freeShipShortYuan = computed(() => freeShipShortFen.value ? (freeShipShortFen.value / 100).toFixed(2) : '');
 
 // Tab = 校园配送（恒显置首）+ eligible 启用的自提/邮寄
 const shippingTabs = computed(() => {
@@ -781,6 +812,10 @@ onLoad((q: any) => {
 .checkout-page__summary { background: #fff; border-radius: $radius-md; padding: 24rpx; margin-bottom: 20rpx; }
 .summary-row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; color: $text-color-secondary; &--total { border-top: 1rpx solid $border-color; margin-top: 8rpx; padding-top: 16rpx; color: $text-color; font-size: 28rpx; } }
 .checkout-page__total { color: $price-color; font-size: 36rpx; font-weight: bold; }
+// plan 3.2 满X免配送费（方案A：运费行内减免）
+.ship-orig { color: $text-color-placeholder; text-decoration: line-through; font-size: 24rpx; margin-right: 8rpx; }
+.ship-tag { margin-left: 12rpx; font-size: 20rpx; color: $brand-color; background: $brand-color-light; border-radius: 6rpx; padding: 2rpx 10rpx; }
+.ship-free-hint { padding: 4rpx 0 8rpx; font-size: 22rpx; color: $brand-color; }
 .checkout-page__submit { position: fixed; left: 20rpx; right: 20rpx; bottom: calc(20rpx + env(safe-area-inset-bottom)); height: 88rpx; line-height: 88rpx; background: $brand-color; color: #fff; font-size: 30rpx; border-radius: 999rpx; border: none; &[disabled] { opacity: 0.6; } }
 // ===== 校园配送面板 =====
 .campus-empty { text-align: center; padding: 30rpx 0; color: $text-color-secondary; font-size: 26rpx; &__hint { display: block; font-size: 22rpx; color: $text-color-placeholder; margin-top: 8rpx; } }

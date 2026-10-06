@@ -20,6 +20,10 @@
                     <view class="qico">🛵</view>
                     <text class="qtxt">传信者加入</text>
                 </view>
+                <view class="qk" @tap="goErrand">
+                    <view class="qico">🏃</view>
+                    <text class="qtxt">校内拾光达</text>
+                </view>
                 <view class="qk" @tap="showNotice">
                     <view class="qico">📣</view>
                     <text class="qtxt">校园公告</text>
@@ -106,6 +110,7 @@ function goOrders() {
 function goRider() {
     uni.navigateTo({ url: '/pkg-rider/pages/rider-join' });
 }
+function goErrand() { uni.navigateTo({ url: '/pkg-campus/errand/create' }); }
 function showNotice() {
     uni.showModal({ title: '校园公告', content: NOTICE_TEXT, showCancel: false, confirmText: '知道了' });
 }

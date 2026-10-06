@@ -27,6 +27,7 @@ export async function fetchProductList(): Promise<any[]> {
                     featuredAsset { preview }
                     variants { id name priceWithTax stockLevel options { id name code } }
                     collections { id name slug parent { name } }
+                    customFields { reviewRating reviewCount }
                 }
             }
         }

@@ -13,7 +13,9 @@
             "pages": [
                 { "path": "pages/checkout", "style": { "navigationBarTitleText": "确认订单" } },
                 { "path": "pages/order-detail", "style": { "navigationBarTitleText": "订单跟踪" } },
-                { "path": "pages/pay-result", "style": { "navigationBarTitleText": "支付结果" } }
+                { "path": "pages/pay-result", "style": { "navigationBarTitleText": "支付结果" } },
+                { "path": "pages/review-create", "style": { "navigationBarTitleText": "评价" } },
+                { "path": "pages/my-reviews", "style": { "navigationBarTitleText": "我的评价" } }
             ]
         },
         {

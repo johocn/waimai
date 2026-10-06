@@ -110,7 +110,7 @@
       <button v-if="canAfterSale" class="action-btn" @click="notOpen">申请售后</button>
       <button v-if="canInvoice" class="action-btn" @click="notOpen">开发票</button>
       <button v-if="canCancel" class="action-btn action-btn--ghost" @click="cancelOrder">取消订单</button>
-      <button v-if="canReview" class="action-btn" @click="notOpen">去评价</button>
+      <button v-if="canReview" class="action-btn" @click="goReview">去评价</button>
       <button class="action-btn action-btn--primary" @click="reorder">再来一单</button>
     </view>
   </view>
@@ -273,7 +273,20 @@ function formatTime(t: string) { return t ? new Date(t).toLocaleString('zh-CN') 
 function copyCode() { uni.setClipboardData({ data: order.value.code }); uni.showToast({ title: '已复制', icon: 'success' }); }
 function confirmReceive() { uni.showModal({ title: '确认收货', content: '确认已收到商品?', success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { transitionOrderToState(state: "Delivered") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: '已确认收货' }); order.value.state = 'Delivered'; } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
 function cancelOrder() { uni.showModal({ title: '取消订单', content: '确定取消该订单?', success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { cancelOrder(orderId: "${order.value.id}") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: '已取消' }); order.value.state = 'Cancelled'; stopRiderPolling(); } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
-// 死链兜底：售后/发票/评价目标页面本模板未建
+// 去评价：默认带第一个商品行（同一行同一客户只能评一次，后端防重）
+function goReview() {
+    const line = order.value?.lines?.[0];
+    if (!line) return;
+    const q = [
+        `productId=${line.productVariant?.productId ?? ''}`,
+        `lineId=${line.id}`,
+        `variantId=${line.productVariant?.id ?? ''}`,
+        `name=${encodeURIComponent(line.productVariant?.name ?? '')}`,
+        `thumb=${encodeURIComponent(line.featuredAsset?.preview ?? '')}`,
+    ].join('&');
+    uni.navigateTo({ url: `/pkg-order/pages/review-create?${q}` });
+}
+// 死链兜底：售后/发票目标页面本模板未建
 function notOpen() { uni.showToast({ title: '暂未开放', icon: 'none' }); }
 // 再来一单：shop-api 的 Order 无 channelToken，无法精确回店，回首页店铺列表重选
 function reorder() { uni.switchTab({ url: '/pages/home/index' }); }

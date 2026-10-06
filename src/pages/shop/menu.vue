@@ -16,9 +16,9 @@
         </view>
         <!-- 三 Tab -->
         <view class="tabs">
-            <view class="tb" :class="{ on: tab === 'goods' }" @tap="tab = 'goods'">商品</view>
-            <view class="tb" :class="{ on: tab === 'reviews' }" @tap="tab = 'reviews'">评论</view>
-            <view class="tb" :class="{ on: tab === 'merchant' }" @tap="tab = 'merchant'">商家</view>
+            <view class="tb" :class="{ on: tab === 'goods' }" @tap="switchTab('goods')">商品</view>
+            <view class="tb" :class="{ on: tab === 'reviews' }" @tap="switchTab('reviews')">评论</view>
+            <view class="tb" :class="{ on: tab === 'merchant' }" @tap="switchTab('merchant')">商家</view>
         </view>
 
         <!-- 商品：左分类右商品 -->
@@ -35,6 +35,11 @@
                         <view class="good-info">
                             <text class="good-name">{{ g.name }}</text>
                             <text class="good-desc">{{ plainDescription(g.description) }}</text>
+                            <view class="good-rate" v-if="g.customFields?.reviewCount > 0">
+                                <text class="good-rate__star">★</text>
+                                <text class="good-rate__num">{{ (g.customFields.reviewRating || 0).toFixed(1) }}</text>
+                                <text class="good-rate__cnt">{{ g.customFields.reviewCount }}条评价</text>
+                            </view>
                             <view class="price-row">
                                 <PriceTag :price="g.variants[0]?.priceWithTax || 0" />
                             </view>
@@ -48,9 +53,56 @@
             </view>
         </view>
 
-        <!-- 评论：暂无评价空态（后端评价能力就绪后接数据） -->
-        <scroll-view scroll-y class="panel solo" v-show="tab === 'reviews'">
-            <EmptyState text="商家暂无评价，下单后评价将在这里展示" />
+        <!-- 评论：A 版式（摘要卡 + 筛选 chips + 评论列表，首切加载） -->
+        <scroll-view scroll-y class="panel solo" v-show="tab === 'reviews'" @scrolltolower="loadMoreReviews">
+            <view class="rv-summary" v-if="reviewStats && reviewStats.totalCount > 0">
+                <view class="rv-sum-top">
+                    <view class="rv-score">
+                        <text class="rv-score__num">{{ reviewStats.averageRating }}</text>
+                        <text class="rv-score__lab">综合评分</text>
+                    </view>
+                    <view class="rv-dist">
+                        <view v-for="d in reviewStats.ratingDistribution" :key="d.rating" class="rv-dist__row">
+                            <text class="rv-dist__star">{{ d.rating }}★</text>
+                            <view class="rv-dist__bar"><view class="rv-dist__fill" :style="{ width: distWidth(d.count) }"></view></view>
+                            <text class="rv-dist__pct">{{ distPct(d.count) }}</text>
+                        </view>
+                    </view>
+                </view>
+                <view class="rv-sum-foot">
+                    <text>共 {{ reviewStats.totalCount }} 条评价</text>
+                    <text>好评率 {{ reviewStats.goodRate }}%</text>
+                </view>
+            </view>
+            <view class="rv-chips">
+                <view
+                    v-for="f in reviewFilters" :key="f.key"
+                    class="rv-chip" :class="{ on: reviewFilter === f.key }"
+                    @tap="switchReviewFilter(f.key)"
+                >{{ f.label }}</view>
+            </view>
+            <view v-for="r in reviewList" :key="r.id" class="rv-item">
+                <view class="rv-head">
+                    <view class="rv-avatar">{{ displayName(r) }}</view>
+                    <view class="rv-who">
+                        <text class="rv-name">{{ displayName(r, true) }}</text>
+                        <text class="rv-stars">{{ '★'.repeat(r.rating) }}<text class="off">{{ '★'.repeat(5 - r.rating) }}</text></text>
+                    </view>
+                    <text class="rv-date">{{ formatDate(r.createdAt) }}</text>
+                </view>
+                <text class="rv-content">{{ r.content }}</text>
+                <view v-if="r.images?.length" class="rv-imgs">
+                    <VImage v-for="(img, i) in r.images" :key="i" :src="img" width="150rpx" height="150rpx" />
+                </view>
+                <view v-if="r.tags?.length" class="rv-tags">
+                    <text v-for="(t, i) in r.tags" :key="i" class="rv-tag">{{ t }}</text>
+                </view>
+                <view v-if="r.reply" class="rv-reply"><text class="rv-reply__who">商家回复</text>{{ r.reply }}</view>
+            </view>
+            <view v-if="reviewLoading" class="rv-more">加载中…</view>
+            <view v-else-if="reviewList.length && !reviewHasMore" class="rv-more">没有更多了</view>
+            <EmptyState v-if="!reviewLoading && !reviewList.length" text="商家暂无评价，下单后评价将在这里展示" />
+            <view class="scroll-pad"></view>
         </scroll-view>
 
         <!-- 商家：店铺信息 -->
@@ -100,6 +152,7 @@ import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { fetchProductList, fetchStoreList } from '../../api/queries/waimai';
+import { getChannelReviews, getChannelReviewStats } from '../../api/queries/review';
 import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
 import { theme, initTheme } from '../../utils/theme';
 import { addItemToOrder } from '../../api/mutations/cart';
@@ -129,6 +182,99 @@ const cartTotal = computed(() => cart.totalPrice);
 const routeDetailText = computed(() =>
     routeDetail(shopRoutes.value.split(',').filter(Boolean)).join('、') || '暂未开通配送'
 );
+
+// ── 评论 tab（A 版式：摘要卡 + chips + 列表，首切 tab 才拉取） ──
+type ReviewFilterKey = 'all' | 'images' | 'good' | 'bad';
+const REVIEW_PAGE_SIZE = 10;
+const reviewFilters: { key: ReviewFilterKey; label: string }[] = [
+    { key: 'all', label: '全部' },
+    { key: 'images', label: '有图' },
+    { key: 'good', label: '好评' },
+    { key: 'bad', label: '差评' },
+];
+const reviewFilter = ref<ReviewFilterKey>('all');
+const reviewList = ref<any[]>([]);
+const reviewTotal = ref(0);
+const reviewStats = ref<any>(null);
+const reviewLoading = ref(false);
+const reviewLoadingMore = ref(false);
+const reviewLoaded = ref(false);
+const reviewHasMore = computed(() => reviewList.value.length < reviewTotal.value);
+
+function switchTab(t: 'goods' | 'reviews' | 'merchant') {
+    tab.value = t;
+    if (t === 'reviews' && !reviewLoaded.value) {
+        reviewLoaded.value = true;
+        loadReviewStats();
+        loadReviews(true);
+    }
+}
+
+function reviewOptions(key: ReviewFilterKey) {
+    if (key === 'images') return { hasImages: true };
+    if (key === 'good') return { ratingMin: 4 };
+    if (key === 'bad') return { ratingMax: 3 };
+    return {};
+}
+
+async function loadReviews(reset: boolean) {
+    if (reset) reviewLoading.value = true;
+    else reviewLoadingMore.value = true;
+    try {
+        const options = {
+            skip: reset ? 0 : reviewList.value.length,
+            take: REVIEW_PAGE_SIZE,
+            ...reviewOptions(reviewFilter.value),
+        };
+        const res: any = await getChannelReviews(options);
+        const items = res?.channelReviews?.items ?? [];
+        reviewTotal.value = res?.channelReviews?.totalItems ?? 0;
+        reviewList.value = reset ? items : [...reviewList.value, ...items];
+    } catch {
+        if (reset) { reviewList.value = []; reviewTotal.value = 0; }
+    } finally {
+        reviewLoading.value = false;
+        reviewLoadingMore.value = false;
+    }
+}
+
+async function loadReviewStats() {
+    try {
+        const res: any = await getChannelReviewStats();
+        reviewStats.value = res?.channelReviewStats ?? null;
+    } catch { reviewStats.value = null; }
+}
+
+function switchReviewFilter(key: ReviewFilterKey) {
+    if (reviewFilter.value === key) return;
+    reviewFilter.value = key;
+    loadReviews(true);
+}
+
+function loadMoreReviews() {
+    if (!reviewHasMore.value || reviewLoadingMore.value || reviewLoading.value) return;
+    loadReviews(false);
+}
+
+function displayName(r: any, nameOnly = false) {
+    if (r.isAnonymous) return nameOnly ? '匿名用户' : '匿';
+    return r.customerName?.slice(0, 1) || '评';
+}
+
+function formatDate(d: string) {
+    return d ? new Date(d).toLocaleDateString('zh-CN') : '';
+}
+
+function distWidth(count: number) {
+    const dist: number[] = (reviewStats.value?.ratingDistribution ?? []).map((d: any) => d.count);
+    const max = Math.max(...dist, 1);
+    return `${Math.round((count / max) * 100)}%`;
+}
+
+function distPct(count: number) {
+    const total = reviewStats.value?.totalCount ?? 0;
+    return total ? `${Math.round((count / total) * 100)}%` : '0%';
+}
 
 onLoad(async (q: any) => {
     initTheme();
@@ -281,12 +427,46 @@ function goCheckout() {
 .good-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; padding-right: 120rpx; }
 .good-name { font-size: 28rpx; font-weight: 600; color: var(--w-text); }
 .good-desc { font-size: 22rpx; color: var(--w-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.good-rate { display: flex; align-items: center; gap: 6rpx; font-size: 22rpx; }
+.good-rate__star { color: #f59e0b; font-size: 22rpx; }
+.good-rate__num { color: #f59e0b; font-weight: 600; }
+.good-rate__cnt { color: var(--w-text-muted); }
 .price-row { margin-top: 4rpx; }
 .add-btn { position: absolute; right: 0; bottom: 20rpx; min-width: 56rpx; height: 56rpx; border-radius: 999rpx; background: $brand; color: #fff; font-size: 36rpx; display: flex; align-items: center; justify-content: center; }
 .add-btn.spec { font-size: 22rpx; padding: 0 20rpx; font-weight: 600; }
 .scroll-pad { height: 150rpx; }
 /* ── 评论 / 商家面板 ── */
 .solo { padding-bottom: 160rpx; box-sizing: border-box; }
+/* ── 评论 A 版式 ── */
+.rv-summary { background: var(--w-surface); border-radius: $radius-card; margin: 20rpx 24rpx 0; padding: 24rpx; }
+.rv-sum-top { display: flex; gap: 32rpx; align-items: center; }
+.rv-score { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 4rpx; }
+.rv-score__num { font-size: 64rpx; font-weight: 700; color: var(--w-text); line-height: 1.1; }
+.rv-score__lab { font-size: 22rpx; color: var(--w-text-muted); }
+.rv-dist { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8rpx; }
+.rv-dist__row { display: flex; align-items: center; gap: 12rpx; }
+.rv-dist__star { font-size: 20rpx; color: var(--w-text-muted); flex-shrink: 0; width: 44rpx; }
+.rv-dist__bar { flex: 1; height: 12rpx; border-radius: 999rpx; background: var(--w-surface-muted); overflow: hidden; }
+.rv-dist__fill { height: 100%; border-radius: 999rpx; background: #f59e0b; }
+.rv-dist__pct { font-size: 20rpx; color: var(--w-text-muted); flex-shrink: 0; width: 64rpx; text-align: right; }
+.rv-sum-foot { display: flex; justify-content: space-between; margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid var(--w-border); font-size: 24rpx; color: var(--w-text-muted); }
+.rv-chips { display: flex; gap: 16rpx; padding: 24rpx 24rpx 0; flex-wrap: wrap; }
+.rv-chip { font-size: 24rpx; color: var(--w-text-muted); background: var(--w-surface); border: 1rpx solid var(--w-border); border-radius: 999rpx; padding: 10rpx 28rpx; }
+.rv-chip.on { color: var(--w-brand-text); background: var(--w-brand-soft); border-color: transparent; font-weight: 600; }
+.rv-item { background: var(--w-surface); border-radius: $radius-card; margin: 20rpx 24rpx 0; padding: 24rpx; display: flex; flex-direction: column; gap: 16rpx; }
+.rv-head { display: flex; align-items: center; gap: 16rpx; }
+.rv-avatar { width: 64rpx; height: 64rpx; border-radius: 999rpx; background: var(--w-brand-soft); color: var(--w-brand-text); font-size: 26rpx; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.rv-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.rv-name { font-size: 26rpx; color: var(--w-text); font-weight: 500; }
+.rv-stars { font-size: 22rpx; color: #f59e0b; .off { color: var(--w-border); } }
+.rv-date { font-size: 22rpx; color: var(--w-text-muted); flex-shrink: 0; }
+.rv-content { font-size: 26rpx; color: var(--w-text); line-height: 1.6; }
+.rv-imgs { display: flex; gap: 12rpx; flex-wrap: wrap; }
+.rv-tags { display: flex; gap: 12rpx; flex-wrap: wrap; }
+.rv-tag { font-size: 20rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 8rpx; padding: 4rpx 12rpx; }
+.rv-reply { background: var(--w-surface-muted); border-radius: 12rpx; padding: 16rpx; font-size: 24rpx; color: var(--w-text-muted); line-height: 1.5; }
+.rv-reply__who { color: var(--w-brand-text); margin-right: 12rpx; font-weight: 500; }
+.rv-more { text-align: center; font-size: 24rpx; color: var(--w-text-muted); padding: 32rpx 0 0; }
 .mcard { background: var(--w-surface); border-radius: $radius-card; margin: 20rpx 24rpx 0; padding: 8rpx 24rpx; }
 .mrow { display: flex; gap: 12rpx; align-items: flex-start; padding: 24rpx 0; border-bottom: 1rpx solid var(--w-border); font-size: 26rpx; }
 .mrow:last-child { border-bottom: 0; }

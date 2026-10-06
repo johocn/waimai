@@ -8,6 +8,9 @@
       <view class="menu-item" @click="goOrders">
         <text>我的订单</text><text class="menu-arrow">></text>
       </view>
+      <view class="menu-item" @click="goMyReviews">
+        <text>我的评价</text><text class="menu-arrow">></text>
+      </view>
       <view class="menu-item" @click="goRiderCenter">
         <text>成为传信者</text><text class="menu-arrow">></text>
       </view>
@@ -34,6 +37,7 @@ onMounted(async () => {
 });
 
 function goOrders() { uni.switchTab({ url: '/pages/orders/index' }); }
+function goMyReviews() { uni.navigateTo({ url: '/pkg-order/pages/my-reviews' }); }
 
 /**
  * 骑手中心入口（常显「成为骑手」）：按骑手档案分流

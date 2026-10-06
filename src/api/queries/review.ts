@@ -71,3 +71,47 @@ export async function createReview(input: {
     `;
     return client.request(query, { input });
 }
+
+/** 删除本人评价（软删）：authenticated */
+export async function deleteReview(id: string) {
+    const client = getGraphQLClient();
+    return client.request(
+        `mutation DeleteReview($id: ID!) { deleteReview(id: $id) }`,
+        { id },
+    );
+}
+
+/** 店铺级评论流：当前渠道全部 approved 主评（menu 评论 tab）；ratingMin/ratingMax/hasImages 分档筛选 */
+export async function getChannelReviews(options?: {
+    take?: number;
+    skip?: number;
+    ratingMin?: number;
+    ratingMax?: number;
+    hasImages?: boolean;
+}) {
+    const client = getGraphQLClient();
+    const query = `
+        query GetChannelReviews($options: ReviewListOptions) {
+            channelReviews(options: $options) {
+                totalItems
+                items { ${REVIEW_FIELDS} }
+            }
+        }
+    `;
+    return client.request(query, { options: { take: 10, ...(options || {}) } });
+}
+
+/** 店铺级统计：当前渠道全店 approved 主评（摘要卡：均分/好评率/分布/标签） */
+export async function getChannelReviewStats() {
+    const client = getGraphQLClient();
+    const query = `
+        query GetChannelReviewStats {
+            channelReviewStats {
+                totalCount goodRate averageRating
+                ratingDistribution { rating count }
+                topTags { tag count }
+            }
+        }
+    `;
+    return client.request(query);
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTimeline, isNoRiderFinal } from '../src/utils/timeline';
+import { buildTimeline, isNoRiderFinal, isExceptionFinal } from '../src/utils/timeline';
 
 // 枚举校准（campus-delivery-plugin 实测）：
 // hallStatus 小写 open / grabbed / no_rider_final；deliveryStatus assigned / in_progress / delivered
@@ -62,5 +62,15 @@ describe('isNoRiderFinal', () => {
         expect(isNoRiderFinal('open')).toBe(false);
         expect(isNoRiderFinal('grabbed')).toBe(false);
         expect(isNoRiderFinal(null)).toBe(false);
+    });
+});
+
+describe('isExceptionFinal（plan 3.4 异常处置终态）', () => {
+    it('仅匹配 exception_final（大小写不敏感）', () => {
+        expect(isExceptionFinal('exception_final')).toBe(true);
+        expect(isExceptionFinal('EXCEPTION_FINAL')).toBe(true);
+        expect(isExceptionFinal('exception')).toBe(false);
+        expect(isExceptionFinal('open')).toBe(false);
+        expect(isExceptionFinal(null)).toBe(false);
     });
 });

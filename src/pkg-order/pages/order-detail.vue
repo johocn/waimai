@@ -5,6 +5,17 @@
       <text class="status-header__sub">{{ statusHint }}</text>
     </view>
 
+    <!-- 异常赔付提示（plan 3.4）：处理中黄条 / 已处理绿条（展示赔付结果） -->
+    <view
+      v-if="campusRoute && (exceptionPending || exceptionFinal)"
+      class="section exc-banner"
+      :class="{ 'exc-banner--done': exceptionFinal }"
+    >
+      <text class="exc-banner__title">{{ exceptionPending ? '骑手上报异常，平台处理中' : '异常已处理' }}</text>
+      <text class="exc-banner__sub" v-if="exceptionResultText">{{ exceptionResultText }}</text>
+      <text class="exc-banner__sub" v-else-if="exceptionPending">我们会尽快为您处理，请留意通知</text>
+    </view>
+
     <!-- 履约时间线（校园单：按路线 R1/R3 区分节点，spec §5.4） -->
     <view class="section" v-if="campusRoute && campusRoute !== 'R4'">
       <text class="section__title">配送进度</text>
@@ -138,7 +149,7 @@ import { fetchOrderRider, fetchR2Relay, markArrived, urgeOrder } from '../../api
 import { fetchStoreList } from '../../api/queries/waimai';
 import { fetchMyPickupCode, claimPickup } from '../../api/queries/pickup';
 import { relayStatusLabel } from '../../utils/errand';
-import { buildTimeline, isNoRiderFinal } from '../../utils/timeline';
+import { buildTimeline, isNoRiderFinal, isExceptionFinal } from '../../utils/timeline';
 import VImage from '../../components/VImage.vue';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 const order = ref<any>(null);
@@ -166,6 +177,23 @@ const statusMap: Record<string, string> = { Created:'待付款', PaymentAuthoriz
 const statusHintMap: Record<string, string> = { Created:'请尽快完成支付', PaymentAuthorized:'商家正在处理', PaymentSettled:'商家正在处理', Delivered:'请确认收货', Shipped:'商品正在配送中' };
 const statusLabel = computed(() => statusMap[order.value?.state] || order.value?.state || '');
 const statusHint = computed(() => statusHintMap[order.value?.state] || '');
+// —— 异常赔付（plan 3.4）：骑手上报异常 → 平台处置（退差价/发券/退单/重派）——
+const exceptionPending = computed(() => {
+    const cf = order.value?.customFields;
+    return cf?.deliveryStatus === 'exception' && !isExceptionFinal(cf?.hallStatus ?? null);
+});
+const exceptionFinal = computed(() => isExceptionFinal(order.value?.customFields?.hallStatus ?? null));
+const exceptionResultText = computed(() => {
+    const cf = order.value?.customFields;
+    if (!cf) return '';
+    if (cf.exceptionAction === 'refund_diff' && cf.exceptionCompensation != null) {
+        return `平台已赔付 ¥${(cf.exceptionCompensation / 100).toFixed(2)}（原路退回）`;
+    }
+    if (cf.exceptionAction === 'coupon') return '平台已发放补偿券，可在「我的-卡券」查看';
+    if (cf.exceptionAction === 'refund_all') return '订单已全额退款';
+    if (cf.exceptionAction === 'reassign') return '平台已重新安排配送';
+    return '';
+});
 const discountTotal = computed(() => order.value?.discounts?.reduce((s:number,d:any)=>s+d.amountWithTax,0) || 0);
 // —— 校园履约（spec §5.4）：customFields 驱动时间线与骑手卡 ——
 const campusRoute = computed(() => order.value?.customFields?.fulfillmentRoute || '');
@@ -257,7 +285,7 @@ function startRiderPolling() {
 async function pollRiderOnce() {
     const cf = order.value?.customFields;
     if (!order.value?.id) return;
-    if (cf?.deliveryStatus === 'delivered' || isNoRiderFinal(cf?.hallStatus ?? null)) return stopRiderPolling();
+    if (cf?.deliveryStatus === 'delivered' || isNoRiderFinal(cf?.hallStatus ?? null) || isExceptionFinal(cf?.hallStatus ?? null)) return stopRiderPolling();
     try { rider.value = await fetchOrderRider(String(order.value.id)); } catch (e) {}
 }
 // R2 接力状态动态反查（spec §3.5/§4.3）；接力送达即停轮询（退款终态继续轮询，学生可重发）
@@ -363,6 +391,14 @@ function reorder() { uni.switchTab({ url: '/pages/home/index' }); }
 .order-detail { padding-bottom: 40rpx; }
 .status-header { padding: 40rpx 30rpx; background: linear-gradient(135deg, $brand-color, #ff9966); color: #fff; &__text { font-size: 36rpx; font-weight: bold; display: block; } &__sub { font-size: 26rpx; opacity: 0.85; margin-top: 8rpx; display: block; } }
 .status--Cancelled { background: linear-gradient(135deg, #999, #bbb); }
+// 异常赔付提示（plan 3.4）：处理中黄条 / 已处理绿条
+.exc-banner { background: #fff7e6; border: 1rpx solid #ffe1a8;
+  &__title { font-size: 26rpx; font-weight: bold; color: #c47b00; display: block; }
+  &__sub { font-size: 24rpx; color: #c47b00; display: block; margin-top: 6rpx; }
+  &--done { background: #ecfaf1; border-color: #b7ebd0;
+    .exc-banner__title { color: #0a9d58; }
+    .exc-banner__sub { color: #0a9d58; } }
+}
 .section { background: #fff; margin: 20rpx; padding: 24rpx; border-radius: $radius-md; &__title { font-size: 28rpx; font-weight: bold; display: block; margin-bottom: 16rpx; } &__sub { font-size: 26rpx; color: $text-color-secondary; display: block; margin-top: 6rpx; } }
 // 履约时间线
 .tl { &__item { display: flex; align-items: flex-start; } &__rail { display: flex; flex-direction: column; align-items: center; margin-right: 20rpx; } &__dot { width: 32rpx; height: 32rpx; border-radius: 50%; background: #eee; color: #fff; font-size: 20rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; } &__label { font-size: 26rpx; color: #999; padding: 4rpx 0 28rpx; } &__item:last-child &__label { padding-bottom: 4rpx; } &__item--done &__dot { background: $brand-color; } &__item--done &__label { color: $text-color; } &__item--active &__dot { background: $brand-color; box-shadow: 0 0 0 8rpx rgba(255, 102, 0, 0.15); } &__item--active &__label { color: $brand-color; font-weight: bold; } }

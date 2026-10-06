@@ -57,3 +57,8 @@ export function buildTimeline(route: string | null, hallStatus: string | null, d
 export function isNoRiderFinal(hallStatus: string | null): boolean {
     return (hallStatus ?? '').toLowerCase() === 'no_rider_final';
 }
+
+/** 异常已处置完结终态（plan 3.4：赔付/发券/退单后置 exception_final，前端停轮询 + 展示处理结果） */
+export function isExceptionFinal(hallStatus: string | null): boolean {
+    return (hallStatus ?? '').toLowerCase() === 'exception_final';
+}

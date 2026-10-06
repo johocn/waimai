@@ -204,6 +204,8 @@
 
     <view class="checkout-page__summary" v-if="cart.order">
       <view class="summary-row"><text>商品总额</text><text>¥{{ originalSubTotalYuan }}</text></view>
+      <view class="summary-row" v-if="activeTab === 'campus' && deliveryFeeFen != null"><text>配送费</text><text>¥{{ (deliveryFeeFen / 100).toFixed(2) }}</text></view>
+      <view class="summary-row" v-if="activeTab === 'campus' && minOrderFen != null"><text>起送价</text><text>满 ¥{{ (minOrderFen / 100).toFixed(2) }} 起送</text></view>
       <view class="summary-row"><text>运费</text><text>¥{{ shippingFee }}</text></view>
       <view class="summary-row summary-row--total"><text>应付</text><text class="checkout-page__total">¥{{ cart.formatPrice(cart.order.totalWithTax) }}</text></view>
     </view>
@@ -272,6 +274,8 @@ const zoneId = ref('');
 const buildingId = ref('');
 const slotId = ref<string | number>('');
 const zonesLoading = ref(false);
+const minOrderFen = ref<number | null>(null);   // 起送价（分，URL 透传；null=未配置）
+const deliveryFeeFen = ref<number | null>(null); // 配送费（分，仅展示）
 
 const canSwitchRoute = computed(() => campusRoutes.value.includes('R1') && campusRoutes.value.includes('R3'));
 const routeText = computed(() => {
@@ -671,6 +675,11 @@ async function payCurrentOrder(method: string): Promise<string> {
 
 async function submitOrder() {
     if (submitting.value) return;
+    // 起送价软校验：未达标仅 toast 提示，不阻断（硬校验二期后端化）
+    if (activeTab.value === 'campus' && minOrderFen.value != null
+        && (cart.order?.subTotalWithTax || 0) < minOrderFen.value) {
+        ui.showToast(`商品未满起送价 ¥${(minOrderFen.value / 100).toFixed(2)}，请确认后再下单`);
+    }
     submitting.value = true;
     try {
         ui.showLoading();
@@ -692,6 +701,8 @@ onLoad((q: any) => {
     const routes = String(q?.routes || '').split(',').map(s => s.trim()).filter(Boolean);
     campusRoutes.value = routes;
     if (!routes.includes('R3') && routes.includes('R1')) routeChoice.value = 'R1';
+    minOrderFen.value = q?.minOrder ? Number(q.minOrder) : null;
+    deliveryFeeFen.value = q?.dfee ? Number(q.dfee) : null;
 });
 </script>
 

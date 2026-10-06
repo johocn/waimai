@@ -60,9 +60,12 @@
                 <view class="mrow"><text class="mico">🛵</text><text class="mlab">配送服务：</text><text class="mval">{{ routeDetailText }}</text></view>
                 <view class="mrow"><text class="mico">🕐</text><text class="mlab">营业时间：</text><text class="mval">10:00–22:00</text></view>
                 <view class="mrow"><text class="mico">📍</text><text class="mlab">配送范围：</text><text class="mval">校内宿舍楼与教学楼</text></view>
+                <view class="mrow" v-if="storeInfo?.storeAddress"><text class="mico">🏠</text><text class="mlab">店铺地址：</text><text class="mval">{{ storeInfo.storeAddress }}</text></view>
+                <view class="mrow" v-if="storeInfo?.storePhone"><text class="mico">📞</text><text class="mlab" @tap="callStore">联系电话：</text><text class="mval" @tap="callStore">{{ storeInfo.storePhone }}</text></view>
             </view>
-            <view class="mcard" v-if="promoText">
-                <view class="mrow"><text class="mico">📢</text><text class="mlab">店铺公告：</text><text class="mval">{{ promoText }}</text></view>
+            <view class="mcard" v-if="promoText || storeInfo?.storeNotice">
+                <view class="mrow" v-if="storeInfo?.storeNotice"><text class="mico">📣</text><text class="mlab">店铺公告：</text><text class="mval">{{ storeInfo.storeNotice }}</text></view>
+                <view class="mrow" v-if="promoText"><text class="mico">📢</text><text class="mlab">店铺活动：</text><text class="mval">{{ promoText }}</text></view>
             </view>
             <view class="mcard">
                 <view class="msrv">
@@ -96,7 +99,7 @@ import { ref, computed, onUnmounted } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
-import { fetchProductList } from '../../api/queries/waimai';
+import { fetchProductList, fetchStoreList } from '../../api/queries/waimai';
 import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
 import { theme, initTheme } from '../../utils/theme';
 import { addItemToOrder } from '../../api/mutations/cart';
@@ -113,6 +116,7 @@ const shopRoutes = ref('');
 const shopName = ref('校内店铺');
 const routesText = ref('拾光传信者配送');
 const promoText = ref('');
+const storeInfo = ref<any>(null);
 const tab = ref<'goods' | 'reviews' | 'merchant'>('goods');
 const cats = ref([{ id: 'all', name: '全部' }]);
 const activeCat = ref('all');
@@ -133,6 +137,10 @@ onLoad(async (q: any) => {
     shopName.value = decodeURIComponent(q?.name ?? '') || '校内店铺';
     routesText.value = routeText(shopRoutes.value.split(',').filter(Boolean));
     promoText.value = decodeURIComponent(q?.promo ?? '');
+    // 店铺配置（地址/电话/公告/时长）：waimaiStoreList 按渠道 token 找本店；无配置行 → null 走页面兜底
+    fetchStoreList().then((list: any[]) => {
+        storeInfo.value = list.find((s: any) => s.channelToken === shopToken.value) ?? null;
+    }).catch(() => { storeInfo.value = null; });
     uni.setNavigationBarTitle({ title: shopName.value });
     // 关键：切到店铺渠道（activeOrder 随 session+渠道隔离 = 每店独立购物车）
     await tenant.switchTenant(shopToken.value);
@@ -197,10 +205,17 @@ async function onSkuAction(v: { action: 'cart' | 'buy'; variantId: string; quant
     }
 }
 
+function callStore() {
+    const p = storeInfo.value?.storePhone;
+    if (p) uni.makePhoneCall({ phoneNumber: p });
+}
+
 function goCheckout() {
     if (!cartCount.value) return;
     const routes = encodeURIComponent(shopRoutes.value);
-    uni.navigateTo({ url: `/pkg-order/pages/checkout?routes=${routes}` });
+    const mo = storeInfo.value?.minOrderAmount ?? '';
+    const fee = storeInfo.value?.deliveryFee ?? '';
+    uni.navigateTo({ url: `/pkg-order/pages/checkout?routes=${routes}&minOrder=${mo}&dfee=${fee}` });
 }
 </script>
 

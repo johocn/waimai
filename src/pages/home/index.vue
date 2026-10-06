@@ -54,7 +54,7 @@
                             </view>
                             <text class="meta">月售 {{ s.monthlySales }}</text>
                             <view class="tags">
-                                <text class="tag tag-route">{{ routeText(s.routesEnabled) }}</text>
+                                <text class="tag tag-route">{{ deliveryTag(s) || routeText(s.routesEnabled) }}</text>
                                 <text v-if="s.promoText" class="tag tag-promo">{{ s.promoText }}</text>
                             </view>
                         </view>
@@ -71,7 +71,7 @@ import { ref, computed, onMounted } from 'vue';
 import { onPullDownRefresh } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { filterStores } from '../../utils/store-filter';
-import { storeDisplayName, routeText } from '../../utils/store-display';
+import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 import EmptyState from '../../components/EmptyState.vue';

@@ -30,7 +30,7 @@ export const CAMPUS_SHOP_SLOTS = gql`
 `;
 
 export const CAMPUS_ORDER_RIDER = gql`
-    query campusOrderRider($orderId: ID!) { campusOrderRider(orderId: $orderId) { realName credit } }
+    query campusOrderRider($orderId: ID!) { campusOrderRider(orderId: $orderId) { realName credit location { lat lng } } }
 `;
 
 /** 我的骑手档案：riderStatus 为 null/PENDING/REJECTED/APPROVED（未登录时后端直接报未授权） */
@@ -83,3 +83,13 @@ export function fetchR2Relay(orderId: string) { return getGraphQLClient().reques
 export function fetchErrandVariant() { return getGraphQLClient().request(CAMPUS_ERRAND_VARIANT).then((r: any) => r?.campusErrandVariant); }
 export function capacityCheck() { return getGraphQLClient().request(CAMPUS_CAPACITY_CHECK).then((r: any) => r?.campusCapacityCheck); }
 export function setErrandInfo(input: any) { return getGraphQLClient().request(CAMPUS_SET_ERRAND_INFO, { input }).then((r: any) => r?.campusSetErrandInfo); }
+
+/** plan 2.2 骑手位置上报：配送中 10s/次，仅本人 + assigned/in_progress 有效（后端校验），失败静默 */
+export const CAMPUS_RIDER_REPORT_LOCATION = gql`
+    mutation campusRiderReportLocation($orderId: ID!, $lat: Float!, $lng: Float!) {
+        campusRiderReportLocation(orderId: $orderId, lat: $lat, lng: $lng) { id }
+    }
+`;
+export function riderReportLocation(orderId: string, lat: number, lng: number) {
+    return getGraphQLClient().request(CAMPUS_RIDER_REPORT_LOCATION, { orderId, lat, lng });
+}

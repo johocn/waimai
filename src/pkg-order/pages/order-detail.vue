@@ -51,7 +51,8 @@
       <text class="r2-hint" v-else>到店出示给店员核销</text>
     </view>
 
-    <!-- 骑手卡：有骑手显示姓名/信用分；无骑手显示等待/调度中/人工介入提示（10s 轮询） -->
+    <!-- 骑手卡：有骑手显示姓名/信用分；无骑手显示等待/调度中/人工介入提示（10s 轮询）
+         plan 2.2：配送中（assigned/in_progress）且有坐标时内嵌腾讯地图显示骑手 Marker（送达/转单后端即不返回位置） -->
     <view class="section rider" v-if="campusRoute && !['R2','R4'].includes(campusRoute) && (rider || !timelineFinished)">
       <view v-if="rider" class="rider__row">
         <view class="rider__avatar"><text>骑</text></view>
@@ -61,6 +62,14 @@
         </view>
       </view>
       <text v-else class="rider__hint">{{ riderHint }}</text>
+      <map
+        v-if="rider?.location"
+        class="rider__map"
+        :latitude="rider.location.lat"
+        :longitude="rider.location.lng"
+        :markers="riderMarkers"
+        :scale="16"
+      />
     </view>
 
     <view class="section" v-if="!campusRoute && order.shippingAddress">
@@ -128,7 +137,25 @@ import VImage from '../../components/VImage.vue';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 const order = ref<any>(null);
 const trackingNo = ref('');
-const rider = ref<{ realName: string; credit: number } | null>(null);
+const rider = ref<{ realName: string; credit: number; location?: { lat: number; lng: number } | null } | null>(null);
+// plan 2.2：骑手 Marker（callout 显示骑手姓名 + 送往楼栋，目标楼栋无经纬度以文字标注）
+const riderMarkers = computed(() => {
+    const loc = rider.value?.location; if (!loc) return [];
+    return [{
+        id: 1,
+        latitude: loc.lat,
+        longitude: loc.lng,
+        width: 28,
+        height: 28,
+        callout: {
+            content: `${rider.value!.realName} 配送中${order.value?.customFields?.campusZone ? ' · 送往 ' + order.value.customFields.campusZone : ''}`,
+            display: 'ALWAYS',
+            fontSize: 12,
+            borderRadius: 6,
+            padding: 6,
+        },
+    }];
+});
 const statusMap: Record<string, string> = { Created:'待付款', PaymentAuthorized:'待发货', PaymentSettled:'待发货', Delivered:'待收货', PartiallyDelivered:'待收货', Shipped:'待收货', Cancelled:'已取消', Modified:'已修改' };
 const statusHintMap: Record<string, string> = { Created:'请尽快完成支付', PaymentAuthorized:'商家正在处理', PaymentSettled:'商家正在处理', Delivered:'请确认收货', Shipped:'商品正在配送中' };
 const statusLabel = computed(() => statusMap[order.value?.state] || order.value?.state || '');
@@ -300,7 +327,7 @@ function reorder() { uni.switchTab({ url: '/pages/home/index' }); }
 .tl { &__item { display: flex; align-items: flex-start; } &__rail { display: flex; flex-direction: column; align-items: center; margin-right: 20rpx; } &__dot { width: 32rpx; height: 32rpx; border-radius: 50%; background: #eee; color: #fff; font-size: 20rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; } &__label { font-size: 26rpx; color: #999; padding: 4rpx 0 28rpx; } &__item:last-child &__label { padding-bottom: 4rpx; } &__item--done &__dot { background: $brand-color; } &__item--done &__label { color: $text-color; } &__item--active &__dot { background: $brand-color; box-shadow: 0 0 0 8rpx rgba(255, 102, 0, 0.15); } &__item--active &__label { color: $brand-color; font-weight: bold; } }
 .tl-meta { display: flex; flex-direction: column; gap: 6rpx; border-top: 1rpx solid $border-color; padding-top: 16rpx; font-size: 24rpx; color: $text-color-secondary; }
 // 骑手卡
-.rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__hint { font-size: 26rpx; color: $brand-color; } }
+.rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__hint { font-size: 26rpx; color: $brand-color; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } }
 .logistics { &__no { font-size: 26rpx; color: $brand-color; display: block; margin-top: 8rpx; } &__empty { font-size: 26rpx; color: #999; } }
 .order-line { display: flex; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid #f5f5f5; &:last-child { border-bottom: none; } &__info { flex: 1; display: flex; flex-direction: column; justify-content: space-between; } &__name { font-size: 26rpx; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } &__spec { font-size: 22rpx; color: #999; margin-top: 4rpx; } &__bottom { display: flex; justify-content: space-between; align-items: center; } &__price { font-size: 28rpx; color: $price-color; } &__qty { font-size: 24rpx; color: #999; } }
 .summary { &__row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; &--total { padding-top: 16rpx; margin-top: 8rpx; border-top: 1rpx solid $border-color; font-size: 28rpx; } } &__total { font-size: 36rpx; color: $price-color; font-weight: bold; } }

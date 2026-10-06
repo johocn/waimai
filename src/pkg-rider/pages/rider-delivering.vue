@@ -38,6 +38,7 @@ import { ref, computed } from 'vue';
 import { onShow, onHide } from '@dcloudio/uni-app';
 import { fetchMyTasks, fetchBuildingMap } from '../../api/queries/hall';
 import { startTask, deliverTask, reportException, transferTask } from '../../api/queries/task-actions';
+import { riderReportLocation } from '../../api/mutations/campus';
 import { uploadCustomerAsset } from '../../api/mutations/upload';
 import { useAuthStore } from '../../stores/auth';
 import EmptyState from '../../components/EmptyState.vue';
@@ -46,6 +47,7 @@ const auth = useAuthStore();
 const task = ref<any>(null);
 const buildingMap = ref<Record<string, string>>({});
 let timer: any = null;
+let locTimer: any = null;
 
 const status = computed(() => task.value?.customFields?.deliveryStatus ?? '');
 const buildingName = computed(() => buildingMap.value[String(task.value?.customFields?.buildingId)] ?? '');
@@ -57,8 +59,25 @@ onShow(async () => {
     buildingMap.value = await fetchBuildingMap().catch(() => ({}));
     await refresh();
     timer = setInterval(refresh, 8000);   // spec §6.2 任务页 8s 轮询
+    // plan 2.2 位置上报：配送中每 10s 上报经纬度（gcj02），仅 assigned/in_progress 有效，失败静默
+    reportLocation();
+    locTimer = setInterval(reportLocation, 10000);
 });
-onHide(() => clearInterval(timer));
+onHide(() => { clearInterval(timer); clearInterval(locTimer); });
+
+/** plan 2.2：配送中向平台上报当前位置，用户端订单跟踪可看骑手 Marker */
+function reportLocation() {
+    const st = task.value?.customFields?.deliveryStatus;
+    if (!task.value || (st !== 'assigned' && st !== 'in_progress')) return;
+    uni.getLocation({
+        type: 'gcj02',
+        isHighAccuracy: true,
+        success: (res: any) => {
+            void riderReportLocation(task.value.id, res.latitude, res.longitude).catch(() => {});
+        },
+        fail: () => { /* 未授权/定位失败静默跳过，下轮再试 */ },
+    });
+}
 
 function fmt(fen: number) { return (fen / 100).toFixed(2); }
 

@@ -139,13 +139,31 @@
       <view class="info__row"><text>下单时间</text><text>{{ formatTime(order.createdAt) }}</text></view>
       <view class="info__row" v-if="order.payments?.length"><text>支付方式</text><text>{{ order.payments[0]?.method }}</text></view>
     </view>
+    <!-- 发票：已提交开票申请只读条（Task 11） -->
+    <view class="invoice-done" v-if="order.customFields?.invoiceApplied">
+      <text class="invoice-done__tag">已提交开票申请</text>
+      <text class="invoice-done__txt">{{ invoiceSummary(order.customFields.invoiceInfo) }}</text>
+    </view>
     <view class="order-detail__actions">
       <button v-if="canReceive" class="action-btn action-btn--primary" @click="confirmReceive">确认收货</button>
       <button v-if="canAfterSale" class="action-btn" @click="goAfterSale">申请售后</button>
-      <button v-if="canInvoice" class="action-btn" @click="notOpen">开发票</button>
+      <button v-if="canInvoice" class="action-btn" @click="openInvoice">开发票</button>
       <button v-if="canCancel" class="action-btn action-btn--ghost" @click="cancelOrder">取消订单</button>
       <button v-if="canReview" class="action-btn" @click="goReview">去评价</button>
       <button class="action-btn action-btn--primary" @click="reorder">再来一单</button>
+    </view>
+
+    <!-- 开发票弹层（Task 11）：抬头选择 + 接收邮箱 + 提交申请 -->
+    <view class="invoice-mask" v-if="invoiceShow" @click="invoiceShow = false">
+      <view class="invoice-sheet" @click.stop>
+        <text class="invoice-sheet__title">开发票</text>
+        <view class="invoice-sheet__opt" v-for="(t, i) in invoiceTitles" :key="i"
+              :class="{ on: invoiceSelIdx === i }" @click="invoiceEmail = t.email; invoiceSelIdx = i">
+          <text>{{ t.name }}（{{ t.type === 'company' ? '企业' : '个人' }}）</text>
+        </view>
+        <input class="invoice-sheet__ipt" v-model="invoiceEmail" placeholder="接收邮箱" />
+        <button class="invoice-sheet__btn" @click="submitInvoice">提交申请</button>
+      </view>
     </view>
   </view>
   <LoadingSkeleton v-else type="card" :count="2" />
@@ -158,6 +176,9 @@ import { fetchOrderRider, fetchR2Relay, markArrived, urgeOrder } from '../../api
 import { fetchStoreList } from '../../api/queries/waimai';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
 import type { AfterSaleRequest } from '../../api/queries/afterSale';
+import { getActiveCustomer } from '../../api/queries/user';
+import { applyOrderInvoice } from '../../api/mutations/user';
+import { parseInvoiceTitles, type InvoiceTitle } from '../../utils/profile-mapping';
 import { fetchMyPickupCode, claimPickup } from '../../api/queries/pickup';
 import { relayStatusLabel } from '../../utils/errand';
 import { buildTimeline, isNoRiderFinal, isExceptionFinal } from '../../utils/timeline';
@@ -233,7 +254,10 @@ const canAfterSale = computed(() =>
     order.value?.customFields?.deliveryStatus === 'delivered'
     && withinAfterSaleWindow.value
     && !hasActiveAfterSale.value);
-const canInvoice = computed(() => ['Delivered','Completed','PartiallyDelivered'].includes(order.value?.state));
+// 开发票（Task 11）：已支付未开票即可申请（后端幂等闸 INVOICE_ALREADY_APPLIED 兜底）
+const canInvoice = computed(() =>
+    ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'].includes(order.value?.state)
+    && !order.value?.customFields?.invoiceApplied);
 const canCancel = computed(() => ['Created','AddingItems','ArrangingPayment'].includes(order.value?.state));
 const canReview = computed(() => ['Delivered', 'Completed'].includes(order.value?.state));
 // 预约单（plan 3.1）：未放量进大厅前不显示骑手等待卡（时间线首节点已表达预约态）
@@ -411,8 +435,52 @@ function goReview() {
     ].join('&');
     uni.navigateTo({ url: `/pkg-order/pages/review-create?${q}` });
 }
-// 死链兜底：发票目标页面本模板未建
-function notOpen() { uni.showToast({ title: '暂未开放', icon: 'none' }); }
+// —— 开发票弹层（Task 11）：抬头拉取 → 弹层选择 → applyOrderInvoice 幂等留痕 ——
+const invoiceTitles = ref<InvoiceTitle[]>([]);
+const invoiceSelIdx = ref(0);
+const invoiceEmail = ref('');
+const invoiceShow = ref(false);
+
+async function openInvoice() {
+    try {
+        const res: any = await getActiveCustomer();
+        invoiceTitles.value = parseInvoiceTitles(res?.activeCustomer?.customFields?.invoiceTitles);
+    } catch (e) { /* 未登录等场景静默，走空抬头引导 */ }
+    if (!invoiceTitles.value.length) {
+        uni.showModal({
+            title: '还没有发票抬头', content: '先去「我的-发票抬头」新增一个抬头？',
+            success: (r: any) => { if (r.confirm) uni.navigateTo({ url: '/pkg-user/pages/invoice-titles' }); },
+        });
+        return;
+    }
+    invoiceSelIdx.value = 0;
+    invoiceEmail.value = invoiceTitles.value[0].email || '';
+    invoiceShow.value = true;
+}
+
+async function submitInvoice() {
+    const t = invoiceTitles.value[invoiceSelIdx.value];
+    if (!t) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invoiceEmail.value)) {
+        uni.showToast({ title: '邮箱格式不正确', icon: 'none' }); return;
+    }
+    try {
+        const snapshot = JSON.stringify({ titleType: t.type, titleName: t.name, taxNo: t.taxNo || '', email: invoiceEmail.value, appliedAt: new Date().toISOString() });
+        await applyOrderInvoice(String(order.value.id), snapshot);
+        order.value.customFields = { ...(order.value.customFields || {}), invoiceApplied: true, invoiceInfo: snapshot };
+        invoiceShow.value = false;
+        uni.showToast({ title: '开票申请已提交', icon: 'success' });
+    } catch (e: any) {
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '提交失败', icon: 'none' });
+    }
+}
+
+function invoiceSummary(raw: unknown): string {
+    try {
+        const o = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        return `${o?.titleName || ''} · ${o?.email || ''}`;
+    } catch { return ''; }
+}
 // 售后：入口创建页 / 状态卡详情页
 function goAfterSale() {
     if (!order.value?.code) return;
@@ -452,6 +520,10 @@ function reorder() { uni.switchTab({ url: '/pages/home/index' }); }
 .order-detail__actions { padding: 20rpx; display: flex; gap: 16rpx; flex-wrap: wrap; }
 // 售后状态卡
 .as-card { &__row { display: flex; justify-content: space-between; align-items: center; } &__title { font-size: 28rpx; font-weight: bold; } &__amount { font-size: 28rpx; color: $price-color; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; margin-top: 8rpx; display: block; } }
+// 开发票（Task 11）：已申请只读条 + 底部弹层
+.invoice-done { background: #fff; border-radius: $radius-md; padding: 24rpx 30rpx; margin: 20rpx; &__tag { font-size: 26rpx; color: $brand-color; font-weight: bold; display: block; } &__txt { font-size: 24rpx; color: #999; margin-top: 8rpx; display: block; } }
+.invoice-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; z-index: 9; }
+.invoice-sheet { width: 100%; background: #fff; border-radius: 24rpx 24rpx 0 0; padding: 40rpx 30rpx calc(40rpx + env(safe-area-inset-bottom)); &__title { font-size: 32rpx; font-weight: bold; display: block; margin-bottom: 24rpx; } &__opt { border: 1rpx solid $border-color; border-radius: $radius-md; padding: 20rpx; margin-bottom: 16rpx; font-size: 26rpx; &.on { border-color: $brand-color; color: $brand-color; background: #fff3e6; } } &__ipt { border-bottom: 1rpx solid $border-color; height: 80rpx; font-size: 28rpx; margin: 16rpx 0 24rpx; } &__btn { background: $brand-color; color: #fff; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; } }
 .action-btn { flex: 1; min-width: 200rpx; height: 80rpx; font-size: 28rpx; border-radius: $radius-md; border: none; display: flex; align-items: center; justify-content: center; &--primary { background: $brand-color; color: #fff; } &--ghost { background: #fff; color: #999; border: 1rpx solid $border-color; } }
 .r2-hint { font-size: 26rpx; color: $text-color-secondary; display: block; margin-top: 8rpx; }
 .r2-actions { display: flex; gap: 16rpx; margin-top: 16rpx; }

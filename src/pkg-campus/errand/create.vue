@@ -43,9 +43,9 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { addItemToOrder } from '../../api/mutations/cart';
 import { capacityCheck, fetchErrandVariant, setErrandInfo } from '../../api/mutations/campus';
-import { getEligibleShippingMethods } from '../../api/queries/order';
+import { getEligibleShippingMethods, getOrderByCode } from '../../api/queries/order';
 import { getEligiblePaymentMethods } from '../../api/queries/user';
-import { addPaymentToOrder, setOrderShippingMethod, transitionOrderToState } from '../../api/mutations/checkout';
+import { addPaymentToOrder, setOrderShippingMethod, transitionOrderToState, cancelPayment } from '../../api/mutations/checkout';
 import { handlePayment, type PaymentMethod } from '../../composables/usePayment';
 import { theme, initTheme } from '../../utils/theme';
 import { buildErrandPayload, ERRAND_KINDS, parseRelayPrefill, TIP_STEPS } from '../../utils/errand';
@@ -102,7 +102,14 @@ async function submit() {
         // 支付：与 checkout.vue submitOrder/payCurrentOrder 同款
         const pmRes: any = await getEligiblePaymentMethods();
         const pms: any[] = (pmRes?.eligiblePaymentMethods ?? []).filter((p: any) => p.isEligible);
-        const method = pms[0]?.code;
+        // 小程序优先 wechatpay；H5（公众号内）必须用公众号 JSAPI PM（wechatpay 的 appid
+        // 只能在小程序内拉起收银台），排除之
+        // #ifdef H5
+        const method = pms.find((p: any) => p.code.includes('wechatpay') && p.code !== 'wechatpay')?.code || pms[0]?.code;
+        // #endif
+        // #ifndef H5
+        const method = pms.find((p: any) => p.code === 'wechatpay')?.code || pms[0]?.code;
+        // #endif
         if (!method) throw new Error('无可用支付方式');
         const metadata: Record<string, any> = {};
         if (method === 'wechatpay') {
@@ -111,13 +118,34 @@ async function submit() {
         }
         const payRes: any = await addPaymentToOrder(method, metadata);
         const po = payRes?.addPaymentToOrder;
+        const lastPayment = po?.payments?.[po.payments.length - 1];
+        const pub = lastPayment?.metadata?.public || lastPayment?.metadata || {};
+        // JSAPI：PaymentAuthorized ≠ 已支付，须调起收银台由微信回调结算，不能提前跳 success
+        if (po?.state === 'PaymentAuthorized' && pub.payType === 'jsapi') {
+            const result = await handlePayment(method as PaymentMethod, { ...lastPayment, orderCode: po?.code, orderState: po?.state });
+            if (!result.success) {
+                try { await cancelPayment(lastPayment.id); } catch (e) { console.warn('[errand] cancelPayment failed', e); }
+                uni.showToast({ title: result.message || '支付未完成，请重试或更换支付方式', icon: 'none' });
+                return;
+            }
+            // 轻量轮询回调结果（2 次 × 1.5s）：未确认 → pending 页提示等待，不伪装成功
+            let settled = false;
+            for (let i = 0; i < 2; i++) {
+                await new Promise(r => setTimeout(r, 1500));
+                try {
+                    const o: any = await getOrderByCode(po.code);
+                    if (o?.orderByCode?.state === 'PaymentSettled') { settled = true; break; }
+                } catch (e) { console.warn('[errand] poll order failed', e); }
+            }
+            uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(po.code)}&status=${settled ? 'success' : 'pending'}` });
+            return;
+        }
         if (po?.state === 'PaymentSettled' || po?.state === 'PaymentAuthorized') {
             uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(po.code)}&status=success` });
             return;
         }
-        const lastPayment = po?.payments?.[po.payments.length - 1];
         const result = await handlePayment(method as PaymentMethod, { ...lastPayment, orderCode: po?.code, orderState: po?.state });
-        if (!result.success) { uni.showToast({ title: '支付未完成，请重试或更换支付方式', icon: 'none' }); return; }
+        if (!result.success) { uni.showToast({ title: result.message || '支付未完成，请重试或更换支付方式', icon: 'none' }); return; }
         uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(po.code)}&status=success` });
     } catch (e: any) {
         uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '发单失败', icon: 'none' });

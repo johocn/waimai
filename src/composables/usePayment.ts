@@ -2,6 +2,49 @@ import { wxRequestPayment, redirectPayment, getPlatform } from "../utils/platfor
 
 export type PaymentMethod = "wechatpay" | "alipay" | "cod" | "balance-pay" | "aggregate-pay";
 
+/**
+ * 公众号 JSAPI 支付：通过 WeixinJSBridge 调起微信收银台。
+ * 仅在微信内置浏览器中可用；未注入 bridge 时等待 WeixinJSBridgeReady（3s 超时兜底）。
+ * err_msg: get_brand_wcpay_request:ok / :cancel / :fail
+ */
+function jsapiPay(m: { appId?: string; timeStamp?: string; nonceStr?: string; package?: string; signType?: string; paySign?: string }): Promise<PaymentResult> {
+    return new Promise((resolve) => {
+        let settled = false;
+        const done = (r: PaymentResult) => { if (!settled) { settled = true; resolve(r); } };
+        const invoke = () => {
+            const bridge = (window as any).WeixinJSBridge;
+            if (!bridge) { done({ success: false, message: "请在微信中打开完成支付" }); return; }
+            bridge.invoke("getBrandWCPayRequest", {
+                appId: m.appId,
+                timeStamp: m.timeStamp,
+                nonceStr: m.nonceStr,
+                package: m.package,
+                signType: m.signType || "RSA",
+                paySign: m.paySign,
+            }, (res: any) => {
+                const msg = String(res?.err_msg || "");
+                if (msg === "get_brand_wcpay_request:ok") {
+                    done({ success: true });
+                } else if (msg === "get_brand_wcpay_request:cancel") {
+                    done({ success: false, message: "已取消支付" });
+                } else {
+                    done({ success: false, message: "支付失败" + (msg ? `: ${msg}` : "") });
+                }
+            });
+        };
+        if (typeof window !== "undefined" && (window as any).WeixinJSBridge) {
+            invoke();
+        } else if (typeof document !== "undefined") {
+            document.addEventListener("WeixinJSBridgeReady", invoke, { once: true });
+            setTimeout(() => {
+                if (!(window as any).WeixinJSBridge) done({ success: false, message: "请在微信中打开完成支付" });
+            }, 3000);
+        } else {
+            done({ success: false, message: "请在微信中打开完成支付" });
+        }
+    });
+}
+
 export interface PaymentResult {
     success: boolean;
     message?: string;
@@ -40,10 +83,14 @@ export async function handlePayment(
                     return { success: false, message: e.errMsg || "支付取消" };
                 }
             } else if (platform === "h5") {
-                // H5: Dev Bypass 返回相对 URL /wechatpay/dev-pay?orderCode=xxx
-                // 生产 H5 返回完整 h5_url
-                // Shop API 的 Payment.metadata 只暴露 metadata.public 字段
                 const pub = paymentData.metadata?.public || paymentData.metadata || {};
+                // 公众号 JSAPI：后端返回完整签名参数，须用 WeixinJSBridge 调起收银台
+                if (pub.payType === "jsapi") {
+                    return await jsapiPay(pub);
+                }
+                // Dev Bypass 返回相对 URL /wechatpay/dev-pay?orderCode=xxx
+                // 生产 H5（tradeType=H5）返回完整 h5_url
+                // Shop API 的 Payment.metadata 只暴露 metadata.public 字段
                 const rawUrl =
                     paymentData.h5Url ||
                     pub.h5Url ||

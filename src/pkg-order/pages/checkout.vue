@@ -209,7 +209,7 @@
         @click="selectedPayment = pm.code">
         <view class="radio-item__left">
           <text class="radio-item__icon">{{ getPaymentIcon(pm.code) }}</text>
-          <text>{{ pm.name }}</text>
+          <text>{{ getPaymentName(pm) }}</text>
         </view>
       </view>
     </view>
@@ -272,10 +272,10 @@ import RegionPicker from '../../components/RegionPicker.vue';
 import type { PickupLocation } from '../../types/pickup';
 import { useCartStore } from '../../stores/cart';
 import { useUIStore } from '../../stores/ui';
-import { getActiveOrder, getEligibleShippingMethods } from '../../api/queries/order';
+import { getActiveOrder, getEligibleShippingMethods, getOrderByCode } from '../../api/queries/order';
 import { getActiveCustomer, getEligiblePaymentMethods } from '../../api/queries/user';
 import { getPickupLocations } from '../../api/queries/pickup';
-import { setOrderShippingAddress, setOrderShippingMethod, transitionOrderToState, addPaymentToOrder, setOrderPickupLocation } from '../../api/mutations/checkout';
+import { setOrderShippingAddress, setOrderShippingMethod, transitionOrderToState, addPaymentToOrder, setOrderPickupLocation, cancelPayment } from '../../api/mutations/checkout';
 import { setDeliveryTarget, fetchZones, fetchBuildings, fetchSlots } from '../../api/mutations/campus';
 import { createCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from '../../api/mutations/address';
 import { handlePayment, type PaymentMethod } from '../../composables/usePayment';
@@ -501,6 +501,16 @@ const shippingTabs = computed(() => {
 function getPaymentIcon(code: string): string {
     const icons: Record<string, string> = { 'wechatpay': '💳', 'alipay': '💰', 'cod': '📦', 'balance-pay': '💵', 'aggregate-pay': '🧾' };
     return icons[code] || '💳';
+}
+
+// PM 展示名：管理端 name 缺失或为原始 code 时按内置中文名兜底（extra PM 如 wechatpay-yourbao-h5）
+function getPaymentName(pm: any): string {
+    if (pm.name && pm.name !== pm.code) return pm.name;
+    const labels: Record<string, string> = {
+        'wechatpay': '微信支付', 'wechatpay-yourbao-h5': '微信支付', 'alipay': '支付宝',
+        'cod': '货到付款', 'balance-pay': '余额支付', 'aggregate-pay': '聚合收款',
+    };
+    return labels[pm.code] || pm.code;
 }
 
 function categorizeShipping(sm: any): ShippingCategory {
@@ -861,8 +871,16 @@ onMounted(async () => {
 
         // 支付方式
         const payList = (payRes.eligiblePaymentMethods || []).filter((p: any) => p.isEligible);
+        // H5（公众号内）隐藏小程序专用 wechatpay PM（其 appid 只能在小程序内支付），
+        // 只留公众号 JSAPI PM（如 wechatpay-yourbao-h5）；小程序端保持原样
+        // #ifdef H5
+        const visiblePayList = payList.filter((p: any) => p.code !== 'wechatpay');
+        // #endif
+        // #ifndef H5
+        const visiblePayList = payList;
+        // #endif
         const seen = new Set<string>();
-        paymentMethods.value = payList.filter((p: any) => {
+        paymentMethods.value = visiblePayList.filter((p: any) => {
             if (seen.has(p.code)) return false;
             seen.add(p.code);
             return true;
@@ -938,10 +956,24 @@ async function prepareOrderAddressAndShipping(): Promise<boolean> {
 }
 
 /**
- * 对当前 active order 提交支付
- * 返回跳转用的订单号
+ * 轮询订单是否已结算（JSAPI 支付 ok 后微信异步回调有延迟，轻量探测 2 次 × 1.5s）
  */
-async function payCurrentOrder(method: string): Promise<string> {
+async function pollOrderSettled(code: string): Promise<boolean> {
+    for (let i = 0; i < 2; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        try {
+            const res: any = await getOrderByCode(code);
+            if (res?.orderByCode?.state === 'PaymentSettled') return true;
+        } catch (e) { console.warn('[checkout] poll order failed', e); }
+    }
+    return false;
+}
+
+/**
+ * 对当前 active order 提交支付
+ * 返回 { code, status }：success=已确认结算 / pending=已调起待回调确认 / fail=未完成
+ */
+async function payCurrentOrder(method: string): Promise<{ code: string; status: 'success' | 'pending' | 'fail' }> {
     // Build payment metadata (wechatpay JSAPI requires openid)
     const paymentMetadata: Record<string, any> = {};
     if (method === 'wechatpay') {
@@ -951,17 +983,34 @@ async function payCurrentOrder(method: string): Promise<string> {
     // Add payment
     const payRes: any = await addPaymentToOrder(method, paymentMetadata);
     const order = payRes.addPaymentToOrder;
-    if (order?.state === 'PaymentSettled' || order?.state === 'PaymentAuthorized') {
-        return order.code;
-    }
-    // 从最新一笔 payment 取 metadata（后端在 payment.metadata 中返回支付参数）
+    // 从最新一笔 payment 取 metadata（后端在 payment.metadata.public 中返回支付参数）
     const lastPayment = order?.payments?.[order.payments.length - 1];
+    const pub = lastPayment?.metadata?.public || lastPayment?.metadata || {};
+    // JSAPI（小程序 wx.requestPayment / 公众号 WeixinJSBridge）：PaymentAuthorized ≠ 已支付，
+    // 须前端调起收银台，用户支付完成后微信异步回调才结算——绝不能在此提前跳 success
+    if (order?.state === 'PaymentAuthorized' && pub.payType === 'jsapi') {
+        const result = await handlePayment(method as PaymentMethod, {
+            ...lastPayment,
+            orderCode: order?.code,
+            orderState: order?.state,
+        });
+        if (result.success) {
+            const settled = await pollOrderSettled(order.code);
+            return { code: order.code, status: settled ? 'success' : 'pending' };
+        }
+        // 用户取消/失败：取消该笔 payment 让订单回到可支付状态（失败不阻断，仅提示）
+        try { await cancelPayment(lastPayment.id); } catch (e) { console.warn('[checkout] cancelPayment failed', e); }
+        return { code: order.code, status: 'fail' };
+    }
+    if (order?.state === 'PaymentSettled' || order?.state === 'PaymentAuthorized') {
+        return { code: order.code, status: 'success' };
+    }
     const result = await handlePayment(method as PaymentMethod, {
         ...lastPayment,
         orderCode: order?.code,
         orderState: order?.state,
     });
-    return result.success ? order?.code : '';
+    return result.success ? { code: order?.code, status: 'success' } : { code: order?.code, status: 'fail' };
 }
 
 async function submitOrder() {
@@ -978,10 +1027,10 @@ async function submitOrder() {
         if (!ok) return;
         // Transition to ArrangingPayment
         await transitionOrderToState('ArrangingPayment');
-        const code = await payCurrentOrder(selectedPayment.value);
-        // code 为空 = 支付未完成（addPaymentToOrder 报错/handlePayment 失败），不得伪装成功
-        if (!code) { ui.showToast('支付未完成，请重试或更换支付方式'); return; }
-        uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(code)}&status=success` });
+        const pay = await payCurrentOrder(selectedPayment.value);
+        // fail = 支付未完成（取消/失败/addPaymentToOrder 报错），不得伪装成功
+        if (pay.status === 'fail' || !pay.code) { ui.showToast('支付未完成，请重试或更换支付方式'); return; }
+        uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(pay.code)}&status=${pay.status}` });
     } catch (e: any) { ui.showToast(e?.response?.errors?.[0]?.message || e.message); }
     ui.hideLoading();
     submitting.value = false;

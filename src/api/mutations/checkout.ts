@@ -27,6 +27,13 @@ export async function addPaymentToOrder(method: string, metadata?: Record<string
         mutation Pay($input: PaymentInput!) { addPaymentToOrder(input: $input) { ... on Order { ...OrderDetail } ... on ErrorResult { errorCode message } } }`, { input: { method, metadata: metadata || {} } });
 }
 
+/** 取消未结算的 payment（用户取消 JSAPI 支付时回退订单到可支付状态） */
+export async function cancelPayment(paymentId: string) {
+    const client = getGraphQLClient();
+    return client.request(`
+        mutation CancelPay($paymentId: ID!) { cancelPayment(paymentId: $paymentId) { ... on Order { id state } ... on ErrorResult { errorCode message } } }`, { paymentId });
+}
+
 export async function setCustomerForOrder(input: any) {
     const client = getGraphQLClient();
     return client.request(`${ORDER_FRAGMENT}

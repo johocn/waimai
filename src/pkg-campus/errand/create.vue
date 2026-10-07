@@ -102,10 +102,12 @@ async function submit() {
         // 支付：与 checkout.vue submitOrder/payCurrentOrder 同款
         const pmRes: any = await getEligiblePaymentMethods();
         const pms: any[] = (pmRes?.eligiblePaymentMethods ?? []).filter((p: any) => p.isEligible);
-        // 小程序优先 wechatpay；H5（公众号内）必须用公众号 JSAPI PM（wechatpay 的 appid
-        // 只能在小程序内拉起收银台），排除之
+        // 小程序优先 wechatpay；H5（yourbao 站专属）必须用本站公众号 JSAPI PM
+        //（wechatpay 为小程序专用，wechatpay-youshop-jsapi 为他站公众号）
         // #ifdef H5
-        const method = pms.find((p: any) => p.code.includes('wechatpay') && p.code !== 'wechatpay')?.code || pms[0]?.code;
+        const method = pms.find((p: any) => p.code === 'wechatpay-yourbao-h5')?.code
+            || pms.find((p: any) => p.code.includes('wechatpay') && p.code !== 'wechatpay' && p.code !== 'wechatpay-youshop-jsapi')?.code
+            || pms[0]?.code;
         // #endif
         // #ifndef H5
         const method = pms.find((p: any) => p.code === 'wechatpay')?.code || pms[0]?.code;

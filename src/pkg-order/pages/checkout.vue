@@ -871,10 +871,10 @@ onMounted(async () => {
 
         // 支付方式
         const payList = (payRes.eligiblePaymentMethods || []).filter((p: any) => p.isEligible);
-        // H5（公众号内）隐藏小程序专用 wechatpay PM（其 appid 只能在小程序内支付），
-        // 只留公众号 JSAPI PM（如 wechatpay-yourbao-h5）；小程序端保持原样
+        // H5（yourbao 站专属）：微信 PM 只保留本站公众号 JSAPI 方法——
+        // wechatpay 为小程序专用（公众号内 appid 不匹配），wechatpay-youshop-jsapi 为他站公众号
         // #ifdef H5
-        const visiblePayList = payList.filter((p: any) => p.code !== 'wechatpay');
+        const visiblePayList = payList.filter((p: any) => p.code === 'wechatpay-yourbao-h5' || !p.code.includes('wechatpay'));
         // #endif
         // #ifndef H5
         const visiblePayList = payList;

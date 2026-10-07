@@ -1,0 +1,8 @@
+import{g as e}from"./index.5OOg3TMX.js";import{Z as n}from"./index-BFaTdkBU.js";const t=e`
+    query waimaiStoreList {
+        waimaiStoreList {
+            channelId channelToken name logo tags monthlySales promoText paused routesEnabled
+            deliveryMinutes minOrderAmount deliveryFee storeAddress storePhone storeNotice errandBaseFee freeShippingThreshold
+        }
+    }
+`;async function i(){const e=await n().request(t);return(null==e?void 0:e.waimaiStoreList)??[]}async function s(){var e;const t=n(),i=await t.request("\n        query MenuProducts {\n            products(options: { take: 100, sort: { name: ASC } }) {\n                items {\n                    id name slug description\n                    featuredAsset { preview }\n                    variants { id name priceWithTax stockLevel options { id name code } }\n                    collections { id name slug parent { name } }\n                    customFields { reviewRating reviewCount }\n                }\n            }\n        }\n    ");return(null==(e=null==i?void 0:i.products)?void 0:e.items)??[]}export{s as a,i as f};

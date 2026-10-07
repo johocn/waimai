@@ -18,8 +18,9 @@
 | 首页双主题（明亮/黑暗，方案 A 橙头；暗色搜索框同步变暗） | ✅ 已上线（2026-10-06，`master` @ `2d06bfd`） | `docs/2026-10-06-waimai-home-revamp.md` §双主题 |
 | 店铺内页三 Tab 改版（版式 A 橙头浮卡 + 双主题） | ✅ 已上线（2026-10-06，`master` @ `8109aac`） | `docs/2026-10-06-waimai-shop-revamp.md` |
 | 配送路线文案映射表（R1-R5 全语义，修 R2 误归 bug） | ✅ 已上线（2026-10-06，`master` @ `fba04fa`） | `docs/2026-10-06-waimai-shop-revamp.md` §关联组件 |
+| P2 收尾包（提现防重+累计收入修复；提现全链路/调度配置/JSAPI 验证收口） | ✅ 已上线（2026-10-08，waimai `aab72ba` + vendure `56bcfae8`/`bcdad756f`） | `docs/2026-10-08-waimai-p2-cleanup-design.md` + `docs/2026-10-08-waimai-p2-cleanup-plan.md` |
 
-**当前状态 = 一期全量交付**：学生端四页 + 骑手端四页 + 全链路冒烟 S1-S8 PASS + 8 页手机截图目检合格 + 操作手册（`vshop/docs/waimai-操作手册.md`）+ verify 排障沉淀（`vshop/docs/verify/2026-10-waimai-e2e.md`）。
+**当前状态 = 一期全量交付 + P2 收尾包上线**：学生端四页 + 骑手端四页（含钱包/提现）+ 全链路冒烟 S1-S8 PASS + 提现 E2E（13 断言含防重）PASS + 5 张收尾截图目检合格（`vshop/docs/screenshots/waimai/p2-cleanup/`）+ 操作手册 §12（`vshop/docs/waimai-操作手册.md`）。
 
 ## 3. 本仓库现状
 
@@ -84,8 +85,8 @@ cd d:\zhao\vendure\packages\campus-delivery-plugin && npx vitest --config vitest
 
 ## 9. 已知限制 / 二期待办
 
-- 骑手收入页提现功能二期开放（分成随送达实时入账 status=credited）
-- 微信 JSAPI 支付待商户参数配置；当前冒烟走 COD 授权链路
-- 大厅单滞留 >5 分钟自动加急置顶；强派调度（DispatchJobService T2/T3）已具备，默认关闭
-- 0 分成单（shipping=0 且 tip=0）送达写库成功但 addBalance 抛错（真实跑腿单不触发）
+- ~~骑手收入页提现功能二期开放~~ → **已收口（2026-10-08 P2 收尾包）**：申请即冻结/驳回退回/通过留痕 + 同骑手 PENDING 防重 + web-admin 审核页 + E2E（`.secrets/rider-withdraw-e2e.cjs`）
+- 微信 JSAPI 支付待商户参数配置；当前冒烟走 COD 授权链路（P2 已验证代码链路就绪，真实支付待用户配置 `/waimai/` 授权目录后验证）
+- 大厅单滞留 >5 分钟自动加急置顶；T2 强派/T4 自动退款定时调度**默认开启**（2026-10-08 生产核验：全渠道 paused=false，阈值 10/30/45）
+- ~~0 分成单（shipping=0 且 tip=0）送达写库成功但 addBalance 抛错~~ → 已修复（vendure `5fa63c726`，跳过入账 + 单测覆盖）
 - nginx `www.yourbao.cn.conf` 改前备份 `.bak_waimai_20261006`（root 补齐前主站一直显示 openresty 欢迎页的历史问题已修复）

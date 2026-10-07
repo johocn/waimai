@@ -23,7 +23,7 @@ const CAMPUS_HALL = gql`
     query campusHall {
         campusHall {
             id code total shipping createdAt
-            customFields { hallStatus hallEnteredAt tip fulfillmentRoute campusZone buildingId deliverySlotText }
+            customFields { hallStatus hallEnteredAt tip fulfillmentRoute campusZone buildingId deliverySlotText routeGroupId }
         }
     }
 `;
@@ -36,7 +36,7 @@ const MY_TASKS = gql`
     query campusMyTasks($status: String) {
         campusMyTasks(status: $status) {
             id code total shipping createdAt
-            customFields { deliveryStatus fulfillmentRoute campusZone buildingId deliverySlotText tip riderEarning urged }
+            customFields { deliveryStatus fulfillmentRoute campusZone buildingId deliverySlotText tip riderEarning urged routeGroupId }
         }
     }
 `;

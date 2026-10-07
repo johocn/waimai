@@ -11,7 +11,7 @@
         <view v-else class="tasks">
             <view v-for="t in tasks" :key="t.id" class="task" :class="{ taken: takenIds.has(t.id) }">
                 <view class="task-head">
-                    <text class="order-code">#{{ t.code }}<text v-if="isUrgent(t)" class="urgent">加急</text></text>
+                    <text class="order-code">#{{ t.code }}<text v-if="isUrgent(t)" class="urgent">加急</text><text v-if="routeCount(t) > 1" class="route-tag">顺路 {{ routeCount(t) }} 单</text></text>
                     <text class="fee">¥{{ fmt(runnerFee(t)) }}</text>
                 </view>
                 <text class="task-addr">{{ t.channelName || '' }} · {{ t.customFields?.campusZone || '' }} {{ buildingName(t) }}</text>
@@ -73,6 +73,13 @@ function isUrgent(t: any) {
     return at ? Date.now() - new Date(at).getTime() > 5 * 60_000 : false;
 }
 
+/** plan 3.3 顺路组：同 routeGroupId 的大厅 open 单数（>1 显示徽标，抢单自动整组接走） */
+function routeCount(t: any) {
+    const gid = t.customFields?.routeGroupId;
+    if (!gid) return 1;
+    return tasks.value.filter((x: any) => x.customFields?.routeGroupId === gid).length;
+}
+
 async function refresh() {
     try { tasks.value = await fetchHall(); } catch { /* 网络抖动静默重试 */ }
 }
@@ -122,6 +129,7 @@ async function grab(t: any) {
 .task-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8rpx; }
 .order-code { font-size: 26rpx; color: $text-muted; }
 .urgent { margin-left: 12rpx; color: #e02020; font-size: 22rpx; background: #ffece8; padding: 2rpx 12rpx; border-radius: 999rpx; }
+.route-tag { margin-left: 12rpx; color: #0a8f4d; font-size: 22rpx; background: rgba(29, 201, 129, .12); padding: 2rpx 12rpx; border-radius: 999rpx; }
 .fee { font-size: 34rpx; font-weight: 700; color: $brand-color; }
 .task-addr { display: block; font-size: 30rpx; font-weight: 600; color: $text; margin-bottom: 6rpx; }
 .task-route { display: block; font-size: 24rpx; color: $text-muted; margin-bottom: 20rpx; }

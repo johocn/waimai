@@ -16,6 +16,15 @@
       <text class="exc-banner__sub" v-else-if="exceptionPending">我们会尽快为您处理，请留意通知</text>
     </view>
 
+    <!-- 售后状态卡：存在售后单时展示摘要，点击进详情；进行中售后单隐藏「申请售后」入口 -->
+    <view class="section as-card" v-if="afterSale" @tap="goAfterSaleDetail">
+      <view class="as-card__row">
+        <text class="as-card__title">售后 {{ asStateLabel }}</text>
+        <text class="as-card__amount">¥{{ ((afterSale.actualRefundAmount ?? afterSale.refundAmount) / 100).toFixed(2) }}</text>
+      </view>
+      <text class="as-card__sub">{{ afterSale.reason }} · 提交于 {{ formatTime(afterSale.createdAt) }}，点击查看详情 ›</text>
+    </view>
+
     <!-- 履约时间线（校园单：按路线 R1/R3 区分节点，spec §5.4） -->
     <view class="section" v-if="campusRoute && campusRoute !== 'R4'">
       <text class="section__title">配送进度</text>
@@ -132,7 +141,7 @@
     </view>
     <view class="order-detail__actions">
       <button v-if="canReceive" class="action-btn action-btn--primary" @click="confirmReceive">确认收货</button>
-      <button v-if="canAfterSale" class="action-btn" @click="notOpen">申请售后</button>
+      <button v-if="canAfterSale" class="action-btn" @click="goAfterSale">申请售后</button>
       <button v-if="canInvoice" class="action-btn" @click="notOpen">开发票</button>
       <button v-if="canCancel" class="action-btn action-btn--ghost" @click="cancelOrder">取消订单</button>
       <button v-if="canReview" class="action-btn" @click="goReview">去评价</button>
@@ -147,6 +156,8 @@ import { getOrderByCode } from '../../api/queries/order';
 import { getGraphQLClient } from '../../api/client';
 import { fetchOrderRider, fetchR2Relay, markArrived, urgeOrder } from '../../api/mutations/campus';
 import { fetchStoreList } from '../../api/queries/waimai';
+import { fetchMyAfterSales } from '../../api/queries/afterSale';
+import type { AfterSaleRequest } from '../../api/queries/afterSale';
 import { fetchMyPickupCode, claimPickup } from '../../api/queries/pickup';
 import { relayStatusLabel } from '../../utils/errand';
 import { buildTimeline, isNoRiderFinal, isExceptionFinal } from '../../utils/timeline';
@@ -195,6 +206,20 @@ const exceptionResultText = computed(() => {
     return '';
 });
 const discountTotal = computed(() => order.value?.discounts?.reduce((s:number,d:any)=>s+d.amountWithTax,0) || 0);
+// —— 售后（送达后 24h 内，整单/按行部分退）——
+const afterSale = ref<AfterSaleRequest | null>(null);
+const asStateLabels: Record<string, string> = {
+    Pending: '商家审核中', Approved: '商家已同意', Received: '退款处理中', Refunded: '已退款',
+    RefundFailed: '退款失败处理中', Rejected: '商家已拒绝', Appealed: '平台仲裁中', Closed: '已关闭',
+};
+const asStateLabel = computed(() => asStateLabels[afterSale.value?.state ?? ''] ?? '');
+const deliveredAt = computed(() => order.value?.customFields?.deliveredAt ?? null);
+const withinAfterSaleWindow = computed(() => {
+    if (!deliveredAt.value) return false;
+    return Date.now() - new Date(deliveredAt.value).getTime() <= 24 * 60 * 60 * 1000;
+});
+// 进行中售后单（非 Closed）→ 展示状态卡并隐藏入口；Closed/无单且送达 24h 内 → 显示入口
+const hasActiveAfterSale = computed(() => !!afterSale.value && afterSale.value.state !== 'Closed');
 // —— 校园履约（spec §5.4）：customFields 驱动时间线与骑手卡 ——
 const campusRoute = computed(() => order.value?.customFields?.fulfillmentRoute || '');
 const timeline = computed(() => buildTimeline(campusRoute.value, order.value?.customFields?.hallStatus ?? null, order.value?.customFields?.deliveryStatus ?? null, order.value?.customFields?.leg1Status ?? null));
@@ -204,7 +229,10 @@ const canReceive = computed(() =>
     ['Delivered','PartiallyDelivered','Shipped'].includes(order.value?.state)
     || (campusRoute.value === 'R2' && order.value?.state === 'PaymentSettled'
         && (order.value?.customFields?.leg1Status ?? '') === 'arrived_gate'));
-const canAfterSale = computed(() => ['Delivered','PaymentSettled','PaymentAuthorized'].includes(order.value?.state));
+const canAfterSale = computed(() =>
+    order.value?.customFields?.deliveryStatus === 'delivered'
+    && withinAfterSaleWindow.value
+    && !hasActiveAfterSale.value);
 const canInvoice = computed(() => ['Delivered','Completed','PartiallyDelivered'].includes(order.value?.state));
 const canCancel = computed(() => ['Created','AddingItems','ArrangingPayment'].includes(order.value?.state));
 const canReview = computed(() => ['Delivered', 'Completed'].includes(order.value?.state));
@@ -259,11 +287,12 @@ onMounted(async () => {
     const pages = getCurrentPages(); const page = pages[pages.length - 1] as any;
     const code = page?.options?.code; if (!code) return;
     try { const res: any = await getOrderByCode(code); order.value = res.orderByCode; } catch (e) { console.error(e); }
+    // 售后单查询（整单维度，client-side 按 orderId 过滤）；旧 returnTrackingNo 死查询已移除
     try {
-        const client = getGraphQLClient();
-        const tRes: any = await client.request(`query { afterSalesRequest(id: "${order.value?.id}") { returnTrackingNo } }`);
-        if (tRes?.afterSalesRequest?.returnTrackingNo) trackingNo.value = tRes.afterSalesRequest.returnTrackingNo;
-    } catch (e) {}
+        const mine = await fetchMyAfterSales();
+        afterSale.value = mine.find(r => String(r.orderId) === String(order.value?.id))
+            ?? mine.find(r => r.order?.id === order.value?.id) ?? null;
+    } catch (e) { /* 未登录等场景静默 */ }
     loadPickupCode();
     startRiderPolling();
 });
@@ -382,8 +411,17 @@ function goReview() {
     ].join('&');
     uni.navigateTo({ url: `/pkg-order/pages/review-create?${q}` });
 }
-// 死链兜底：售后/发票目标页面本模板未建
+// 死链兜底：发票目标页面本模板未建
 function notOpen() { uni.showToast({ title: '暂未开放', icon: 'none' }); }
+// 售后：入口创建页 / 状态卡详情页
+function goAfterSale() {
+    if (!order.value?.code) return;
+    uni.navigateTo({ url: `/pkg-order/pages/after-sale-create?code=${order.value.code}` });
+}
+function goAfterSaleDetail() {
+    if (!afterSale.value?.id) return;
+    uni.navigateTo({ url: `/pkg-order/pages/after-sale-detail?id=${afterSale.value.id}` });
+}
 // 再来一单：shop-api 的 Order 无 channelToken，无法精确回店，回首页店铺列表重选
 function reorder() { uni.switchTab({ url: '/pages/home/index' }); }
 </script>
@@ -412,6 +450,8 @@ function reorder() { uni.switchTab({ url: '/pages/home/index' }); }
 .coupon-tag { display: inline-block; background: #fff3e6; color: $brand-color; font-size: 22rpx; padding: 4rpx 16rpx; border-radius: 20rpx; margin-right: 12rpx; border: 1rpx solid $brand-color; }
 .info { &__row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; color: $text-color-secondary; } }
 .order-detail__actions { padding: 20rpx; display: flex; gap: 16rpx; flex-wrap: wrap; }
+// 售后状态卡
+.as-card { &__row { display: flex; justify-content: space-between; align-items: center; } &__title { font-size: 28rpx; font-weight: bold; } &__amount { font-size: 28rpx; color: $price-color; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; margin-top: 8rpx; display: block; } }
 .action-btn { flex: 1; min-width: 200rpx; height: 80rpx; font-size: 28rpx; border-radius: $radius-md; border: none; display: flex; align-items: center; justify-content: center; &--primary { background: $brand-color; color: #fff; } &--ghost { background: #fff; color: #999; border: 1rpx solid $border-color; } }
 .r2-hint { font-size: 26rpx; color: $text-color-secondary; display: block; margin-top: 8rpx; }
 .r2-actions { display: flex; gap: 16rpx; margin-top: 16rpx; }

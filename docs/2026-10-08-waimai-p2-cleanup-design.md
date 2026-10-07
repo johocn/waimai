@@ -1,68 +1,76 @@
-# waimai 二期收尾包设计（提现 / JSAPI 验证 / 加急调度 / 0 分成修复）
+# waimai 二期收尾包设计 v2（提现收口 / JSAPI 验证 / 调度核验）
 
-> 日期：2026-10-08 · 状态：设计定稿（用户已确认） · 前置：一期全量交付（HANDOFF.md）
+> 日期：2026-10-08 · 状态：设计定稿 v2（v1 起草后经代码核实改版：提现/调度/0 分成均已实现上线，本 spec 转为收口口径）· 前置：一期全量交付（HANDOFF.md）
 
 ## 1. 背景与范围
 
-一期已交付学生端四页 + 骑手端四页 + 冒烟 S1-S8 PASS。本收尾包补齐 HANDOFF.md §9 二期待办中的四项，使一期功能完整闭环：
+v1 按「四项待开发」起草。2026-10-08 代码核实（记录见 §8）：四项中三项已在 10-07 前后完成并上线生产，仅剩一处代码缺口。本收尾包随之改为：
 
-1. 骑手提现（人工审核打款）
-2. 微信 JSAPI 支付真实验证
-3. 滞留加急 + 强派调度开启
-4. 0 分成单 addBalance 容错修复
+1. **骑手提现**：补齐防重申请缺口（唯一代码改动）+ 全流程端到端验证收口
+2. **微信 JSAPI 支付真实验证**（纯验证，代码已就绪）
+3. **滞留加急 + 强派调度**：生产配置核验 + 观察收口（已默认开启）
+4. ~~0 分成单 addBalance 修复~~（已完成：`5fa63c726` + 单测覆盖，仅回归确认）
 
 **非目标**：评价体系、商家自助端（独立子项目，后续 spec）、自动转账到零钱。
 
-## 2. 骑手提现（人工审核打款）
+## 2. 骑手提现收口
 
-### 后端（campus-delivery-plugin）
+### 2.1 已实现现状（核实确认，勿重复开发）
 
-- 新实体 `campus_withdrawal`：
-  - `rider`（关联 customer）、`amount`（decimal）、`status`（`pending` / `paid` / `rejected`）
-  - `applyAt`、`reviewAt`、`reviewNote`
-- Mutation `campusRequestWithdrawal(amount)`：
-  - 校验：`amount ≥ 10`（最低提现额）且 `amount ≤ riderBalance`（现有 credited 累计余额）
-  - 通过后**申请即冻结**：可用余额立即扣减，建 `pending` 单
-  - 校验失败抛业务错误（金额不足 / 低于最低额）
-- Mutation `campusReviewWithdrawal(id, approve, reviewNote)`（admin 权限）：
-  - `approve` → status=`paid`（语义：管理员已在微信线下转账完成）
-  - `reject` → status=`rejected`，冻结金额**退回**骑手可用余额
-- Query：骑手本人 `campusMyWithdrawals`；admin 侧分页列表（含骑手信息）
+- 后端（vendure campus-delivery-plugin）：实体 `RiderWithdrawalRequest`（customerId/amount/channel/account/status=PENDING|PAID|REJECTED/remark/reviewedBy/reviewedAt）；shop-api `riderWithdraw(amount≥¥10, channel, account)`（申请即 `deductBalance` 冻结）、`riderWithdrawRequests`（本人记录）、`myRiderWallet`（available/frozen/totalEarned）、`riderBalanceHistory`；admin-api `riderWithdrawals(status)` 列表 + `approveRiderWithdraw`（PAID 留痕）/ `rejectRiderWithdraw`（退回 `addBalance`）；资金固定默认渠道上下文（`62d7a9cdb`，107/107 测试）
+- 骑手端（waimai pkg-rider，单一分包无双包问题）：收入页「去提现」入口（rider-earning.vue L17-23）→ 钱包页 rider-wallet（余额/审核中/累计 + 收入明细/提现记录双 tab）→ 申请页 rider-withdraw（金额/支付宝|微信/账号）
+- 管理后台（vshop 仓库 web-admin）：`pages/rider/withdraw` 审核页（PENDING/PAID/REJECTED/ALL 四 tab + 通过/驳回弹窗 + i18n，`9377688`，api `apis/rider-withdraw.ts`）
+- 生产 schema 已含全部接口（2026-10-08 introspection 探测确认）
+- E2E 脚本已存在：`waimai/.secrets/rider-withdraw-e2e.cjs`（注入余额 → 申请冻结 → 越界拒 → 驳回退回 → 通过留痕 → 记录可查）
 
-### 骑手端（waimai pkg-rider 收入页）
+### 2.2 待补缺口（唯一代码改动）
 
-- 余额卡新增「提现」按钮 → 金额输入弹窗（校验最低额/余额上限，错误 toast 沿用现有风格）
-- 新增提现记录列表：金额 + 状态标签（审核中=橙 / 已打款=绿 / 已驳回=红）+ 申请/审核时间
-- 抢单页等其余页面不动
+- **防重申请**：`riderWithdraw` 申请前查同骑手是否已有 `PENDING` 单，存在则抛「您有审核中的提现申请，请等待审核完成」（v1 §7 风险项落地；现状余额充足时可重复申请建多笔 PENDING）
+- 前端无需改动（错误 toast 已透传后端 message）
 
-### 管理后台（web-admin）
+### 2.3 验证收口（无代码）
 
-- 提现审核页：列表（骑手/金额/申请时间/状态）+ 操作（通过 / 驳回+备注）
-- 与现有骑手管理入口同级
+- 生产全流程：`rider-withdraw-e2e.cjs`（扩防重用例后）PASS + waimai 冒烟 PASS
+- 手机截图（390×844 dpr=2 逐张目检）：收入页入口 / 钱包页 / 提现记录状态标签 / 申请页 / web-admin 审核页
+- web-admin 线上核验：提现审核页可访问可用；若线上为旧版则补部署（web-admin 自有 scripts/deploy.mjs 机制）
 
 ## 3. 微信 JSAPI 支付真实验证
 
 - 前置（用户操作）：微信商户平台为 JSAPI 支付追加 `/waimai/` 授权目录
-- 验证：真实微信环境完成一笔 JSAPI 支付全链路（下单 → 拉起支付 → 支付成功 → 订单状态流转）
-- 异常处理：如遇签名/目录/回调问题，按 verify 排障流程定位修复；代码侧预期无改动
+- 链路已就绪：前端 `usePayment.ts`（H5 redirect h5Url / mp-weixin JSAPI 签名参数）+ 后端 wechatpay-plugin（paySign）
+- 验证：真实微信环境完成一笔 JSAPI 支付全链路（下单 → 拉起 → 成功 → 订单状态流转）；异常按 verify 排障流程（`vshop/docs/verify/2026-10-waimai-e2e.md`）定位，代码侧预期无改动
 
-## 4. 滞留加急 + 强派调度
+## 4. 滞留加急 + 强派调度（改为核验收口）
 
-- 开启 DispatchJobService T2/T3（>5 分钟滞留自动加急置顶，配置项默认关闭 → 生产开启）
-- 骑手大厅：加急单置顶展示 + 「加急」标签（如前端已有排序支持则仅配置，无前端改动则补标签）
+核实结论：**已实现且默认开启**——`DispatchJobService.start()` 插件启动即每分钟 tick（campus-delivery.plugin.ts L666，无开关）；大厅排序 滞留>5min 置顶 → 小费降序 → 入厅时间升序（hall-grab.service.ts `hall()` L105-124）；前端加急徽标（rider-home.vue `isUrgent`）；T2 强派 `autoAssignMinutes` 默认 10min、T4 自动退款 `autoRefundMinutes` 默认 30min、T3 SLA `inProgressSlaMinutes` 默认 45（CampusFulfillmentConfig）。
 
-## 5. 0 分成单 addBalance 修复
+- 核验：admin-api `campusConfig` 查生产渠道 `autoAssignMinutes` / `autoRefundMinutes` / `paused` 值，确认非 paused、阈值符合预期（调整走 `campusUpdateConfig` / web-admin 配置页）
+- 观察：观察一晚大厅滞留表现，可配置回退
 
-- 现状：shipping=0 且 tip=0 的单送达写库成功但 `addBalance(0)` 抛错
-- 修复：金额为 0 时跳过入账（不建 balance 流水），保证 `campusDeliverTask` 全流程成功
-- 回归：补一条 0 分成送达的单测
+## 5. 0 分成单修复（已完成，回归确认）
+
+- `5fa63c726`「0 分成单跳过余额入账避免抛错」（rider-task.service.ts L166-184）+ 单测「0 分成单（0 运费 0 小费）不入账不写 earning 且不抛错」（rider-task.service.spec.ts L53）
+- 收口：插件 vitest 全绿 + 生产冒烟 PASS 即确认
 
 ## 6. 验收口径（每项）
 
-实现 + vitest/冒烟回归（`waimai-e2e-smoke.cjs` 幂等通过）+ 手机截图（390×844 dpr=2 逐张目检）+ 操作手册补充（`vshop/docs/waimai-操作手册.md`）→ 本地构建部署（`deploy-waimai.mjs`，插件改动走 vendure 部署）→ 提交推送。三仓库（waimai / vendure / web-admin 涉及处）独立提交。
+实现 + vitest/冒烟回归（`waimai-e2e-smoke.cjs` 幂等 PASS）+ 手机截图（390×844 dpr=2 逐张目检）+ 操作手册补充（`vshop/docs/waimai-操作手册.md` 增「骑手提现与审核」章节）→ 部署（防重改动走 vendure 服务器 git pull + pm2 restart；waimai/web-admin 无代码改动则按核验结果决定）→ 提交推送。三仓库独立提交。
 
 ## 7. 风险与边界
 
-- 冻结语义的账务一致性：申请冻结与驳回退回必须同事务/幂等，防双击重复申请（按钮乐观锁，同 rider 有 pending 单时拒绝再申请）
-- JSAPI 验证依赖用户商户平台操作，代码侧不阻塞其他三项
-- 调度开启后观察一晚大厅滞留表现，可随时配置回退
+- 防重申请为业务级约束：驳回/打款后即可再次申请，与前端「提交后余额即冻结」文案自洽
+- JSAPI 验证依赖用户商户平台操作，不阻塞其他项
+- web-admin 部署状态运行时才能确认，验证步骤中先探测后补部署
+
+## 8. 核实记录（2026-10-08）
+
+| 项 | 结论 | 证据 |
+|---|---|---|
+| 提现后端 | 已完成并上线生产 | vendure `67b8297dd`/`d2d4bf611`/`5fa63c726`/`62d7a9cdb` 已推送；生产 shop-api introspection 含 `riderWithdraw`/`riderWithdrawRequests`/`myRiderWallet` |
+| 提现骑手端 | 已完成 | waimai `76d0bf7`/`714d60e` 已推送；pages.json 单一 pkg-rider 包（无双包问题） |
+| 提现 web-admin | 代码已完成（线上部署待核验） | vshop `9377688` 已推送；web-admin/src/pages.json L30 路由已注册 |
+| 0 分成修复 | 已完成 | `5fa63c726` + rider-task.service.spec.ts L53 单测 |
+| 加急+强派 | 已默认开启 | campus-delivery.plugin.ts L666 `start()`；hall-grab.service.ts `hall()` 排序；rider-home.vue 徽标 |
+| 防重申请 | **未实现（唯一代码缺口）** | rider-wallet.service.ts `riderWithdraw` 无 PENDING 检查 |
+| JSAPI | 代码就绪待真实验证 | waimai usePayment.ts + vendure wechatpay-plugin |
+| 提现 E2E | 脚本已存在，缺防重用例 | waimai/.secrets/rider-withdraw-e2e.cjs（gitignore 不入库） |

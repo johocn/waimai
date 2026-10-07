@@ -40,6 +40,10 @@
                                 <text class="good-rate__num">{{ (g.customFields.reviewRating || 0).toFixed(1) }}</text>
                                 <text class="good-rate__cnt">{{ g.customFields.reviewCount }}条评价</text>
                             </view>
+                            <view class="good-coupon" v-if="couponOf(g)" @tap.stop="claimProduct(couponOf(g))">
+                                <text class="good-coupon__txt">{{ couponChipText(couponOf(g)) }}</text>
+                                <text class="good-coupon__action">{{ couponClaimed(g.id) ? '已领取' : '领取' }}</text>
+                            </view>
                             <view class="price-row">
                                 <PriceTag :price="g.variants[0]?.priceWithTax || 0" />
                             </view>
@@ -150,15 +154,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
+import { useAuthStore } from '../../stores/auth';
 import { fetchProductList, fetchStoreList } from '../../api/queries/waimai';
+import { getProductCoupons } from '../../api/queries/coupon';
 import { getChannelReviews, getChannelReviewStats } from '../../api/queries/review';
 import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
 import { theme, initTheme } from '../../utils/theme';
 import { addItemToOrder } from '../../api/mutations/cart';
+import { claimProductCoupon } from '../../api/mutations/coupon';
 import { getActiveOrder } from '../../api/queries/order';
 import VImage from '../../components/VImage.vue';
 import PriceTag from '../../components/PriceTag.vue';
@@ -167,6 +174,7 @@ import SkuSheet from '../../components/SkuSheet.vue';
 
 const tenant = useTenantStore();
 const cart = useCartStore();
+const authStore = useAuthStore();
 const shopToken = ref('');
 const shopRoutes = ref('');
 const shopName = ref('校内店铺');
@@ -299,6 +307,7 @@ onLoad(async (q: any) => {
         if (active?.activeOrder) cart.setOrder(active.activeOrder);
         products.value = await fetchProductList();
         cats.value = buildCats(products.value);
+        loadProductCoupons(goodsOf(activeCat.value));
     } catch (e: any) {
         // 切渠道失败（token 无效）→ 提示并返回首页
         uni.showToast({ title: '店铺不存在', icon: 'none' });
@@ -325,6 +334,61 @@ function goodsOf(catId: string) {
     if (catId === 'all') return products.value;
     return products.value.filter(p => p.collections?.some((c: any) => c.name === catId));
 }
+
+// ===== 商品专属券 chip：按当前分类商品拉绑定，productId → 绑定（取首个启用项） =====
+const productCouponMap = ref(new Map<string, any>());
+const claimedProductIds = ref(new Set<string>());
+const claimingProductId = ref('');
+
+function couponOf(g: any): any | null {
+    const b = productCouponMap.value.get(String(g.id));
+    return b && b.enabled && b.template?.enabled !== false ? b : null;
+}
+
+function couponChipText(b: any): string {
+    const t = b.template;
+    if (t.type === 'FIXED' || t.type === 'FULL') {
+        const yuan = t.discountValue / 100;
+        const y = Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
+        return `¥${y} 券`;
+    }
+    if (t.type === 'PERCENT') return `${(t.discountValue / 10).toFixed(1).replace(/\.0$/, '')}折券`;
+    return '免配送费券';
+}
+
+function couponClaimed(productId: string): boolean {
+    return claimedProductIds.value.has(String(productId));
+}
+
+async function loadProductCoupons(goods: any[]) {
+    const ids = goods.map(g => String(g.id)).filter(id => !productCouponMap.value.has(id));
+    if (!ids.length) return;
+    await Promise.all(ids.map(async id => {
+        try {
+            const res = await getProductCoupons(id);
+            const binding = (res?.productCoupons ?? []).filter((b: any) => b.enabled)[0] ?? null;
+            productCouponMap.value.set(id, binding);
+        } catch { productCouponMap.value.set(id, null); }
+    }));
+    productCouponMap.value = new Map(productCouponMap.value); // 触发响应式
+}
+
+async function claimProduct(binding: any) {
+    if (claimedProductIds.value.has(String(binding.productId)) || claimingProductId.value) return;
+    if (!authStore.requireLogin()) return;
+    claimingProductId.value = String(binding.productId);
+    try {
+        await claimProductCoupon(binding.id);
+        claimedProductIds.value.add(String(binding.productId));
+        uni.showToast({ title: '领取成功', icon: 'none' });
+    } catch (e: any) {
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || '领取失败', icon: 'none' });
+    } finally {
+        claimingProductId.value = '';
+    }
+}
+
+watch(activeCat, () => { loadProductCoupons(goodsOf(activeCat.value)); });
 
 function pickSku(g: any) {
     if ((g.variants?.length ?? 0) > 1) { skuProduct.value = g; skuOpen.value = true; }
@@ -435,6 +499,9 @@ function goCheckout() {
 .good-rate__num { color: #f59e0b; font-weight: 600; }
 .good-rate__cnt { color: var(--w-text-muted); }
 .price-row { margin-top: 4rpx; }
+.good-coupon { display: inline-flex; align-items: center; gap: 8rpx; margin-top: 8rpx; padding: 2rpx 12rpx; border: 1rpx solid #ff6600; border-radius: 6rpx; background: #fff7f0; }
+.good-coupon__txt { font-size: 20rpx; color: #ff6600; }
+.good-coupon__action { font-size: 20rpx; color: #fff; background: #ff6600; border-radius: 4rpx; padding: 0 8rpx; }
 .add-btn { position: absolute; right: 0; bottom: 20rpx; min-width: 56rpx; height: 56rpx; border-radius: 999rpx; background: $brand; color: #fff; font-size: 36rpx; display: flex; align-items: center; justify-content: center; }
 .add-btn.spec { font-size: 22rpx; padding: 0 20rpx; font-weight: 600; }
 .scroll-pad { height: 150rpx; }

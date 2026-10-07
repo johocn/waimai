@@ -223,12 +223,44 @@
         <text v-else>¥{{ shipDisplayYuan }}</text>
       </view>
       <view class="ship-free-hint" v-if="freeShipShortYuan">满 ¥{{ freeShipYuan }} 免配送费，再买 ¥{{ freeShipShortYuan }} 即免</view>
+      <view class="summary-row summary-row--coupon" @click="openCouponSheet">
+        <text>优惠券</text>
+        <text :class="{ 'coupon-val': attachedCoupon }">
+          {{ couponRowText }}
+          <text class="coupon-arrow">›</text>
+        </text>
+      </view>
       <view class="summary-row summary-row--total"><text>应付</text><text class="checkout-page__total">¥{{ cart.formatPrice(cart.order.totalWithTax) }}</text></view>
     </view>
 
     <button class="checkout-page__submit" :disabled="submitting" @click="submitOrder">
       {{ submitting ? '处理中...' : '提交订单' }}
     </button>
+
+    <!-- 选券弹层（spec §3.3）：换券/不使用实时回显合计，门槛未过置灰 -->
+    <view class="coupon-sheet-mask" v-if="showCouponSheet" @click="showCouponSheet = false">
+      <view class="coupon-sheet" @click.stop>
+        <view class="coupon-sheet__title">选择优惠券</view>
+        <scroll-view scroll-y class="coupon-sheet__list">
+          <view class="cs-item" v-for="c in sheetCoupons" :key="c.id"
+            :class="{ 'cs-item--on': attachedCouponCode === c.code, 'cs-item--off': !!unavailableReason(c) }"
+            @click="pickCoupon(c)">
+            <view class="cs-item__left">
+              <text class="cs-item__amount">{{ csAmount(c) }}</text>
+              <text class="cs-item__cond" v-if="c.template.type === 'FULL'">满 {{ csYuan(c.template.minSpend) }} 可用</text>
+            </view>
+            <view class="cs-item__right">
+              <text class="cs-item__name">{{ c.template.name }}</text>
+              <text class="cs-item__expire" v-if="c.expiredAt">有效期至 {{ csDate(c.expiredAt) }}</text>
+              <text class="cs-item__reason" v-if="unavailableReason(c)">{{ unavailableReason(c) }}</text>
+            </view>
+          </view>
+          <view class="cs-item cs-item--none" @click="clearCoupon">
+            <text>不使用优惠券</text>
+          </view>
+        </scroll-view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -251,6 +283,10 @@ import { useTenantStore } from '../../stores/tenant';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { filterCampusRoutes } from '../../utils/errand';
 import { pickDefaultCampusAddress, isValidCampusTarget } from '../../utils/profile-mapping';
+import { useAuthStore } from '../../stores/auth';
+import { getMyCoupons } from '../../api/queries/coupon';
+import { applyCouponToOrder, clearCouponFromOrder } from '../../api/mutations/coupon';
+import { estimateDiscountFen, pickBestCoupon, couponUnavailableReason, type CouponTemplateLike } from '../../utils/coupon-estimate';
 
 type ShippingCategory = 'shipping' | 'store-pickup';
 type TabKey = 'campus' | ShippingCategory;
@@ -258,6 +294,7 @@ type TabKey = 'campus' | ShippingCategory;
 const cart = useCartStore();
 const ui = useUIStore();
 const tenantStore = useTenantStore();
+const authStore = useAuthStore();
 const shippingMethods = ref<any[]>([]);
 const paymentMethods = ref<any[]>([]);
 const selectedShipping = ref('');
@@ -687,6 +724,131 @@ async function setDefaultAddress(addr: any) {
     ui.hideLoading();
 }
 
+// ===== 优惠券（spec §3.3）：优惠券行 + 选券弹层 + 自动试挂最优 =====
+const myUnusedCoupons = ref<any[]>([]);
+const showCouponSheet = ref(false);
+const couponApplying = ref(false);
+const autoTried = ref(false); // 每次进入 checkout 只自动试挂一次
+// 「去使用」预挂券（my-coupons 写入 storage，onLoad 读取）
+const prefillCouponCode = ref('');
+
+const attachedCouponCode = computed(() => cart.order?.couponCodes?.[0] ?? '');
+
+const subtotalFen = computed(() => cart.order?.subTotalWithTax ?? 0);
+const shippingFen = computed(() => {
+    if (cart.order?.shippingWithTax != null) return cart.order.shippingWithTax;
+    return null; // FREE_SHIPPING 估不到配送费时按 0
+});
+
+const couponRowText = computed(() => {
+    if (attachedCouponCode.value) {
+        const d = (cart.order?.discounts ?? []).reduce((s: number, x: any) => s + (x.amountWithTax ?? 0), 0);
+        return d > 0 ? `-¥${cart.formatPrice(d)}` : attachedCouponCode.value;
+    }
+    return myUnusedCoupons.value.length ? `${myUnusedCoupons.value.length} 张可用` : '暂无可用';
+});
+
+const attachedCoupon = computed(() => !!attachedCouponCode.value);
+
+const sheetCoupons = computed(() =>
+    [...myUnusedCoupons.value].sort((a, b) =>
+        estimateDiscountFen(b.template, subtotalFen.value, shippingFen.value) - estimateDiscountFen(a.template, subtotalFen.value, shippingFen.value)));
+
+function unavailableReason(c: any): string | null {
+    return couponUnavailableReason(c.template as CouponTemplateLike, subtotalFen.value);
+}
+
+function csAmount(c: any): string {
+    const t = c.template;
+    if (t.type === 'PERCENT') return `${(t.discountValue / 10).toFixed(1).replace(/\.0$/, '')}折`;
+    if (t.type === 'FREE_SHIPPING') return '免运费';
+    const yuan = t.discountValue / 100;
+    return `¥${Number.isInteger(yuan) ? yuan : yuan.toFixed(2)}`;
+}
+
+function csYuan(fen: number): string {
+    const yuan = fen / 100;
+    return Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
+}
+
+function csDate(s: string): string {
+    const d = new Date(s);
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function loadMyCoupons() {
+    if (!authStore.isLoggedIn) return; // checkout 必然已登录，防御
+    try {
+        const res = await getMyCoupons('UNUSED');
+        myUnusedCoupons.value = res?.myCoupons ?? [];
+    } catch { myUnusedCoupons.value = []; }
+}
+
+function openCouponSheet() {
+    showCouponSheet.value = true;
+}
+
+async function pickCoupon(c: any) {
+    if (couponApplying.value || unavailableReason(c)) return;
+    if (attachedCouponCode.value === c.code) { showCouponSheet.value = false; return; }
+    couponApplying.value = true;
+    try {
+        const res = await applyCouponToOrder(c.code);
+        cart.setOrder(res.applyCouponToOrder); // 实时回显新合计（Order fragment 已含 couponCodes+discounts）
+        showCouponSheet.value = false;
+    } catch (e: any) {
+        // 并发用掉/订单态变化：toast + 刷新弹层券列表 + 重算费用，不阻塞下单
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || '用券失败', icon: 'none' });
+        await loadMyCoupons();
+    } finally {
+        couponApplying.value = false;
+    }
+}
+
+async function clearCoupon() {
+    if (couponApplying.value || !attachedCouponCode.value) { showCouponSheet.value = false; return; }
+    couponApplying.value = true;
+    try {
+        const res = await clearCouponFromOrder();
+        cart.setOrder(res.clearCouponFromOrder);
+        showCouponSheet.value = false;
+    } catch (e: any) {
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || '操作失败', icon: 'none' });
+    } finally {
+        couponApplying.value = false;
+    }
+}
+
+/** 消费「去使用」预挂券：购物车就绪后挂券并清 storage，优先于自动试挂 */
+async function consumePrefillCoupon() {
+    if (!prefillCouponCode.value) return;
+    const code = prefillCouponCode.value;
+    prefillCouponCode.value = '';
+    uni.removeStorageSync('checkout_prefill_coupon');
+    if (attachedCouponCode.value) return;
+    try {
+        const res: any = await applyCouponToOrder(code);
+        cart.setOrder(res.applyCouponToOrder);
+        uni.showToast({ title: '已使用优惠券', icon: 'none' });
+    } catch { /* 预挂失败静默（券可能已用/失效），可手动选 */ }
+}
+
+/** 自动试挂最优（spec §3.3）：进入 checkout 未挂券时按口径取最大者 */
+async function tryAutoApplyBest() {
+    if (autoTried.value || attachedCouponCode.value || !myUnusedCoupons.value.length) return;
+    autoTried.value = true;
+    const best = pickBestCoupon(
+        myUnusedCoupons.value.map(c => ({ ...c.template, code: c.code })),
+        subtotalFen.value, shippingFen.value,
+    );
+    if (!best) return;
+    try {
+        const res = await applyCouponToOrder((best as any).code);
+        cart.setOrder(res.applyCouponToOrder);
+        uni.showToast({ title: '已自动使用最优优惠券', icon: 'none' });
+    } catch { /* 试挂失败静默，用户可手动选 */ }
+}
+
 onMounted(async () => {
     // Load saved addresses
     try { const custRes: any = await getActiveCustomer(); customerAddresses.value = custRes.activeCustomer?.addresses || []; if (customerAddresses.value.length > 0) { selectedAddress.value = customerAddresses.value.find((a: any) => a.defaultShippingAddress) || customerAddresses.value[0]; } } catch (e) {}
@@ -709,6 +871,12 @@ onMounted(async () => {
         // 默认选中第一个 Tab（校园配送恒置首）
         if (shippingTabs.value.length > 0) {
             await switchTab(shippingTabs.value[0].key);
+        }
+        // 优惠券：购物车就绪后加载券包 → 消费「去使用」预挂券 → 自动试挂最优
+        if (cart.order) {
+            await loadMyCoupons();
+            await consumePrefillCoupon();
+            await tryAutoApplyBest();
         }
     } catch (e) { console.error(e); }
 });
@@ -826,6 +994,8 @@ onLoad((q: any) => {
     if (!routes.includes('R3') && routes.includes('R1')) routeChoice.value = 'R1';
     minOrderFen.value = q?.minOrder ? Number(q.minOrder) : null;
     deliveryFeeFen.value = q?.dfee ? Number(q.dfee) : null;
+    // 「去使用」预挂券（my-coupons 写入）：购物车就绪后消费（onMounted consumePrefillCoupon）
+    prefillCouponCode.value = String(uni.getStorageSync('checkout_prefill_coupon') || '');
     loadStoreRoutes();
 });
 </script>
@@ -860,4 +1030,22 @@ onLoad((q: any) => {
 .slot-schedule-hint { display: block; margin-top: 16rpx; padding: 12rpx 20rpx; font-size: 22rpx; color: $brand-color; background: $brand-color-light; border-radius: $radius-sm; }
 .route-row { display: flex; align-items: center; justify-content: space-between; margin-top: 20rpx; padding: 16rpx 20rpx; background: $brand-color-light; border-radius: $radius-sm; &__text { font-size: 24rpx; color: $brand-color; flex: 1; } &__switch { font-size: 24rpx; color: #fff; background: $brand-color; border-radius: 999rpx; padding: 4rpx 20rpx; } }
 .campus-default { display: flex; align-items: center; justify-content: space-between; background: $brand-soft; border-radius: $radius-md; padding: 16rpx 20rpx; margin-bottom: 16rpx; &__txt { font-size: 24rpx; color: #8a4b00; flex: 1; } &__chg { font-size: 24rpx; color: $brand-color; margin-left: 12rpx; } }
+// ===== 优惠券行 + 选券弹层（spec §3.3） =====
+.summary-row--coupon { cursor: pointer; }
+.coupon-val { color: #ff6600; }
+.coupon-arrow { color: #c0c0c0; margin-left: 8rpx; }
+.coupon-sheet-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: flex-end; }
+.coupon-sheet { width: 100%; background: #f5f5f5; border-radius: 24rpx 24rpx 0 0; padding: 32rpx 0 calc(32rpx + env(safe-area-inset-bottom)); max-height: 70vh; display: flex; flex-direction: column; }
+.coupon-sheet__title { text-align: center; font-size: 30rpx; font-weight: bold; padding-bottom: 24rpx; }
+.coupon-sheet__list { max-height: 56vh; padding: 0 24rpx; box-sizing: border-box; }
+.cs-item { display: flex; background: #fff; border-radius: 16rpx; margin-bottom: 20rpx; overflow: hidden; &--on { outline: 2rpx solid #ff6600; } &--off { opacity: 0.55; } }
+.cs-item__left { width: 200rpx; background: #ff6600; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24rpx 0; }
+.cs-item--off .cs-item__left, .cs-item--none .cs-item__left { background: #ccc; }
+.cs-item__amount { font-size: 40rpx; font-weight: bold; }
+.cs-item__cond { font-size: 20rpx; margin-top: 6rpx; }
+.cs-item__right { flex: 1; padding: 20rpx 24rpx; display: flex; flex-direction: column; }
+.cs-item__name { font-size: 26rpx; color: #333; }
+.cs-item__expire { font-size: 22rpx; color: #999; margin-top: 6rpx; }
+.cs-item__reason { font-size: 22rpx; color: #ff4d4f; margin-top: 6rpx; }
+.cs-item--none { justify-content: center; padding: 28rpx 0; color: #666; font-size: 26rpx; }
 </style>

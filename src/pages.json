@@ -38,6 +38,17 @@
                 { "path": "errand/list", "style": { "navigationBarTitleText": "我的跑腿单" } }
             ]
         },
+        {
+            "root": "pkg-user",
+            "pages": [
+                { "path": "pages/profile-edit", "style": { "navigationBarTitleText": "编辑资料" } },
+                { "path": "pages/address-book", "style": { "navigationBarTitleText": "常用地址" } },
+                { "path": "pages/address-edit", "style": { "navigationBarTitleText": "编辑地址" } },
+                { "path": "pages/invoice-titles", "style": { "navigationBarTitleText": "发票抬头" } },
+                { "path": "pages/invite", "style": { "navigationBarTitleText": "邀请好友" } },
+                { "path": "pages/about", "style": { "navigationBarTitleText": "关于拾光达" } }
+            ]
+        },
     ],
     "tabBar": {
         "color": "#999999",

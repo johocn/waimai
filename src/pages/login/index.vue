@@ -42,7 +42,6 @@
       <!-- #endif -->
       <button class="login-btn login-btn--phone" v-if="authMethods.includes('phone')" @click="mode = 'phone'">手机号登录</button>
       <button class="login-btn login-btn--local" v-if="authMethods.includes('native')" @click="mode = 'local'">账号登录</button>
-      <view class="register-link" @click="goRegister">注册新账号</view>
     </view>
     <view class="login-page__agreement">
       <text class="agreement-text">登录即代表同意</text>
@@ -453,10 +452,6 @@ async function tryUpdateReferredBy(inviteCode: string) {
     } catch (e) {
         console.error('补写 referredBy 失败', e);
     }
-}
-
-function goRegister() {
-    uni.showToast({ title: '暂未开放', icon: 'none' });
 }
 </script>
 <style lang="scss" scoped>

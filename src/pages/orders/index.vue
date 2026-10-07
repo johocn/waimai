@@ -86,6 +86,16 @@ async function loadChannels() {
 }
 
 onShow(() => {
+    const pending = uni.getStorageSync('orders_pending_tab');
+    if (pending !== '' && pending !== null && pending !== undefined) {
+        uni.removeStorageSync('orders_pending_tab');
+        if (pending !== activeTab.value) {
+            activeTab.value = pending as string;
+            orders.value = []; page = 0; hasMore.value = true;
+            loadData();
+            return;
+        }
+    }
     if (orders.value.length === 0) loadData();
 });
 onReachBottom(() => loadMore());

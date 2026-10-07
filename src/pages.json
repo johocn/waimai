@@ -49,6 +49,13 @@
                 { "path": "pages/about", "style": { "navigationBarTitleText": "关于拾光达" } }
             ]
         },
+        {
+            "root": "pkg-promotion",
+            "pages": [
+                { "path": "pages/coupon-centre", "style": { "navigationBarTitleText": "领券中心" } },
+                { "path": "pages/my-coupons", "style": { "navigationBarTitleText": "我的优惠券" } }
+            ]
+        }
     ],
     "tabBar": {
         "color": "#999999",

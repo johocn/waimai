@@ -67,7 +67,9 @@
 ## 8. 验证与取证
 
 - 冒烟脚本：`python scripts/_smoke_profile.py`
-  （覆盖：六页渲染截图、地址簿建址/更新/`countryCode` 必填、抬头管理与 ≤5 条约束、邀请码渲染、`applyOrderInvoice` 首调 + 幂等拒重）
-- 截图归档：`docs/screenshots/profile/`（6 张：首页/资料/地址簿/抬头/邀请/关于）
-- 部署：dist 构建产物已随 `f92e11a` 同步线上。
-- 说明：暗色主题当前仅覆盖首页等核心页，个人中心各页暂未适配暗色。
+  （覆盖：六页渲染截图、地址簿建址/更新/`countryCode` 必填、抬头管理与 ≤5 条约束、邀请码渲染、`applyOrderInvoice` 首调 + 幂等拒重、暗色抽查）
+- 截图归档：`docs/screenshots/profile/`（7 张：首页/资料/地址簿/抬头/邀请/关于/暗色抽查）
+- 部署：dist 构建产物随最新提交同步线上。
+- **暗色主题**（2026-10-07 方案 A 落地）：中性色令牌 CSS 变量化（uni.scss → var）+ App `onLaunch` 补调 `initTheme()`，全站 `$` 变量样式自动跟随；个人中心各页深色卡片/浅色文字，**橙色头部保持品牌色**，原生导航栏与 tabBar 同步翻转。首页右上角 🌙/☀️ 可切换。
+
+![个人中心-暗色](screenshots/profile/profile_dark.png)

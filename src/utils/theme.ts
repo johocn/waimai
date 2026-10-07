@@ -24,6 +24,15 @@ function syncH5(mode: ThemeMode) {
     // #endif
 }
 
+function syncNavBar(mode: ThemeMode) {
+    // 原生导航栏跟随主题（custom 导航栏页面不受影响）；小程序过早调用失败静默，由页面 onMounted initTheme 兜底
+    uni.setNavigationBarColor({
+        frontColor: mode === 'dark' ? '#ffffff' : '#000000',
+        backgroundColor: mode === 'dark' ? '#161618' : '#ffffff',
+        fail: () => {},
+    });
+}
+
 function syncTabBar(mode: ThemeMode) {
     uni.setTabBarStyle({ ...TABBAR_STYLE[mode], fail: () => {} });
 }
@@ -31,6 +40,7 @@ function syncTabBar(mode: ThemeMode) {
 /** 页面挂载时按持久化主题同步全局外观（刷新/直达页面也能恢复暗色） */
 export function initTheme() {
     syncH5(theme.value);
+    syncNavBar(theme.value);
     syncTabBar(theme.value);
 }
 
@@ -39,5 +49,6 @@ export function toggleTheme() {
     theme.value = theme.value === 'dark' ? 'light' : 'dark';
     uni.setStorageSync(STORAGE_KEY, theme.value);
     syncH5(theme.value);
+    syncNavBar(theme.value);
     syncTabBar(theme.value);
 }

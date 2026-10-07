@@ -38,6 +38,11 @@ page { background: #f5f5f5; }
    品牌橙头部/按钮保持品牌色不换肤 */
 html.dark-html { background: #161618; }
 html.dark-html page { background: var(--bg, #161618); }
+/* 原生导航栏（uni-page-head）背景/文字为 pages.json 注入的内联样式，须 !important 覆盖；
+   CSS 方案不受 setNavigationBarColor 调用时序影响（对后渲染元素同样生效） */
+html.dark-html uni-page-head .uni-page-head { background-color: #161618 !important; }
+html.dark-html uni-page-head .uni-page-head,
+html.dark-html uni-page-head .uni-page-head * { color: #ececec !important; }
 html.dark-html {
     --text: #ececec;
     --text-secondary: #b8b8bf;

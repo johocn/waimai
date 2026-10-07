@@ -9,10 +9,17 @@ const COUPON_TEMPLATE_FIELDS = `
     claimable claimCode validDays newCustomerOnly
 `;
 
-/** 领券中心：当前可领取的券模板（仅已开始的；即将开始走 couponCentreUpcoming，里程碑 2 接入） */
+/** 领券中心：当前可领取的券模板（仅已开始的；即将开始走 couponCentreUpcoming） */
 export async function getCouponCentre() {
     const client = getGraphQLClient();
     const query = `query CouponCentre { couponCentre { ${COUPON_TEMPLATE_FIELDS} } }`;
+    return client.request(query);
+}
+
+/** 领券中心「即将开始」：startsAt 在未来的券模板 */
+export async function getCouponCentreUpcoming() {
+    const client = getGraphQLClient();
+    const query = `query CouponCentreUpcoming { couponCentreUpcoming { ${COUPON_TEMPLATE_FIELDS} } }`;
     return client.request(query);
 }
 

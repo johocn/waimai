@@ -36,7 +36,7 @@
 import { ref, computed, onMounted } from 'vue';
 import EmptyState from '../../components/EmptyState.vue';
 import { useAuthStore } from '../../stores/auth';
-import { getCouponCentre } from '../../api/queries/coupon';
+import { getCouponCentre, getCouponCentreUpcoming } from '../../api/queries/coupon';
 import { claimCoupon } from '../../api/mutations/coupon';
 import { couponUnavailableReason } from '../../utils/coupon-estimate';
 
@@ -45,7 +45,7 @@ type TabKey = 'claimable' | 'upcoming';
 const auth = useAuthStore();
 const tab = ref<TabKey>('claimable');
 const claimableList = ref<any[]>([]);
-const upcomingList = ref<any[]>([]); // couponCentreUpcoming（里程碑 2 上线接口后接入；此前恒空）
+const upcomingList = ref<any[]>([]);
 const loading = ref(false);
 const claimingId = ref('');
 const claimedIds = ref(new Set<string>());
@@ -118,10 +118,9 @@ async function claim(t: any) {
 async function load() {
     loading.value = true;
     try {
-        const res = await getCouponCentre();
-        claimableList.value = res?.couponCentre ?? [];
-    } catch {
-        claimableList.value = [];
+        const [res, up] = await Promise.allSettled([getCouponCentre(), getCouponCentreUpcoming()]);
+        claimableList.value = res.status === 'fulfilled' ? (res.value?.couponCentre ?? []) : [];
+        upcomingList.value = up.status === 'fulfilled' ? (up.value?.couponCentreUpcoming ?? []) : [];
     } finally {
         loading.value = false;
     }

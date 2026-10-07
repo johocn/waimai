@@ -6,6 +6,14 @@
             </view>
             <text class="credit">信用分 {{ profile?.riderCredit ?? '--' }}</text>
         </view>
+        <navigator class="jh-entry" url="/pkg-jianghu/pages/jh-hall" hover-class="none">
+            <view class="jh-ic">江</view>
+            <view class="jh-b">
+                <text class="jh-h">江湖 · 拾光传信者</text>
+                <text class="jh-p">送单之外，接密信、收传闻、升段位。声望只换称号，不换现金</text>
+            </view>
+            <text class="jh-go">进入</text>
+        </navigator>
         <view class="hint" v-if="!on">打开「接单中」开关开始接收新任务</view>
         <EmptyState v-else-if="!tasks.length" text="暂无待抢任务，新单会实时出现在这里" />
         <view v-else class="tasks">
@@ -26,7 +34,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { onShow, onHide } from '@dcloudio/uni-app';
+import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchHall, grabOrder, fetchBuildingMap } from '../../api/queries/hall';
 import { myRiderProfile, riderOnline, riderHeartbeat } from '../../api/queries/rider';
 import { useAuthStore } from '../../stores/auth';
@@ -46,6 +54,7 @@ onShow(async () => {
     if (!auth.token) {
         return uni.redirectTo({ url: '/pages/login/index?redirect=' + encodeURIComponent('/pkg-rider/pages/rider-home') });
     }
+    stopTimers();
     profile.value = await myRiderProfile().catch(() => null);
     if (profile.value?.riderStatus !== 'approved') {
         return uni.redirectTo({ url: '/pkg-rider/pages/rider-join' });
@@ -55,7 +64,12 @@ onShow(async () => {
     pollTimer = setInterval(refresh, 10000);      // spec §6.1 大厅轮询 10s
     beatTimer = setInterval(() => { if (on.value) riderHeartbeat().catch(() => {}); }, 30000);  // 在线才心跳 30s
 });
-onHide(() => { clearInterval(pollTimer); clearInterval(beatTimer); });
+// 定时器清理必须同时挂 onHide 与 onUnload：抢单成功走 redirectTo（触发 onUnload 而非
+// onHide），只挂 onHide 会泄漏轮询循环（每循环 = 1 店铺列表 + 27 渠道请求/10s）；
+// onShow 先 stopTimers 防止重复进入叠加多组定时器。
+function stopTimers() { clearInterval(pollTimer); clearInterval(beatTimer); pollTimer = null; beatTimer = null; }
+onHide(stopTimers);
+onUnload(stopTimers);
 
 function fmt(fen: number) { return (fen / 100).toFixed(2); }
 
@@ -122,6 +136,20 @@ async function grab(t: any) {
 .online .dot { width: 16rpx; height: 16rpx; border-radius: 999rpx; background: #ccc; }
 .online.on .dot { background: #1dc981; }
 .credit { font-size: 26rpx; color: $text-muted; }
+/* 江湖入口（拾光传信者）：水墨风卡片，与订单列表区隔 */
+.jh-entry {
+    display: flex; align-items: center; margin-bottom: 24rpx; padding: 24rpx; border-radius: $radius-card;
+    background: linear-gradient(140deg, #2a2621 0%, #1f1b16 55%, #3a2a20 100%);
+}
+.jh-ic {
+    width: 72rpx; height: 72rpx; border-radius: 20rpx; margin-right: 20rpx; flex-shrink: 0;
+    background: linear-gradient(150deg, #e3c877, #c8a24a 45%, #9c7830);
+    color: #402c06; font-size: 34rpx; font-weight: 700; text-align: center; line-height: 72rpx;
+}
+.jh-b { flex: 1; display: flex; flex-direction: column; }
+.jh-h { font-size: 30rpx; font-weight: 700; color: #f2ece1; }
+.jh-p { font-size: 22rpx; color: #cfc7b8; margin-top: 8rpx; line-height: 1.6; }
+.jh-go { font-size: 24rpx; color: #e3c877; }
 .hint { text-align: center; color: $text-muted; font-size: 26rpx; margin-top: 120rpx; }
 .tasks { display: flex; flex-direction: column; gap: 20rpx; }
 .task { background: $surface; border-radius: $radius-card; padding: 24rpx; }

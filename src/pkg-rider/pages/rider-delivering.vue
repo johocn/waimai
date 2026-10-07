@@ -109,7 +109,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { onShow, onHide } from '@dcloudio/uni-app';
+import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchMyTasks, fetchBuildingMap } from '../../api/queries/hall';
 import { startTask, deliverTask, reportException, transferTask } from '../../api/queries/task-actions';
 import { riderReportLocation } from '../../api/mutations/campus';
@@ -174,6 +174,7 @@ onShow(async () => {
     if (!auth.token) {
         return uni.redirectTo({ url: '/pages/login/index?redirect=' + encodeURIComponent('/pkg-rider/pages/rider-delivering') });
     }
+    stopTimers();
     buildingMap.value = await fetchBuildingMap().catch(() => ({}));
     await refresh();
     timer = setInterval(refresh, 8000);   // spec §6.2 任务页 8s 轮询
@@ -181,7 +182,11 @@ onShow(async () => {
     reportLocation();
     locTimer = setInterval(reportLocation, 10000);
 });
-onHide(() => { clearInterval(timer); clearInterval(locTimer); });
+// 与 rider-home 同款：onUnload（redirectTo/navigateBack 离开）与 onHide 都要清定时器，
+// onShow 先 stopTimers 防叠加，否则 8s 轮询与 10s 定位上报会在页面销毁后持续泄漏。
+function stopTimers() { clearInterval(timer); clearInterval(locTimer); timer = null; locTimer = null; }
+onHide(stopTimers);
+onUnload(stopTimers);
 
 /** plan 2.2：配送中向平台上报当前位置，用户端订单跟踪可看骑手 Marker */
 function reportLocation() {

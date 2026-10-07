@@ -57,10 +57,11 @@ export const useCartStore = defineStore('cart', () => {
 
     function updateBadge() {
         const qty = totalQuantity.value;
+        // H5 非 tabBar 页（menu/checkout 等）调用角标 API 会 reject → 未处理 rejection；fail 静默
         if (qty > 0) {
-            uni.setTabBarBadge({ index: CART_TAB_INDEX, text: String(qty) });
+            uni.setTabBarBadge({ index: CART_TAB_INDEX, text: String(qty), fail: () => {} });
         } else {
-            uni.removeTabBarBadge({ index: CART_TAB_INDEX });
+            uni.removeTabBarBadge({ index: CART_TAB_INDEX, fail: () => {} });
         }
     }
 

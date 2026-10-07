@@ -66,7 +66,9 @@
 
 ## 四、建议实施顺序（待用户确认优先级）
 
-1. F1 定时器泄漏（一处小改，收益最大）
+> **实施进度（2026-10-08）**：F1 已修复上线（waimai `8f5de0b`：rider-home/rider-delivering stopTimers 挂 onHide+onUnload + onShow 防叠加；vitest 81/81；生产截图目检合格 `docs/screenshots/audit-f1-fix/`）。学生端 after-sale-detail/order-detail 轮询已用 Vue onUnmounted 且终态自停，无泄漏，无需改。
+
+1. ~~F1 定时器泄漏~~ ✅ 已上线
 2. F2/F3 提现事务化（资金安全）
 3. F9 toFen 精度（一行修）
 4. F4 campusHall 鉴权（一行加断言）

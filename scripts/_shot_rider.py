@@ -21,13 +21,19 @@ def login(page) -> bool:
         " headers: {'Content-Type':'application/json','vendure-token': ch},"
         " body: JSON.stringify({query: 'mutation($u:String!,$p:String!){ login(username: $u, password: $p) { ... on CurrentUser { id } } }',"
         " variables: {u, p} }) });"
-        " return { token: r.headers.get('vendure-auth-token') }; }",
+        " return { token: r.headers.get('vendure-auth-token'), body: await r.json() }; }",
         [EMAIL, PWD, CHANNEL],
     )
     token = r.get("token")
-    if not token:
+    uid = (r.get("body", {}).get("data", {}).get("login", {}) or {}).get("id", "")
+    if not token or not uid:
         return False
-    page.evaluate("t => { localStorage.setItem('vendure_session_token', t); }", token)
+    # rider 页鉴权读 auth store（auth_token/auth_userId），API 会话读 vendure_session_token
+    page.evaluate(
+        "([t, id]) => { localStorage.setItem('vendure_session_token', t);"
+        " localStorage.setItem('auth_token', t); localStorage.setItem('auth_userId', String(id)); }",
+        [token, uid],
+    )
     return True
 
 
@@ -47,7 +53,9 @@ def main():
         page.goto(BASE + "#/pages/login/index", wait_until="networkidle")
         if not login(page):
             raise SystemExit("login failed")
-        time.sleep(1)
+        # 整页 reload 让 App.onLaunch 重跑 restoreSession，把注入的 auth_token 读进 auth store
+        page.reload(wait_until="networkidle")
+        time.sleep(2)
         # 骑手大厅（rider-home，onShow 起轮询）
         page.goto(BASE + "#/pkg-rider/pages/rider-home", wait_until="networkidle")
         page.wait_for_timeout(3000)

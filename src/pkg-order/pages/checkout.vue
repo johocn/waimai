@@ -25,6 +25,10 @@
         <text class="campus-empty__hint">请选择其他配送方式</text>
       </view>
       <template v-else>
+        <view class="campus-default" v-if="defaultAddressSummary" @click="scrollToZones">
+          <text class="campus-default__txt">默认地址：{{ defaultAddressSummary }}</text>
+          <text class="campus-default__chg">改选</text>
+        </view>
         <view class="campus-label">选择分区</view>
         <view class="chip-row">
           <view v-for="z in zones" :key="z.id" class="chip" :class="{ on: zoneId === z.id }" @click="chooseZone(z)">
@@ -246,6 +250,7 @@ import { handlePayment, type PaymentMethod } from '../../composables/usePayment'
 import { useTenantStore } from '../../stores/tenant';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { filterCampusRoutes } from '../../utils/errand';
+import { pickDefaultCampusAddress, isValidCampusTarget } from '../../utils/profile-mapping';
 
 type ShippingCategory = 'shipping' | 'store-pickup';
 type TabKey = 'campus' | ShippingCategory;
@@ -294,6 +299,7 @@ const zonesLoading = ref(false);
 const minOrderFen = ref<number | null>(null);   // 起送价（分，URL 透传；null=未配置）
 const deliveryFeeFen = ref<number | null>(null); // 配送费（分，仅展示）
 const freeShipFen = ref<number | null>(null);    // 满X元免配送费门槛（分；null/0=不启用，plan 3.2）
+const defaultAddressSummary = ref('');           // 默认校园地址摘要（Task 10，可点击改选）
 
 // checkout 可选路线（R1/R2/R3 保序）；R2 二期加入轮换
 const campusRouteOptions = computed(() => filterCampusRoutes(campusRoutes.value));
@@ -346,6 +352,27 @@ async function loadStoreRoutes() {
     } catch (e) { /* 拉取失败保留 URL 兜底 */ }
 }
 
+/** 默认校园地址预选（spec §3.3）：zone/building 命中当前店铺配置才生效，时段仍需手选；命中返回目标，未命中返回 null */
+async function applyDefaultAddress(): Promise<{ zoneId: string; buildingId: string } | null> {
+    try {
+        const cust: any = await getActiveCustomer();
+        const hit = pickDefaultCampusAddress(cust?.activeCustomer?.addresses || []);
+        if (!hit?.customFields?.zoneId || !hit.customFields.buildingId) return null;
+        const { zoneId: zid, buildingId: bid } = hit.customFields;
+        if (!isValidCampusTarget(zid as string, bid as string, zones.value, buildings.value)) {
+            if (zones.value.length && !zones.value.some((z) => String(z.id) === String(zid))) return null; // 跨店铺脏数据，静默忽略
+            const bds = await fetchBuildings(zid as string);
+            if (!isValidCampusTarget(zid as string, bid as string, zones.value, bds)) return null;
+        }
+        if (!zoneId.value) zoneId.value = zid as string;
+        if (!buildingId.value && zoneId.value === zid) buildingId.value = bid as string;
+        defaultAddressSummary.value = `${hit.fullName || ''} ${hit.phoneNumber || ''} · ${hit.streetLine1 || ''}`.trim();
+        return { zoneId: zid as string, buildingId: bid as string };
+    } catch (e) { console.error('默认地址预选失败', e); return null; }
+}
+
+function scrollToZones() { uni.showToast({ title: '可在下方重新选择分区楼栋', icon: 'none' }); }
+
 async function chooseZone(z: any) {
     zoneId.value = z.id;
     buildingId.value = '';
@@ -359,7 +386,15 @@ async function loadCampusData() {
     zonesLoading.value = true;
     try {
         zones.value = await fetchZones();
-        if (zones.value.length) await chooseZone(zones.value[0]);
+        if (zones.value.length) {
+            // Task 10：默认校园地址预选——命中当前店铺分区时，初始选中从 zones[0] 切到默认地址的 zone/building
+            const hit = await applyDefaultAddress();
+            const target = (hit && zones.value.find((z: any) => String(z.id) === String(hit.zoneId))) || zones.value[0];
+            await chooseZone(target);
+            if (hit && buildings.value.some((b: any) => String(b.id) === String(hit.buildingId))) {
+                buildingId.value = hit.buildingId; // chooseZone 默认选首楼，纠正回默认地址楼栋
+            }
+        }
         slots.value = await fetchSlots();
     } catch (e) { zones.value = []; }
     zonesLoading.value = false;
@@ -824,4 +859,5 @@ onLoad((q: any) => {
 .chip { padding: 12rpx 24rpx; font-size: 24rpx; border-radius: 999rpx; background: $bg-color; color: $text-color-secondary; border: 1rpx solid transparent; &.on { background: $brand-color-light; color: $brand-color; border-color: $brand-color; font-weight: 600; } &__sub { font-size: 22rpx; opacity: .8; } }
 .slot-schedule-hint { display: block; margin-top: 16rpx; padding: 12rpx 20rpx; font-size: 22rpx; color: $brand-color; background: $brand-color-light; border-radius: $radius-sm; }
 .route-row { display: flex; align-items: center; justify-content: space-between; margin-top: 20rpx; padding: 16rpx 20rpx; background: $brand-color-light; border-radius: $radius-sm; &__text { font-size: 24rpx; color: $brand-color; flex: 1; } &__switch { font-size: 24rpx; color: #fff; background: $brand-color; border-radius: 999rpx; padding: 4rpx 20rpx; } }
+.campus-default { display: flex; align-items: center; justify-content: space-between; background: $brand-soft; border-radius: $radius-md; padding: 16rpx 20rpx; margin-bottom: 16rpx; &__txt { font-size: 24rpx; color: #8a4b00; flex: 1; } &__chg { font-size: 24rpx; color: $brand-color; margin-left: 12rpx; } }
 </style>

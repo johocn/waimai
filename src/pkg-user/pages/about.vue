@@ -60,13 +60,13 @@ function openDoc(kind: 'user' | 'privacy') {
     min-height: 100vh; background: $bg-color;
     &__hero { display: flex; flex-direction: column; align-items: center; padding: 80rpx 0 40rpx; }
     &__logo { font-size: 48rpx; font-weight: bold; color: $brand-color; }
-    &__ver { font-size: 24rpx; color: #999; margin-top: 12rpx; }
+    &__ver { font-size: 24rpx; color: $text-color-placeholder; margin-top: 12rpx; }
     &__menu { background: $surface; margin: 20rpx; border-radius: $radius-md; }
     &__item { display: flex; justify-content: space-between; padding: 30rpx; border-bottom: 1rpx solid $border-color; font-size: 28rpx; }
-    &__val { color: #999; }
+    &__val { color: $text-color-placeholder; }
     &__doc { position: fixed; inset: 0; background: $surface; z-index: 9; padding: 60rpx 40rpx calc(40rpx + env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
     &__doc-title { font-size: 36rpx; font-weight: bold; margin-bottom: 30rpx; }
     &__doc-body { flex: 1; font-size: 26rpx; color: #555; line-height: 1.8; white-space: pre-line; }
-    &__close { background: $bg-color; color: #666; border-radius: $radius-md; height: 88rpx; font-size: 28rpx; }
+    &__close { background: $bg-color; color: $text-color-secondary; border-radius: $radius-md; height: 88rpx; font-size: 28rpx; }
 }
 </style>

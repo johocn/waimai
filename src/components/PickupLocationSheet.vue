@@ -144,7 +144,7 @@ function confirm() {
   display: flex; align-items: flex-end;
 }
 .sheet {
-  background: #fff; width: 100%; border-radius: 24rpx 24rpx 0 0;
+  background: $surface; width: 100%; border-radius: 24rpx 24rpx 0 0;
   padding: 30rpx; max-height: 70vh; display: flex; flex-direction: column;
   &__head {
     display: flex; justify-content: space-between; align-items: center;
@@ -152,7 +152,7 @@ function confirm() {
   }
   &__head-actions { display: flex; align-items: center; gap: 24rpx; }
   &__title { font-size: 32rpx; font-weight: bold; }
-  &__close { font-size: 36rpx; color: #999; padding: 0 10rpx; }
+  &__close { font-size: 36rpx; color: $text-color-placeholder; padding: 0 10rpx; }
   &__top-confirm {
     font-size: 30rpx; color: #fff; background: #6b4fff;
     padding: 8rpx 28rpx; border-radius: 32rpx; font-weight: 500;
@@ -170,20 +170,20 @@ function confirm() {
     &-thumb { width: 120rpx; height: 120rpx; border-radius: 12rpx; flex-shrink: 0; background: #f2f2f2; }
     &-main { flex: 1; min-width: 0; }
     &-name { font-size: 28rpx; font-weight: bold; display: block; }
-    &-addr { font-size: 24rpx; color: #999; display: block; margin-top: 6rpx; }
+    &-addr { font-size: 24rpx; color: $text-color-placeholder; display: block; margin-top: 6rpx; }
     &-meta { display: flex; flex-wrap: wrap; gap: 20rpx; margin-top: 8rpx; }
-    &-contact { font-size: 24rpx; color: #999; }
-    &-hours { font-size: 24rpx; color: #999; }
-    &-phone { font-size: 24rpx; color: #999; }
+    &-contact { font-size: 24rpx; color: $text-color-placeholder; }
+    &-hours { font-size: 24rpx; color: $text-color-placeholder; }
+    &-phone { font-size: 24rpx; color: $text-color-placeholder; }
     &-dist { font-size: 24rpx; color: #ff8a3d; }
   }
   &__empty {
     padding: 60rpx 0; text-align: center;
-    text { font-size: 28rpx; color: #999; }
+    text { font-size: 28rpx; color: $text-color-placeholder; }
   }
   &__loading-more {
     padding: 20rpx 0; text-align: center;
-    text { font-size: 24rpx; color: #999; }
+    text { font-size: 24rpx; color: $text-color-placeholder; }
   }
   &__confirm {
     margin-top: 20rpx; height: 90rpx; background: #6b4fff;

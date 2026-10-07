@@ -36,9 +36,9 @@ function copyLink() {
 .iv-page {
     min-height: 100vh; background: $bg-color; padding: 40rpx 30rpx;
     &__card { background: $surface; border-radius: $radius-md; padding: 60rpx 40rpx; display: flex; flex-direction: column; align-items: center; }
-    &__title { font-size: 28rpx; color: #666; }
+    &__title { font-size: 28rpx; color: $text-color-secondary; }
     &__code { font-size: 72rpx; font-weight: bold; color: $brand-color; letter-spacing: 8rpx; margin: 30rpx 0; }
-    &__hint { font-size: 24rpx; color: #999; margin-bottom: 40rpx; text-align: center; }
+    &__hint { font-size: 24rpx; color: $text-color-placeholder; margin-bottom: 40rpx; text-align: center; }
     &__copy { background: $brand-color; color: #fff; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; width: 100%; }
 }
 </style>

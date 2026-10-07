@@ -144,7 +144,7 @@ function doLogin() { authStore.requireLogin(); }
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; position: relative;
     &__ico { width: 56rpx; height: 56rpx; border-radius: $radius-md; background: $brand-soft; color: $brand-color; font-size: 26rpx; display: flex; align-items: center; justify-content: center; }
     &__lbl { font-size: 24rpx; color: $text-color; }
-    &__hint { font-size: 18rpx; color: #bbb; position: absolute; top: -6rpx; right: 14rpx; }
+    &__hint { font-size: 18rpx; color: $text-color-placeholder; position: absolute; top: -6rpx; right: 14rpx; }
     &--off { opacity: .55; }
 }
 .order-shortcut {
@@ -156,5 +156,5 @@ function doLogin() { authStore.requireLogin(); }
     display: flex; justify-content: space-between; align-items: center;
     padding: 30rpx; border-bottom: 1rpx solid $border-color; font-size: 28rpx;
 }
-.menu-arrow { color: #ccc; }
+.menu-arrow { color: $text-color-placeholder; }
 </style>

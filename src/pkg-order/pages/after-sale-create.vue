@@ -160,9 +160,9 @@ async function submit() {
 <style lang="scss" scoped>
 .as-create { padding: 20rpx 20rpx 200rpx; }
 .mode-tabs { display: flex; gap: 16rpx; margin-bottom: 20rpx;
-  .mode-tab { flex: 1; text-align: center; padding: 20rpx 0; border-radius: $radius-md; background: #fff; font-size: 28rpx; color: $text-color-secondary; border: 2rpx solid $border-color;
+  .mode-tab { flex: 1; text-align: center; padding: 20rpx 0; border-radius: $radius-md; background: $surface; font-size: 28rpx; color: $text-color-secondary; border: 2rpx solid $border-color;
     &.on { color: $brand-color; border-color: $brand-color; background: #fff7f2; font-weight: bold; } } }
-.section { background: #fff; border-radius: $radius-md; padding: 24rpx; margin-bottom: 20rpx;
+.section { background: $surface; border-radius: $radius-md; padding: 24rpx; margin-bottom: 20rpx;
   &__title { font-size: 28rpx; font-weight: bold; display: block; margin-bottom: 16rpx; } }
 .line { display: flex; align-items: center; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid #f5f5f5;
   &:last-child { border-bottom: none; }
@@ -172,22 +172,22 @@ async function submit() {
   &__name { font-size: 26rpx; }
   &__price { font-size: 24rpx; color: $price-color; } }
 .stepper { display: flex; align-items: center; gap: 16rpx;
-  &__btn { width: 48rpx; height: 48rpx; border-radius: 8rpx; background: #f5f5f5; display: flex; align-items: center; justify-content: center; font-size: 28rpx; }
+  &__btn { width: 48rpx; height: 48rpx; border-radius: 8rpx; background: $bg-color; display: flex; align-items: center; justify-content: center; font-size: 28rpx; }
   &__num { font-size: 26rpx; min-width: 40rpx; text-align: center; } }
 .amount { display: flex; flex-direction: column;
   &__num { font-size: 48rpx; font-weight: bold; color: $price-color; }
   &__tip { font-size: 22rpx; color: $text-color-secondary; margin-top: 8rpx; } }
 .chips { display: flex; flex-wrap: wrap; gap: 16rpx; margin-bottom: 16rpx;
-  .chip { font-size: 26rpx; padding: 12rpx 28rpx; border-radius: 999rpx; background: #f5f5f5; color: $text-color-secondary;
+  .chip { font-size: 26rpx; padding: 12rpx 28rpx; border-radius: 999rpx; background: $bg-color; color: $text-color-secondary;
     &.on { background: #fff7f2; color: $brand-color; border: 1rpx solid $brand-color; } } }
-.desc { width: 100%; box-sizing: border-box; min-height: 140rpx; background: #f8f8f8; border-radius: $radius-md; padding: 16rpx; font-size: 26rpx; }
+.desc { width: 100%; box-sizing: border-box; min-height: 140rpx; background: $bg-color; border-radius: $radius-md; padding: 16rpx; font-size: 26rpx; }
 .evidence { display: flex; gap: 16rpx; flex-wrap: wrap;
   &__item { position: relative; }
   &__img { width: 160rpx; height: 160rpx; border-radius: $radius-md; }
   &__del { position: absolute; top: -12rpx; right: -12rpx; width: 40rpx; height: 40rpx; background: rgba(0,0,0,.6); color: #fff; border-radius: 50%; text-align: center; line-height: 40rpx; font-size: 24rpx; }
-  &__add { width: 160rpx; height: 160rpx; border: 2rpx dashed #ddd; border-radius: $radius-md; display: flex; align-items: center; justify-content: center; font-size: 48rpx; color: #ccc; } }
+  &__add { width: 160rpx; height: 160rpx; border: 2rpx dashed #ddd; border-radius: $radius-md; display: flex; align-items: center; justify-content: center; font-size: 48rpx; color: $text-color-placeholder; } }
 .notice { font-size: 22rpx; color: $text-color-secondary; text-align: center; padding: 8rpx 0 20rpx; }
-.footbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 16rpx 20rpx calc(16rpx + env(safe-area-inset-bottom)); background: #fff;
+.footbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 16rpx 20rpx calc(16rpx + env(safe-area-inset-bottom)); background: $surface;
   .submit { background: $brand-color; color: #fff; border-radius: 999rpx; font-size: 30rpx;
     &:disabled { opacity: .5; } } }
 </style>

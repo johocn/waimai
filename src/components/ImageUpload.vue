@@ -91,6 +91,6 @@ function previewImage(idx: number) {
     width: 200rpx; height: 200rpx; border: 2rpx dashed $border-color; border-radius: $radius-md;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-.image-upload__icon { font-size: 60rpx; color: #ccc; line-height: 1; }
-.image-upload__text { font-size: 22rpx; color: #999; margin-top: 8rpx; }
+.image-upload__icon { font-size: 60rpx; color: $text-color-placeholder; line-height: 1; }
+.image-upload__text { font-size: 22rpx; color: $text-color-placeholder; margin-top: 8rpx; }
 </style>

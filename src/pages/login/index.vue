@@ -472,11 +472,11 @@ async function tryUpdateReferredBy(inviteCode: string) {
     &--wechat { background: #07c160; color: #fff; }
     &--alipay { background: #1677ff; color: #fff; }
     &--douyin { background: #000; color: #fff; }
-    &--phone { background: #fff; color: $text-color; border: 1rpx solid $border-color; }
-    &--local { background: #fff; color: $text-color; border: 1rpx solid $border-color; }
-    &--sso { background: #fff; color: $text-color; border: 1rpx solid $border-color; }
+    &--phone { background: $surface; color: $text-color; border: 1rpx solid $border-color; }
+    &--local { background: $surface; color: $text-color; border: 1rpx solid $border-color; }
+    &--sso { background: $surface; color: $text-color; border: 1rpx solid $border-color; }
 }
 .register-link { font-size: 26rpx; color: $brand-color; text-align: center; margin-top: 20rpx; }
-.agreement-text { font-size: 22rpx; color: #999; }
+.agreement-text { font-size: 22rpx; color: $text-color-placeholder; }
 .agreement-link { font-size: 22rpx; color: $brand-color; }
 </style>

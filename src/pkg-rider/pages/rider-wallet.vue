@@ -137,14 +137,14 @@ onReachBottom(loadMore);
 .bc-subs { display: flex; margin-top: 24rpx; gap: 48rpx; }
 .bc-sub-num { display: block; font-size: 30rpx; font-weight: 600; }
 .bc-sub-label { display: block; font-size: 22rpx; opacity: .8; margin-top: 4rpx; }
-.bc-btn { margin-top: 32rpx; background: #fff; color: $brand-color; font-weight: 600; border-radius: 999rpx; font-size: 30rpx; }
+.bc-btn { margin-top: 32rpx; background: $surface; color: $brand-color; font-weight: 600; border-radius: 999rpx; font-size: 30rpx; }
 .bc-btn[disabled] { opacity: .6; }
 .bc-tip { display: block; text-align: center; font-size: 22rpx; opacity: .8; margin-top: 8rpx; }
 .tabs { display: flex; gap: 40rpx; margin: 32rpx 8rpx 20rpx; }
 .tab { font-size: 28rpx; color: $text-muted; padding-bottom: 12rpx; }
 .tab.on { color: $text; font-weight: 700; border-bottom: 4rpx solid $brand-color; }
 .list { background: $surface; border-radius: $radius-card; }
-.row { display: flex; justify-content: space-between; align-items: center; padding: 24rpx; border-bottom: 1rpx solid #f0f0f0; }
+.row { display: flex; justify-content: space-between; align-items: center; padding: 24rpx; border-bottom: 1rpx solid $border-color; }
 .row:last-child { border-bottom: none; }
 .row-title { display: block; font-size: 26rpx; color: $text; }
 .row-time { display: block; font-size: 22rpx; color: $text-muted; margin-top: 4rpx; }

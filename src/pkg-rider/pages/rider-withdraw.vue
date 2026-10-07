@@ -83,10 +83,10 @@ async function submit() {
 .withdraw { padding: 24rpx; }
 .amount-card { background: $surface; border-radius: $radius-card; padding: 32rpx; }
 .ac-label { display: block; font-size: 26rpx; color: $text-muted; }
-.ac-input-row { display: flex; align-items: center; gap: 12rpx; margin-top: 16rpx; border-bottom: 2rpx solid #eee; padding-bottom: 16rpx; }
+.ac-input-row { display: flex; align-items: center; gap: 12rpx; margin-top: 16rpx; border-bottom: 2rpx solid $border-color; padding-bottom: 16rpx; }
 .ac-yen { font-size: 48rpx; font-weight: 700; color: $text; }
 .ac-input { flex: 1; font-size: 48rpx; font-weight: 700; }
-.ac-ph { color: #ccc; font-weight: 400; }
+.ac-ph { color: $text-color-placeholder; font-weight: 400; }
 .ac-avail { display: block; font-size: 24rpx; color: $text-muted; margin-top: 16rpx; }
 .ac-all { color: $brand-color; margin-left: 16rpx; }
 .section { margin-top: 32rpx; }

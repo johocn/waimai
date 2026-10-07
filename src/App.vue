@@ -32,7 +32,7 @@ onLaunch(async () => {
     --surface: #ffffff;
     --border: #eeeeee;
 }
-page { background: #f5f5f5; }
+page { background: var(--bg, #f5f5f5); }
 /* 暗色主题（utils/theme.ts 切换 html.dark-html）：页面与 overscroll 区域不露白，
    中性色令牌翻转（uni.scss 各 $ 变量经 var() 引用，全站组件自动跟随）；
    品牌橙头部/按钮保持品牌色不换肤 */

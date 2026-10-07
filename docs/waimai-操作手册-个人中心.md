@@ -70,6 +70,8 @@
   （覆盖：六页渲染截图、地址簿建址/更新/`countryCode` 必填、抬头管理与 ≤5 条约束、邀请码渲染、`applyOrderInvoice` 首调 + 幂等拒重、暗色抽查）
 - 截图归档：`docs/screenshots/profile/`（7 张：首页/资料/地址簿/抬头/邀请/关于/暗色抽查）
 - 部署：dist 构建产物随最新提交同步线上。
-- **暗色主题**（2026-10-07 方案 A 落地）：中性色令牌 CSS 变量化（uni.scss → var）+ App `onLaunch` 补调 `initTheme()`，全站 `$` 变量样式自动跟随；个人中心各页深色卡片/浅色文字，**橙色头部保持品牌色**，原生导航栏与 tabBar 同步翻转。首页右上角 🌙/☀️ 可切换。
+- **暗色主题**（2026-10-07 方案 A 落地 + 全站补全）：中性色令牌 CSS 变量化（uni.scss → var）+ App `onLaunch` 补调 `initTheme()`，全站 `$` 变量样式自动跟随；个人中心各页深色卡片/浅色文字，**橙色头部保持品牌色**，原生导航栏与 tabBar 同步翻转。首页右上角 🌙/☀️ 可切换。
+- **暗色全站抽查**（`python scripts/_shot_dark_pages.py`）：订单详情、售后详情、首页三页暗色截图目检合格（`docs/screenshots/theme-dark/`），0 pageerror。
 
 ![个人中心-暗色](screenshots/profile/profile_dark.png)
+![订单详情-暗色](screenshots/theme-dark/dark_order_detail.png)

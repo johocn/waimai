@@ -103,12 +103,12 @@ function del(a: any) {
     &__name { font-size: 30rpx; font-weight: bold; }
     &__default { font-size: 20rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 6rpx; padding: 2rpx 10rpx; }
     &__invalid { font-size: 20rpx; color: #e8a23a; border: 1rpx solid #e8a23a; border-radius: 6rpx; padding: 2rpx 10rpx; }
-    &__phone { display: block; font-size: 26rpx; color: #666; margin-top: 8rpx; }
-    &__addr { display: block; font-size: 26rpx; color: #666; margin-top: 4rpx; }
+    &__phone { display: block; font-size: 26rpx; color: $text-color-secondary; margin-top: 8rpx; }
+    &__addr { display: block; font-size: 26rpx; color: $text-color-secondary; margin-top: 4rpx; }
     &__ops { display: flex; flex-direction: column; gap: 20rpx; margin-left: 20rpx; }
-    &__op { font-size: 24rpx; color: #666; &--danger { color: #e8463a; } }
+    &__op { font-size: 24rpx; color: $text-color-secondary; &--danger { color: #e8463a; } }
     &__item.disabled { opacity: .6; }
-    &__empty { text-align: center; color: #999; font-size: 26rpx; padding: 120rpx 0; }
+    &__empty { text-align: center; color: $text-color-placeholder; font-size: 26rpx; padding: 120rpx 0; }
     &__footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 20rpx; background: $bg-color; }
     &__add { background: $brand-color; color: #fff; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; }
 }

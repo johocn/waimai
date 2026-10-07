@@ -42,10 +42,10 @@ function clearSearch() {
 
 <style lang="scss" scoped>
 .search-bar {
-    padding: 16rpx 20rpx; background: #fff; position: sticky; top: 0; z-index: 10;
-    &__inner { display: flex; align-items: center; background: #f5f5f5; border-radius: 40rpx; padding: 0 24rpx; height: 72rpx; }
+    padding: 16rpx 20rpx; background: $surface; position: sticky; top: 0; z-index: 10;
+    &__inner { display: flex; align-items: center; background: $bg-color; border-radius: 40rpx; padding: 0 24rpx; height: 72rpx; }
     &__icon { font-size: 28rpx; margin-right: 12rpx; }
     &__input { flex: 1; font-size: 28rpx; height: 72rpx; }
-    &__clear { font-size: 36rpx; color: #999; padding: 0 12rpx; }
+    &__clear { font-size: 36rpx; color: $text-color-placeholder; padding: 0 12rpx; }
 }
 </style>

@@ -84,10 +84,10 @@ function goHome() {
     &__code { font-size: 26rpx; color: $text-color-secondary; margin-bottom: 60rpx; }
     &__codes { width: 100%; margin-bottom: 60rpx; }
     &__codes-title { display: block; font-size: 28rpx; font-weight: bold; margin-bottom: 16rpx; text-align: center; }
-    &__code-item { display: flex; justify-content: space-between; align-items: center; padding: 16rpx 20rpx; background: #f7f7f7; border-radius: $radius-md; margin-bottom: 12rpx; font-size: 26rpx; color: $text-color-secondary; }
+    &__code-item { display: flex; justify-content: space-between; align-items: center; padding: 16rpx 20rpx; background: $bg-color; border-radius: $radius-md; margin-bottom: 12rpx; font-size: 26rpx; color: $text-color-secondary; }
     &__code-link { color: $brand-color; }
     &__actions { width: 100%; display: flex; flex-direction: column; gap: 20rpx; }
 }
 .btn-primary { background: $brand-color; color: #fff; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; border: none; }
-.btn-secondary { background: #fff; color: $text-color; border: 1rpx solid $border-color; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; }
+.btn-secondary { background: $surface; color: $text-color; border: 1rpx solid $border-color; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; }
 </style>

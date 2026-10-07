@@ -96,7 +96,7 @@ function del(r: any) {
 .my-reviews { padding: 24rpx; }
 .hint { text-align: center; color: #8a919c; font-size: 26rpx; padding: 120rpx 0; }
 .card {
-  background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 24rpx;
+  background: $surface; border-radius: 16rpx; padding: 24rpx; margin-bottom: 24rpx;
   display: flex; flex-direction: column; gap: 16rpx;
 }
 .head { display: flex; justify-content: space-between; align-items: center; }

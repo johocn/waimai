@@ -235,15 +235,15 @@ function confirm() {
   display: flex; align-items: flex-end;
 }
 .region-sheet {
-  background: #fff; width: 100%; border-radius: 24rpx 24rpx 0 0;
+  background: $surface; width: 100%; border-radius: 24rpx 24rpx 0 0;
   max-height: 75vh; display: flex; flex-direction: column;
   &__head {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 24rpx 30rpx; border-bottom: 1rpx solid #f0f0f0;
+    padding: 24rpx 30rpx; border-bottom: 1rpx solid $border-color;
   }
   &__title { font-size: 32rpx; font-weight: bold; }
   &__actions { display: flex; align-items: center; gap: 24rpx; }
-  &__cancel { font-size: 28rpx; color: #999; }
+  &__cancel { font-size: 28rpx; color: $text-color-placeholder; }
   &__confirm {
     font-size: 30rpx; color: #fff; background: #6b4fff;
     padding: 8rpx 28rpx; border-radius: 32rpx; font-weight: 500;
@@ -251,27 +251,27 @@ function confirm() {
   }
   &__tabs {
     display: flex; align-items: center; padding: 20rpx 30rpx;
-    border-bottom: 1rpx solid #f0f0f0; gap: 8rpx; flex-wrap: wrap;
+    border-bottom: 1rpx solid $border-color; gap: 8rpx; flex-wrap: wrap;
   }
   &__list { flex: 1; max-height: 55vh; }
   &__loading {
     padding: 60rpx 0; text-align: center;
-    text { font-size: 28rpx; color: #999; }
+    text { font-size: 28rpx; color: $text-color-placeholder; }
   }
   &__empty {
     padding: 60rpx 0; text-align: center;
-    text { font-size: 28rpx; color: #999; }
+    text { font-size: 28rpx; color: $text-color-placeholder; }
   }
 }
 .region-tab {
-  font-size: 26rpx; color: #999; padding: 4rpx 8rpx;
+  font-size: 26rpx; color: $text-color-placeholder; padding: 4rpx 8rpx;
   &.active { color: #6b4fff; font-weight: 500; border-bottom: 2rpx solid #6b4fff; }
   &__sep { color: #ddd; font-size: 24rpx; }
 }
 .region-item {
   display: flex; justify-content: space-between; align-items: center;
   padding: 28rpx 30rpx; border-bottom: 1rpx solid #f5f5f5;
-  font-size: 28rpx; color: #333;
+  font-size: 28rpx; color: $text-color;
   &.selected { color: #6b4fff; background: #f8f5ff; }
   &__check { color: #6b4fff; font-size: 32rpx; }
 }

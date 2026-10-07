@@ -184,18 +184,18 @@ async function sendMsg() {
   &__state { font-size: 36rpx; font-weight: bold; display: block; }
   &__hint { font-size: 24rpx; opacity: .85; margin-top: 8rpx; display: block; }
   &__amount { font-size: 30rpx; margin-top: 12rpx; display: block; font-weight: bold; } }
-.section { background: #fff; border-radius: $radius-md; padding: 24rpx; margin-bottom: 20rpx;
+.section { background: $surface; border-radius: $radius-md; padding: 24rpx; margin-bottom: 20rpx;
   &__title { font-size: 28rpx; font-weight: bold; display: block; margin-bottom: 16rpx; } }
 .steps { display: flex;
   .step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx;
     &__dot { width: 40rpx; height: 40rpx; border-radius: 50%; background: #eee; color: #fff; font-size: 22rpx; display: flex; align-items: center; justify-content: center; }
-    &__label { font-size: 22rpx; color: #999; }
+    &__label { font-size: 22rpx; color: $text-color-placeholder; }
     &--done .step__dot { background: $brand-color; }
     &--done .step__label { color: $text-color; }
     &--active .step__dot { background: $brand-color; box-shadow: 0 0 0 8rpx rgba(255,102,0,.15); }
     &--active .step__label { color: $brand-color; font-weight: bold; } } }
 .reject__text { font-size: 26rpx; color: #e02020; display: block; margin-bottom: 16rpx; }
-.reject__input { width: 100%; box-sizing: border-box; min-height: 120rpx; background: #f8f8f8; border-radius: $radius-md; padding: 16rpx; font-size: 26rpx; margin-bottom: 16rpx; }
+.reject__input { width: 100%; box-sizing: border-box; min-height: 120rpx; background: $bg-color; border-radius: $radius-md; padding: 16rpx; font-size: 26rpx; margin-bottom: 16rpx; }
 .kv { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; color: $text-color-secondary;
   .money { color: $price-color; font-weight: bold; }
   .err { color: #e02020; } }
@@ -204,17 +204,17 @@ async function sendMsg() {
   &__img { width: 140rpx; height: 140rpx; border-radius: $radius-md; } }
 .msg { margin-bottom: 16rpx; display: flex; flex-direction: column; gap: 4rpx; align-items: flex-start;
   &--mine { align-items: flex-end; }
-  &__name { font-size: 20rpx; color: #999; }
-  &__content { font-size: 26rpx; background: #f7f7f7; border-radius: 12rpx; padding: 12rpx 20rpx; max-width: 80%; }
+  &__name { font-size: 20rpx; color: $text-color-placeholder; }
+  &__content { font-size: 26rpx; background: $bg-color; border-radius: 12rpx; padding: 12rpx 20rpx; max-width: 80%; }
   &--mine .msg__content { background: #fff7f2; }
-  &__time { font-size: 20rpx; color: #ccc; }
-  &-empty { font-size: 24rpx; color: #999; }
-  &-closed { font-size: 22rpx; color: #999; } }
+  &__time { font-size: 20rpx; color: $text-color-placeholder; }
+  &-empty { font-size: 24rpx; color: $text-color-placeholder; }
+  &-closed { font-size: 22rpx; color: $text-color-placeholder; } }
 .msg-input { display: flex; gap: 16rpx; margin-top: 8rpx;
-  input { flex: 1; background: #f7f7f7; border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; } }
+  input { flex: 1; background: $bg-color; border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; } }
 .btn { background: $brand-color; color: #fff; border-radius: 999rpx; font-size: 28rpx; margin-top: 8rpx;
-  &.ghost { background: #fff; color: $brand-color; border: 1rpx solid $brand-color; }
+  &.ghost { background: $surface; color: $brand-color; border: 1rpx solid $brand-color; }
   &.small { margin-top: 0; font-size: 26rpx; padding: 0 28rpx; }
   &:disabled { opacity: .5; } }
-.footbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 16rpx 20rpx calc(16rpx + env(safe-area-inset-bottom)); background: #fff; }
+.footbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 16rpx 20rpx calc(16rpx + env(safe-area-inset-bottom)); background: $surface; }
 </style>

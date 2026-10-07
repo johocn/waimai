@@ -90,7 +90,7 @@ async function save() {
         image { width: 100%; height: 100%; }
         text { color: $brand-color; font-size: 36rpx; }
     }
-    &__arrow { color: #ccc; }
+    &__arrow { color: $text-color-placeholder; }
     &__save { margin-top: 40rpx; background: $brand-color; color: #fff; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; }
 }
 </style>

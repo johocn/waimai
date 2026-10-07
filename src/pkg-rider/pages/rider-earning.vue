@@ -90,7 +90,7 @@ function goWallet() {
 .we-sub { display: block; font-size: 22rpx; color: $text-muted; margin-top: 4rpx; }
 .we-btn { background: $brand-color; color: #fff; font-size: 24rpx; padding: 10rpx 28rpx; border-radius: 999rpx; }
 .list { background: $surface; border-radius: $radius-card; }
-.row { display: flex; justify-content: space-between; align-items: center; padding: 24rpx; border-bottom: 1rpx solid #f0f0f0; }
+.row { display: flex; justify-content: space-between; align-items: center; padding: 24rpx; border-bottom: 1rpx solid $border-color; }
 .row:last-child { border-bottom: none; }
 .row-title { display: block; font-size: 26rpx; color: $text; }
 .row-time { display: block; font-size: 22rpx; color: $text-muted; margin-top: 4rpx; }

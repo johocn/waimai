@@ -135,7 +135,7 @@ async function submit() {
 <style lang="scss" scoped>
 .review-create { padding: 24rpx; }
 .section {
-  background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 24rpx;
+  background: $surface; border-radius: 16rpx; padding: 24rpx; margin-bottom: 24rpx;
 }
 .goods { display: flex; align-items: center; gap: 16rpx; }
 .goods__name { font-size: 28rpx; color: #1f2329; flex: 1; min-width: 0; }

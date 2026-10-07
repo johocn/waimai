@@ -111,8 +111,8 @@ async function save() {
     &__cell { background: $surface; border-radius: $radius-md; display: flex; align-items: center; padding: 30rpx; margin-bottom: 20rpx; }
     &__lbl { width: 180rpx; font-size: 28rpx; }
     &__input { flex: 1; font-size: 28rpx; text-align: right; }
-    &__val { flex: 1; font-size: 28rpx; text-align: right; &.placeholder { color: #bbb; } }
-    &__arrow { color: #ccc; margin-left: 12rpx; }
+    &__val { flex: 1; font-size: 28rpx; text-align: right; &.placeholder { color: $text-color-placeholder; } }
+    &__arrow { color: $text-color-placeholder; margin-left: 12rpx; }
     &__save { margin-top: 40rpx; background: $brand-color; color: #fff; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; }
 }
 </style>

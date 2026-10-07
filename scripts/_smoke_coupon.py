@@ -20,11 +20,12 @@ import urllib.request
 
 from playwright.sync_api import sync_playwright
 
-BASE = "http://localhost:5181/waimai/index.html?tenant=canteen-a-token"
-CHANNEL = "canteen-a-token"
+BASE = os.environ.get("SMOKE_BASE", "http://localhost:5181/waimai/index.html?tenant=canteen-a-token")
+CHANNEL = os.environ.get("SMOKE_CHANNEL", "canteen-a-token")
 EMAIL, PWD = "smoke-order@yourbao.cn", "Wm@Smoke123"
-VARIANT_ID = "87"                  # 可乐鸡排饭 205分（沿 _smoke_freeship.py）
-ZONE_ID, BUILDING_ID = "2", "2"    # 东区 / 桂1栋（沿 _smoke_freeship.py）
+VARIANT_ID = os.environ.get("SMOKE_VARIANT", "87")    # 可乐鸡排饭 205分（沿 _smoke_freeship.py）
+ZONE_ID = os.environ.get("SMOKE_ZONE", "2")           # 东区
+BUILDING_ID = os.environ.get("SMOKE_BUILDING", "2")   # 桂1栋
 CHROME_FALLBACK = "C:/Users/lenovo/AppData/Local/ms-playwright/chromium-1234/chrome-win64/chrome.exe"
 OUT = r"d:\zhao\vshop\docs\screenshots\waimai"
 results, shots = [], []
@@ -147,7 +148,10 @@ def main():
                                   user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
                                              "AppleWebKit/605.1.15")
         pg = ctx.new_page()
-        goto(pg, "#/pages/login/index")
+        # 生产登录页会自动跳 SSO（h.joho.cn，跨源 fetch 失效）→ 生产模式落首页执行登录 fetch；
+        # dev 沿用登录页（与先例一致）
+        entry = "#/pages/home/index" if os.environ.get("SMOKE_BASE") else "#/pages/login/index"
+        goto(pg, entry, extra_wait=2500)
         if not login(pg):
             browser.close()
             report()
@@ -156,6 +160,17 @@ def main():
         # restoreSession() 读入 auth_token，内存登录态（角标/requireLogin）才生效
         pg.reload(wait_until="networkidle")
         pg.wait_for_timeout(1500)
+
+        # 生产模式：先领一张 TEST 冒烟券（SMOKE_CLAIM_TEMPLATE，默认 78=无门槛减3），
+        # 保证 profile 角标与 checkout 试挂有素材；已领过/模板不存在则幂等跳过
+        if os.environ.get("SMOKE_BASE"):
+            tpl = os.environ.get("SMOKE_CLAIM_TEMPLATE", "78")
+            try:
+                d = page_gql(pg, 'mutation($t: ID!){ claimCoupon(templateId: $t) { id } }',
+                             {"t": tpl})
+                print("claim:", json.dumps(d, ensure_ascii=False)[:160])
+            except Exception as e:
+                print("claim skipped:", str(e)[:120])
 
         # ① 券中心-可领取 tab
         goto(pg, "#/pkg-promotion/pages/coupon-centre", extra_wait=3000)
@@ -247,7 +262,9 @@ def wait_dev_server(timeout=180):
 
 
 if __name__ == "__main__":
-    if not wait_dev_server():
+    # SMOKE_BASE 设置后为生产模式（如 https://www.yourbao.cn/waimai/index.html），
+    # 跳过本地 dev:h5 等待；生产只领不下单，脚本自身不下单（结束时清理购物车恢复原状）。
+    if not os.environ.get("SMOKE_BASE") and not wait_dev_server():
         print("FAIL dev:h5 (localhost:5181) 未就绪")
         sys.exit(1)
     main()

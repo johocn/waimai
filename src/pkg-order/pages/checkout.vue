@@ -885,7 +885,17 @@ onMounted(async () => {
             seen.add(p.code);
             return true;
         });
-        if (paymentMethods.value.length > 0) selectedPayment.value = paymentMethods.value[0].code;
+        if (paymentMethods.value.length > 0) {
+            // H5（yourbao 站专属）默认选中公众号 JSAPI PM，避免同名/多微信 PM 时默认选错；
+            // 小程序端保持列表首位
+            // #ifdef H5
+            const preferred = paymentMethods.value.find((p: any) => p.code === 'wechatpay-yourbao-h5') || paymentMethods.value[0];
+            // #endif
+            // #ifndef H5
+            const preferred = paymentMethods.value[0];
+            // #endif
+            selectedPayment.value = preferred.code;
+        }
         // 默认选中第一个 Tab（校园配送恒置首）
         if (shippingTabs.value.length > 0) {
             await switchTab(shippingTabs.value[0].key);

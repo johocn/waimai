@@ -40,7 +40,7 @@ export const ORDER_FRAGMENT = `
         taxSummary { description taxRate taxTotal }
         currencyCode createdAt updatedAt
         lines {
-            id quantity linePriceWithTax unitPriceWithTax
+            id quantity linePriceWithTax unitPriceWithTax proratedLinePrice
             featuredAsset { preview }
             productVariant { id productId name enabled stockLevel options { name } customFields { shippingProfileId paymentProfileId } }
         }
@@ -50,7 +50,7 @@ export const ORDER_FRAGMENT = `
         payments { id method amount state transactionId metadata }
         couponCodes
         discounts { description amountWithTax }
-        customFields { couponCode couponId hallStatus fulfillmentRoute deliveryStatus hallEnteredAt deliverySlotText campusZone orderKind errandKind errandFrom errandTo errandNote tip buildingId leg1Status handoverAt urged exceptionType exceptionAction exceptionCompensation exceptionHandledNote }
+        customFields { couponCode couponId hallStatus fulfillmentRoute deliveryStatus hallEnteredAt deliverySlotText campusZone orderKind errandKind errandFrom errandTo errandNote tip buildingId leg1Status handoverAt urged exceptionType exceptionAction exceptionCompensation exceptionHandledNote deliveredAt }
     }
 `;
 

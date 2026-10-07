@@ -35,7 +35,7 @@ function copyLink() {
 <style lang="scss" scoped>
 .iv-page {
     min-height: 100vh; background: $bg-color; padding: 40rpx 30rpx;
-    &__card { background: #fff; border-radius: $radius-md; padding: 60rpx 40rpx; display: flex; flex-direction: column; align-items: center; }
+    &__card { background: $surface; border-radius: $radius-md; padding: 60rpx 40rpx; display: flex; flex-direction: column; align-items: center; }
     &__title { font-size: 28rpx; color: #666; }
     &__code { font-size: 72rpx; font-weight: bold; color: $brand-color; letter-spacing: 8rpx; margin: 30rpx 0; }
     &__hint { font-size: 24rpx; color: #999; margin-bottom: 40rpx; text-align: center; }

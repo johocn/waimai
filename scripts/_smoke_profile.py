@@ -135,8 +135,10 @@ def main():
         inv_body = page.evaluate("() => document.body.innerText")
         check("邀请页渲染邀请码", "SMOKE160" in inv_body, inv_body[:150])
 
+        # 暗色抽查：setItem 后必须整页 reload，App onLaunch 的 initTheme() 才会重读 storage 并同步 html.dark-html
         page.evaluate("() => { localStorage.setItem('waimai_theme', 'dark'); }")
-        page.goto(BASE + "#/pages/profile/index", wait_until="networkidle"); time.sleep(2)
+        page.goto(BASE + "#/pages/profile/index", wait_until="networkidle")
+        page.reload(wait_until="networkidle"); time.sleep(2)
         page.screenshot(path=f"{SHOTS_DIR}/profile_dark.png"); shots.append("profile_dark.png")
         page.evaluate("() => { localStorage.setItem('waimai_theme', 'light'); }")
 

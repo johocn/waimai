@@ -98,7 +98,7 @@ function del(i: number) {
 <style lang="scss" scoped>
 .it-page {
     min-height: 100vh; background: $bg-color; padding: 20rpx 20rpx 160rpx;
-    &__item { background: #fff; border-radius: $radius-md; padding: 30rpx; margin-bottom: 20rpx; display: flex; align-items: center; }
+    &__item { background: $surface; border-radius: $radius-md; padding: 30rpx; margin-bottom: 20rpx; display: flex; align-items: center; }
     &__main { flex: 1; min-width: 0; }
     &__row { display: flex; align-items: center; gap: 12rpx; }
     &__name { font-size: 30rpx; font-weight: bold; }
@@ -110,7 +110,7 @@ function del(i: number) {
     &__footer { position: fixed; left: 0; right: 0; bottom: 0; padding: 20rpx; background: $bg-color; }
     &__add, &__save { background: $brand-color; color: #fff; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; }
     &__mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; z-index: 9; }
-    &__form { width: 100%; background: #fff; border-radius: 24rpx 24rpx 0 0; padding: 40rpx 30rpx calc(40rpx + env(safe-area-inset-bottom)); }
+    &__form { width: 100%; background: $surface; border-radius: 24rpx 24rpx 0 0; padding: 40rpx 30rpx calc(40rpx + env(safe-area-inset-bottom)); }
     &__type-row { display: flex; gap: 20rpx; margin-bottom: 24rpx; }
     &__type { font-size: 26rpx; padding: 10rpx 36rpx; border-radius: 999rpx; background: $bg-color; color: #666; &.on { background: $brand-soft; color: $brand-color; } }
     &__ipt { border-bottom: 1rpx solid $border-color; height: 88rpx; font-size: 28rpx; margin-bottom: 8rpx; }

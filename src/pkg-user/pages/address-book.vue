@@ -97,7 +97,7 @@ function del(a: any) {
 <style lang="scss" scoped>
 .ab-page {
     min-height: 100vh; background: $bg-color; padding: 20rpx 20rpx 160rpx;
-    &__item { background: #fff; border-radius: $radius-md; padding: 30rpx; margin-bottom: 20rpx; display: flex; align-items: center; }
+    &__item { background: $surface; border-radius: $radius-md; padding: 30rpx; margin-bottom: 20rpx; display: flex; align-items: center; }
     &__main { flex: 1; min-width: 0; }
     &__badges { display: flex; align-items: center; gap: 12rpx; }
     &__name { font-size: 30rpx; font-weight: bold; }

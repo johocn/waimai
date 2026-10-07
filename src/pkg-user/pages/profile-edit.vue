@@ -80,7 +80,7 @@ async function save() {
 <style lang="scss" scoped>
 .pe-page {
     min-height: 100vh; background: $bg-color; padding: 20rpx;
-    &__cell { background: #fff; border-radius: $radius-md; display: flex; align-items: center; padding: 30rpx; margin-bottom: 20rpx; }
+    &__cell { background: $surface; border-radius: $radius-md; display: flex; align-items: center; padding: 30rpx; margin-bottom: 20rpx; }
     &__lbl { width: 140rpx; font-size: 28rpx; }
     &__input { flex: 1; font-size: 28rpx; text-align: right; }
     &__right { display: flex; align-items: center; gap: 12rpx; margin-left: auto; }

@@ -108,7 +108,7 @@ async function save() {
 <style lang="scss" scoped>
 .ae-page {
     min-height: 100vh; background: $bg-color; padding: 20rpx;
-    &__cell { background: #fff; border-radius: $radius-md; display: flex; align-items: center; padding: 30rpx; margin-bottom: 20rpx; }
+    &__cell { background: $surface; border-radius: $radius-md; display: flex; align-items: center; padding: 30rpx; margin-bottom: 20rpx; }
     &__lbl { width: 180rpx; font-size: 28rpx; }
     &__input { flex: 1; font-size: 28rpx; text-align: right; }
     &__val { flex: 1; font-size: 28rpx; text-align: right; &.placeholder { color: #bbb; } }

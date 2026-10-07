@@ -1,22 +1,23 @@
-/* waimai 主题 token：全部组件只引用变量，一处换肤（spec §12.1） */
+/* waimai 主题 token：全部组件只引用变量，一处换肤（spec §12.1）
+   中性色走 CSS 变量（App.vue :root 定义亮值 / html.dark-html 翻转暗值），暗色主题全局跟随 */
 $brand: var(--brand, #ff6600);
 $brand-soft: var(--brand-soft, #fff3e6);
-$text: #1a1a1a;
-$text-muted: #999999;
-$bg: #f5f5f5;
-$surface: #ffffff;
+$text: var(--text, #1a1a1a);
+$text-muted: var(--text-muted, #999999);
+$bg: var(--bg, #f5f5f5);
+$surface: var(--surface, #ffffff);
 $radius: 12rpx;
 $radius-card: 16rpx;
 
 /* ── vshop 兼容别名（复制页面沿用 vshop 变量名，便于日后 diff 同步） ── */
 $brand-color: var(--brand, #ff6600);
 $brand-color-light: var(--brand-soft, #fff3e6);
-$text-color: #333333;
-$text-color-secondary: #666666;
-$text-color-placeholder: #999999;
-$bg-color: #f5f5f5;
-$bg-color-white: #ffffff;
-$border-color: #eeeeee;
+$text-color: var(--text, #333333);
+$text-color-secondary: var(--text-secondary, #666666);
+$text-color-placeholder: var(--text-muted, #999999);
+$bg-color: var(--bg, #f5f5f5);
+$bg-color-white: var(--surface, #ffffff);
+$border-color: var(--border, #eeeeee);
 $price-color: #ff4400;
 $success-color: #52c41a;
 $warning-color: #faad14;

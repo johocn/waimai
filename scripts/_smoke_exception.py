@@ -17,6 +17,7 @@
 - 骑手/admin 侧用 requests.Session（cookie 自动续）+ Bearer 响应头双保险；
 - admin-api 同源 https://e.joho.cn/admin-api，渠道上下文头 vendure-token=canteen-a-token。
 """
+import base64
 import json
 import time
 
@@ -28,6 +29,7 @@ ADMIN_API = "https://e.joho.cn/admin-api"
 ADMIN = "https://e.joho.cn/guanli/#/"
 H5_DETAIL = "https://www.yourbao.cn/waimai/?tenant=%s#/pkg-order/pages/order-detail?code=%%s" % "canteen-a-token"
 CHECKOUT = "https://www.yourbao.cn/waimai/?tenant=canteen-a-token#/pkg-order/pages/checkout"
+RIDER_PAGE = "https://www.yourbao.cn/waimai/?tenant=canteen-a-token#/pkg-rider/pages/rider-delivering"
 DISPATCH_PAGE = ADMIN + "pages/campus/dispatch"
 OUT = r"d:\zhao\waimai\docs\screenshots"
 CHROME = "C:/Users/lenovo/AppData/Local/ms-playwright/chromium-1234/chrome-win64/chrome.exe"
@@ -56,9 +58,9 @@ LOGIN = 'mutation($u: String!, $p: String!){ login(username: $u, password: $p) {
 ADMIN_LOGIN = 'mutation($u: String!, $p: String!){ login(username: $u, password: $p) { ... on CurrentUser { id } } }'
 ORDER_Q = '''query($id: ID!){ order(id: $id){ id code state total
   payments { id amount state refunds { id total state } }
-  customFields { hallStatus deliveryStatus campusCause exceptionType exceptionAction
-    exceptionCompensation exceptionCouponTemplateId exceptionHandledNote exceptionHandledBy } } }'''
-BOARD_Q = '''query { campusDispatchBoard { alerts { orderId orderCode type detail exceptionNote }
+  customFields { hallStatus deliveryStatus campusCause exceptionType exceptionNote exceptionPhotos
+    exceptionAction exceptionCompensation exceptionCouponTemplateId exceptionHandledNote exceptionHandledBy } } }'''
+BOARD_Q = '''query { campusDispatchBoard { alerts { orderId orderCode type detail exceptionNote exceptionPhotos }
   hallOrders { id code } activeOrders { id code }
   handledOrders { orderCode exceptionType action compensation couponTemplateId note handledAt handledBy } } }'''
 
@@ -219,7 +221,27 @@ def wait_hall_open(oid, tag, tries=40):
     raise AssertionError(f"[{tag}] 60s 未入大厅: {json.dumps(cf, ensure_ascii=False)[:200]}")
 
 
-def assign_and_report(o, tag, rider_cid, note=EXC_NOTE):
+# 1x1 红色 PNG（存证照片占位，验证 multipart 上传 + 处置卡照片透出链路）
+UPLOAD_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+
+
+def rider_upload_asset():
+    """骑手会话 multipart 上传存证照片（graphql-upload 规范：文件字段名 0 = map 键）。"""
+    ops = {"query": 'mutation($file: Upload!){ uploadCustomerAsset(file: $file){ id source preview } }',
+           "variables": {"file": None}}
+    r = rs.post(API, data={"operations": json.dumps(ops), "map": json.dumps({"0": ["variables.file"]})},
+                files={"0": ("evidence.png", UPLOAD_PNG, "image/png")},
+                headers={"vendure-token": CHANNEL}, timeout=20)
+    d = r.json()
+    asset = (d.get("data") or {}).get("uploadCustomerAsset")
+    assert asset and asset.get("source"), "uploadCustomerAsset 失败: " + json.dumps(d, ensure_ascii=False)[:260]
+    src = str(asset["source"]).replace("\\", "/")
+    print("evidence uploaded:", src)
+    return src
+
+
+def assign_and_report(o, tag, rider_cid, note=EXC_NOTE, exc_type="no_recipient", photos=None):
     ok = admin_gql('mutation($o: ID!, $r: ID!){ campusAssignOrder(orderId: $o, riderCustomerId: $r){ assigned } }',
                    {"o": o["id"], "r": rider_cid})["campusAssignOrder"]["assigned"]
     assert ok, f"[{tag}] 强派失败（订单可能被抢）"
@@ -227,10 +249,10 @@ def assign_and_report(o, tag, rider_cid, note=EXC_NOTE):
     assert any(str(t["id"]) == o["id"] for t in tasks), f"[{tag}] 骑手任务列表未见订单 {o['code']}"
     rider_gql('mutation($o: ID!, $t: String!, $p: [String!]!, $n: String){ '
               'campusReportException(orderId: $o, type: $t, photos: $p, note: $n){ id } }',
-              {"o": o["id"], "t": "no_recipient", "p": [], "n": note})
+              {"o": o["id"], "t": exc_type, "p": photos or [], "n": note})
     cf = order_admin(o["id"])["customFields"]
     assert cf["deliveryStatus"] == "exception", f"[{tag}] 上报后 deliveryStatus={cf['deliveryStatus']}"
-    print(f"[{tag}] exception reported ok")
+    print(f"[{tag}] exception reported ok (type={exc_type}, photos={len(photos or [])})")
 
 
 def refunded_sum(o):
@@ -296,12 +318,6 @@ def main():
         pa.screenshot(path=f"{OUT}\\wa-order-exc-pending.png", full_page=True)
         print("[A] pending banner shot ok")
 
-        pb.goto(DISPATCH_PAGE, wait_until="domcontentloaded", timeout=60000)
-        body = wait_ready(pb, ["异常待处理", A["code"]])
-        assert A["code"] in body and "异常待处理" in body, "处置卡未渲染: " + body[:400]
-        pb.screenshot(path=f"{OUT}\\wa-admin-dispatch-exc-card.png", full_page=True)
-        print("[A] dispatch exc-card shot ok")
-
         admin_gql('mutation($o: ID!, $a: String!, $amt: Int, $n: String){ campusHandleException('
                   'orderId: $o, action: $a, amount: $amt, note: $n){ ok action } }',
                   {"o": A["id"], "a": "refund_diff", "amt": 50, "n": "冒烟：退差价0.5元"})
@@ -323,10 +339,25 @@ def main():
         print("[A] final banner shot ok")
         codes["A"] = A["code"]
 
-        # ============ 路径B 发券 ============
+        # ============ 路径B 发券（food_spilled + 拍照存证，plan 3.4 补全） ============
         tpl_id, tpl_name = coupon_tpl
         B = create_order(pa, "B")
-        assign_and_report(B, "B", rider_cid)
+        photo = rider_upload_asset()
+        assign_and_report(B, "B", rider_cid, note="冒烟：餐品洒漏损坏", exc_type="food_spilled", photos=[photo])
+        assert order_admin(B["id"])["customFields"]["exceptionPhotos"] == [photo], "[B] exceptionPhotos 未落库"
+        board = admin_gql(BOARD_Q)["campusDispatchBoard"]
+        alert_b = next(a for a in board["alerts"] if a["orderCode"] == B["code"])
+        assert alert_b["exceptionPhotos"] == [photo], \
+            "[B] 调度墙异常卡照片未透出: " + json.dumps(alert_b, ensure_ascii=False)[:260]
+        print(f"[B] food_spilled 照片透出 PASS ({tpl_name})")
+
+        # 处置卡截图（此时 A/B 两单都在异常墙上，B 卡带存证照片）
+        pb.goto(DISPATCH_PAGE, wait_until="domcontentloaded", timeout=60000)
+        body = wait_ready(pb, ["异常待处理", A["code"], B["code"]])
+        assert A["code"] in body and B["code"] in body and "异常待处理" in body, "处置卡未渲染: " + body[:400]
+        pb.screenshot(path=f"{OUT}\\wa-admin-dispatch-exc-card.png", full_page=True)
+        print("[B] dispatch exc-card shot ok")
+
         admin_gql('mutation($o: ID!, $a: String!, $t: ID, $n: String){ campusHandleException('
                   'orderId: $o, action: $a, couponTemplateId: $t, note: $n){ ok action } }',
                   {"o": B["id"], "a": "coupon", "t": tpl_id, "n": "冒烟：发券补偿"})
@@ -374,6 +405,47 @@ def main():
         oa, refunded = refunded_sum(D)
         assert oa["state"] == "Cancelled", f"[D] 收尾 state={oa['state']}"
         print(f"[D] cleanup PASS (state={oa['state']}, refunded={refunded})")
+
+        # ============ 路径E 骑手页内上报面板截图（plan 3.4 补全 UI） ============
+        E = create_order(pa, "E")
+        ok = admin_gql('mutation($o: ID!, $r: ID!){ campusAssignOrder(orderId: $o, riderCustomerId: $r){ assigned } }',
+                       {"o": E["id"], "r": rider_cid})["campusAssignOrder"]["assigned"]
+        assert ok, "[E] 强派失败"
+        pr = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2,
+                                 is_mobile=True, has_touch=True, locale="zh-CN").new_page()
+        # UI 真实登录（无 token → 登录页 redirect=任务页；localStorage 注入被 hash 路由启动时序坑）
+        pr.goto(RIDER_PAGE, wait_until="domcontentloaded", timeout=60000)
+        wait_ready(pr, ["账号登录"])
+        pr.click("text=账号登录")
+        pr.fill('input[type="text"]', RIDER_EMAIL)
+        pr.fill('input[type="password"]', RIDER_PWD)
+        pr.locator(".login-page__submit:not([disabled])").first.click()
+        body = wait_ready(pr, [E["code"]])   # 登录后 redirect 回任务页，8s 轮询窗口内出卡
+        assert E["code"] in body, "[E] 骑手任务卡未渲染: " + body[:300]
+        pr.click("text=异常上报")
+        body = wait_ready(pr, ["商家无法出餐"])   # assigned 态 chips = 商家无法出餐/其他
+        assert "商家无法出餐" in body and "联系不上收件人" not in body, "[E] assigned chips 过滤异常: " + body[:300]
+        pr.wait_for_timeout(2200)   # 等登录 toast 消失再截图
+        pr.screenshot(path=f"{OUT}\\wa-rider-exc-panel-assigned.png", full_page=True)
+        pr.click("text=异常上报")   # 收起面板（避免下方 toggle 误关）
+        # 状态推进走 API 代劳（UI 点击按钮受 toast/轮询竞态影响不稳定），面板交互仍走 UI
+        rider_gql('mutation($o: ID!){ campusStartTask(orderId: $o){ id } }', {"o": E["id"]})
+        body = wait_ready(pr, ["已取货，配送中"])   # UI 8s 轮询带出新状态
+        assert "已取货，配送中" in body, "[E] startTask 后 UI 未刷新: " + body[:300]
+        pr.click("text=异常上报")
+        body = wait_ready(pr, ["餐品洒漏损坏"])   # in_progress 态 chips = 联系不上/洒漏/其他
+        assert "餐品洒漏损坏" in body and "联系不上收件人" in body, "[E] in_progress chips 过滤异常: " + body[:300]
+        pr.screenshot(path=f"{OUT}\\wa-rider-exc-panel-inprogress.png", full_page=True)
+        print("[E] rider exc-panel shots ok (assigned + in_progress)")
+        # 收尾：API 上报异常 → refund_all（UI 面板不真实提交，防脏单滞留）
+        rider_gql('mutation($o: ID!, $t: String!, $p: [String!]!, $n: String){ '
+                  'campusReportException(orderId: $o, type: $t, photos: $p, note: $n){ id } }',
+                  {"o": E["id"], "t": "no_recipient", "p": [], "n": "冒烟：面板验证收尾"})
+        admin_gql('mutation($o: ID!, $a: String!, $n: String){ campusHandleException('
+                  'orderId: $o, action: $a, note: $n){ ok action } }',
+                  {"o": E["id"], "a": "refund_all", "n": "冒烟：面板验证收尾"})
+        print("[E] cleanup PASS")
+        codes["E"] = E["code"]
 
         # ============ 留痕区截图 ============
         pb.reload(wait_until="domcontentloaded")

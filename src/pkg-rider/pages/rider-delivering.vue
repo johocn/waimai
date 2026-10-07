@@ -29,7 +29,26 @@
             </view>
 
             <view class="extra" v-if="status === 'assigned' || status === 'in_progress'">
-                <button class="act ghost small" @tap="reportException">异常上报（联系不上学生等）</button>
+                <button class="act ghost small" @tap="toggleExcPanel">异常上报</button>
+                <!-- 页内上报面板（plan 3.4 补全）：类型 chips + 备注 + 拍照存证，类型随配送状态过滤 -->
+                <view class="exc-panel" v-if="excPanelOpen">
+                    <view class="exc-chips">
+                        <view
+                            v-for="t in excTypes" :key="t.key"
+                            class="chip" :class="{ on: excType === t.key }"
+                            @tap="excType = t.key"
+                        >{{ t.label }}</view>
+                    </view>
+                    <textarea class="exc-note" v-model="excNote" placeholder="补充说明（选「其他」必填）" />
+                    <view class="exc-photos">
+                        <view class="shot" v-for="(p, i) in excPhotos" :key="i">
+                            <image :src="p" mode="aspectFill" @tap="previewExcPhoto(i)" />
+                            <text class="del" @tap="excPhotos.splice(i, 1)">×</text>
+                        </view>
+                        <view class="shot add" v-if="excPhotos.length < 3" @tap="addExcPhoto">＋ 拍照存证</view>
+                    </view>
+                    <button class="act" :disabled="excSubmitting" @tap="submitException">提交上报</button>
+                </view>
             </view>
         </view>
     </view>
@@ -53,6 +72,21 @@ let locTimer: any = null;
 
 const status = computed(() => task.value?.customFields?.deliveryStatus ?? '');
 const buildingName = computed(() => buildingMap.value[String(task.value?.customFields?.buildingId)] ?? '');
+
+// 异常上报面板状态（plan 3.4 补全）：类型按 deliveryStatus 过滤——
+// 待取货 assigned → 商家无法出餐/其他；配送中 in_progress → 联系不上收件人/餐品洒漏（需拍照）/其他
+const EXC_TYPES = [
+    { key: 'merchant_issue', label: '商家无法出餐', statuses: ['assigned'] },
+    { key: 'no_recipient', label: '联系不上收件人', statuses: ['in_progress'] },
+    { key: 'food_spilled', label: '餐品洒漏损坏', statuses: ['in_progress'] },
+    { key: 'other', label: '其他', statuses: ['assigned', 'in_progress'] },
+];
+const excPanelOpen = ref(false);
+const excType = ref('');
+const excNote = ref('');
+const excPhotos = ref<string[]>([]);
+const excSubmitting = ref(false);
+const excTypes = computed(() => EXC_TYPES.filter(t => t.statuses.includes(status.value)));
 
 onShow(async () => {
     if (!auth.token) {
@@ -129,14 +163,55 @@ async function transfer(picked: boolean) {
     }
 }
 
-async function reportException() {
-    // 一期固定类型 no_recipient（联系不上学生），后续扩 UI 选择器
+function toggleExcPanel() {
+    excPanelOpen.value = !excPanelOpen.value;
+    // 状态推进后已选类型可能不在当前可选列表，重开面板时清掉
+    if (excPanelOpen.value && excType.value && !excTypes.value.some(t => t.key === excType.value)) {
+        excType.value = '';
+    }
+}
+
+function previewExcPhoto(i: number) {
+    uni.previewImage({ urls: excPhotos.value, current: excPhotos.value[i] });
+}
+
+async function addExcPhoto() {
     try {
-        await reportException(task.value.id, 'no_recipient', [], '学生电话未接通，已尝试催取', task.value.channelToken);
+        const photo = await takePhoto();
+        if (excPhotos.value.length < 3) excPhotos.value.push(photo);
+    } catch (e: any) {
+        if (e?.message !== 'cancel') {
+            uni.showToast({ title: '拍照失败，请重试', icon: 'none' });
+        }
+    }
+}
+
+async function submitException() {
+    if (!excType.value) {
+        uni.showToast({ title: '请选择异常类型', icon: 'none' });
+        return;
+    }
+    if (excType.value === 'other' && !excNote.value.trim()) {
+        uni.showToast({ title: '请填写备注说明', icon: 'none' });
+        return;
+    }
+    if (excType.value === 'food_spilled' && !excPhotos.value.length) {
+        uni.showToast({ title: '请拍照存证后提交', icon: 'none' });
+        return;
+    }
+    excSubmitting.value = true;
+    try {
+        await reportException(task.value.id, excType.value, excPhotos.value, excNote.value.trim() || undefined, task.value.channelToken);
         uni.showToast({ title: '已上报，平台将介入', icon: 'none' });
+        excPanelOpen.value = false;
+        excType.value = '';
+        excNote.value = '';
+        excPhotos.value = [];
         await refresh();
     } catch (e: any) {
         uni.showToast({ title: e?.response?.errors?.[0]?.message || '上报失败', icon: 'none' });
+    } finally {
+        excSubmitting.value = false;
     }
 }
 </script>
@@ -156,4 +231,16 @@ async function reportException() {
 .act.ghost { background: $bg; color: $text; }
 .act.small { font-size: 24rpx; }
 .extra { margin-top: 32rpx; }
+.exc-panel { margin-top: 24rpx; padding: 24rpx; background: $bg; border-radius: $radius-card; display: flex; flex-direction: column; gap: 20rpx;
+    .exc-chips { display: flex; flex-wrap: wrap; gap: 16rpx; }
+    .chip { padding: 12rpx 28rpx; border-radius: 999rpx; font-size: 26rpx; color: $text-muted; background: $surface; border: 1.5px solid transparent; }
+    .chip.on { color: $brand-color; border-color: $brand-color; }
+    .exc-note { width: 100%; height: 140rpx; font-size: 26rpx; padding: 16rpx; box-sizing: border-box; }
+    .exc-photos { display: flex; flex-wrap: wrap; gap: 20rpx; }
+    .shot { position: relative; width: 136rpx; height: 136rpx;
+        image { width: 100%; height: 100%; border-radius: 12rpx; }
+        .del { position: absolute; top: -12rpx; right: -12rpx; width: 36rpx; height: 36rpx; line-height: 32rpx; text-align: center; background: #e02020; color: #fff; border-radius: 999rpx; font-size: 24rpx; }
+        &.add { display: flex; align-items: center; justify-content: center; border: 1.5px dashed $text-muted; border-radius: 12rpx; color: $text-muted; font-size: 22rpx; }
+    }
+}
 </style>

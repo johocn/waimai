@@ -983,6 +983,8 @@ async function payCurrentOrder(method: string): Promise<{ code: string; status: 
     // Add payment
     const payRes: any = await addPaymentToOrder(method, paymentMetadata);
     const order = payRes.addPaymentToOrder;
+    // PM 拒单（如微信 openid 校验失败）返回 ErrorResult——直接上抛透出后端错误信息
+    if (order?.errorCode) throw new Error(order.message || '支付失败');
     // 从最新一笔 payment 取 metadata（后端在 payment.metadata.public 中返回支付参数）
     const lastPayment = order?.payments?.[order.payments.length - 1];
     const pub = lastPayment?.metadata?.public || lastPayment?.metadata || {};

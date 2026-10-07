@@ -118,6 +118,8 @@ async function submit() {
         }
         const payRes: any = await addPaymentToOrder(method, metadata);
         const po = payRes?.addPaymentToOrder;
+        // PM 拒单返回 ErrorResult——透出后端错误信息
+        if (po?.errorCode) throw new Error(po.message || '支付失败');
         const lastPayment = po?.payments?.[po.payments.length - 1];
         const pub = lastPayment?.metadata?.public || lastPayment?.metadata || {};
         // JSAPI：PaymentAuthorized ≠ 已支付，须调起收银台由微信回调结算，不能提前跳 success

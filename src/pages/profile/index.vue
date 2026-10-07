@@ -15,8 +15,9 @@
     </view>
 
     <view class="profile-page__assets" v-if="logged">
-      <view class="asset-item asset-item--off" @click="comingSoon('优惠券')">
-        <text class="asset-item__ico">券</text><text class="asset-item__lbl">优惠券</text><text class="asset-item__hint">即将上线</text>
+      <view class="asset-item" @click="nav('/pkg-promotion/pages/my-coupons')">
+        <text class="asset-item__ico">券</text><text class="asset-item__lbl">优惠券</text>
+        <text class="asset-item__badge" v-if="unusedCouponCount > 0">{{ unusedCouponCount > 99 ? '99+' : unusedCouponCount }}</text>
       </view>
       <view class="asset-item" @click="nav('/pkg-user/pages/address-book')">
         <text class="asset-item__ico">址</text><text class="asset-item__lbl">常用地址</text>
@@ -53,6 +54,7 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getActiveCustomer } from '../../api/queries/user';
+import { getMyCoupons } from '../../api/queries/coupon';
 import { useAuthStore } from '../../stores/auth';
 import { useCartStore } from '../../stores/cart';
 import { getSessionToken } from '../../api/client';
@@ -62,6 +64,7 @@ import { fetchMyRiderProfile } from '../../api/mutations/campus';
 const authStore = useAuthStore();
 const cartStore = useCartStore();
 const customer = ref<any>(null);
+const unusedCouponCount = ref(0);
 const SERVICE_PHONE = (import.meta.env.VITE_SERVICE_PHONE as string) || '';
 
 const logged = computed(() => !!(authStore.token || getSessionToken()));
@@ -75,9 +78,18 @@ const orderShortcuts = [
 ];
 
 onShow(async () => {
-    if (!logged.value) { customer.value = null; return; }
+    if (!logged.value) { customer.value = null; unusedCouponCount.value = 0; return; }
     try { const res: any = await getActiveCustomer(); customer.value = res.activeCustomer; } catch (e) {}
+    loadCouponBadge();
 });
+
+async function loadCouponBadge() {
+    if (!authStore.isLoggedIn) { unusedCouponCount.value = 0; return; }
+    try {
+        const res = await getMyCoupons('UNUSED');
+        unusedCouponCount.value = (res?.myCoupons ?? []).length;
+    } catch { unusedCouponCount.value = 0; }
+}
 
 function nav(url: string) {
     if (!logged.value) { authStore.requireLogin(); return; }
@@ -91,7 +103,6 @@ function goOrdersTab(tab: string) {
     uni.setStorageSync('orders_pending_tab', tab);
     uni.switchTab({ url: '/pages/orders/index' });
 }
-function comingSoon(name: string) { uni.showToast({ title: `${name}即将上线`, icon: 'none' }); }
 function callService() {
     if (!SERVICE_PHONE) { uni.showToast({ title: '客服电话未配置', icon: 'none' }); return; }
     uni.makePhoneCall({ phoneNumber: SERVICE_PHONE });
@@ -144,8 +155,7 @@ function doLogin() { authStore.requireLogin(); }
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; position: relative;
     &__ico { width: 56rpx; height: 56rpx; border-radius: $radius-md; background: $brand-soft; color: $brand-color; font-size: 26rpx; display: flex; align-items: center; justify-content: center; }
     &__lbl { font-size: 24rpx; color: $text-color; }
-    &__hint { font-size: 18rpx; color: $text-color-placeholder; position: absolute; top: -6rpx; right: 14rpx; }
-    &--off { opacity: .55; }
+    &__badge { position: absolute; top: 8rpx; right: 8rpx; min-width: 32rpx; height: 32rpx; line-height: 32rpx; padding: 0 8rpx; border-radius: 16rpx; background: #ff4d4f; color: #fff; font-size: 20rpx; text-align: center; }
 }
 .order-shortcut {
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx;

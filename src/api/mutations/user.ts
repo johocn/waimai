@@ -32,6 +32,7 @@ export function createCustomerAddress(input: {
     }`, {
         input: {
             fullName: input.fullName, phoneNumber: input.phoneNumber, streetLine1: input.streetLine1,
+            countryCode: 'CN', // 本 fork CreateAddressInput 必填（availableCountries 仅 CN）
             defaultShippingAddress: !!input.defaultShipping,
             customFields: { zoneId: input.zoneId, buildingId: input.buildingId },
         },
@@ -47,6 +48,7 @@ export function updateCustomerAddress(input: {
     }`, {
         input: {
             id: input.id, fullName: input.fullName, phoneNumber: input.phoneNumber, streetLine1: input.streetLine1,
+            countryCode: 'CN',
             defaultShippingAddress: !!input.defaultShipping,
             customFields: { zoneId: input.zoneId, buildingId: input.buildingId },
         },

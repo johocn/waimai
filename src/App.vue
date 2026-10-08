@@ -31,6 +31,14 @@ onLaunch(async () => {
     --bg: #f5f5f5;
     --surface: #ffffff;
     --border: #eeeeee;
+    /* 江湖模块水墨色板（亮色默认值，见 uni.scss $jh-*） */
+    --jh-ink: #1f1b16;
+    --jh-ink-2: #6b6257;
+    --jh-paper: #f6f1e7;
+    --jh-cinnabar: #b23a2e;
+    --jh-gold: #c8a24a;
+    --jh-gold-l: #e3c877;
+    --jh-jade: #1f6f5c;
 }
 page { background: var(--bg, #f5f5f5); }
 /* 暗色主题（utils/theme.ts 切换 html.dark-html）：页面与 overscroll 区域不露白，
@@ -50,5 +58,13 @@ html.dark-html {
     --bg: #161618;
     --surface: #202024;
     --border: #2c2c30;
+    /* 暗色下江湖模块保持水墨质感：宣纸转墨底，描金提亮 */
+    --jh-ink: #ece7dc;
+    --jh-ink-2: #a99e8d;
+    --jh-paper: #1c1a17;
+    --jh-cinnabar: #d0574a;
+    --jh-gold: #d9b45c;
+    --jh-gold-l: #f0d896;
+    --jh-jade: #35a189;
 }
 </style>

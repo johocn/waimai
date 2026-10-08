@@ -31,3 +31,13 @@ $spacing-sm: 16rpx;
 $spacing-md: 24rpx;
 $spacing-lg: 32rpx;
 $spacing-xl: 48rpx;
+
+/* ── 江湖模块专用（拾光传信者 · pkg-jianghu） ──
+   国潮水墨色板，同样走 CSS 变量，暗色主题在 App.vue 的 html.dark-html 内翻转 */
+$jh-ink: var(--jh-ink, #1f1b16);        // 墨色主文字
+$jh-ink-2: var(--jh-ink-2, #6b6257);    // 次级文字
+$jh-paper: var(--jh-paper, #f6f1e7);    // 宣纸底
+$jh-cinnabar: var(--jh-cinnabar, #b23a2e); // 朱砂（加急/警示）
+$jh-gold: var(--jh-gold, #c8a24a);      // 描金（段位徽章/绝密）
+$jh-gold-l: var(--jh-gold-l, #e3c877);
+$jh-jade: var(--jh-jade, #1f6f5c);      // 青玉（普通信/成功）

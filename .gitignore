@@ -2,16 +2,14 @@
 node_modules/
 
 # Build output
-# 部署铁律：本地构建产物需提交到 git（服务器只 git pull，禁止服务器构建）
-# 仅纳入 H5 静态站产物 dist/build/h5，其余 dist 目录（dev/mp 等）保持忽略
-dist/*
-!dist/build/
-dist/build/*
-!dist/build/h5/
+# waimai H5 部署 = 本地构建 + scp/服务器解压（静态目录替换即时生效，绝不在服务器构建）；
+# dist 不入 git（2026-10-08 收口质检决策）：原「dist 入库 + 服务器 git pull」约定已过时——
+# 生产 /waimai/ chunk 与本地构建一致、而 master 内 dist 为旧产物，证实部署不走 git pull
+dist/
 .hbuilderx/
 
 # web-admin 产物不入库：部署走 web-admin/scripts/deploy.mjs（本地构建 → scp → 服务器解压）
-# 注：上方铁律针对根目录 dist/（H5 商城站走 git pull），与 web-admin 无关
+# 注：根目录 dist/（waimai H5）与 web-admin 同机制，均本地构建 + scp 部署、均不入库
 web-admin/dist/
 
 # IDE

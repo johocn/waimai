@@ -3,7 +3,8 @@ import { riderClient } from './rider';
 import { fetchStoreList } from './waimai';
 
 // schema 校准（hall-shop.resolver.ts / hall-grab.service.ts / rider-task.service.ts）：
-// campusHall → [Order!]!（当前渠道 hallStatus='open'，加急置顶+小费降序）
+// campusHallAll → [CampusHallOrder!]!（F5 聚合大厅：全渠道 open 单一次带回，含 channelId/channelToken/channelName；
+//   后端范围=有履约配置+非默认渠道+未暂停，加急置顶+小费降序；匿名/非骑手被 assertApprovedRider 拒绝）
 // campusGrabOrder(orderId) → Order!：成功返回订单；失败抛 GraphQL 错误
 //   （'手慢了，该订单已被抢' / '不能抢自己的订单' / 信用分不足 Forbidden）
 // campusMyTasks(status) → [Order!]！deliveryStatus 域：assigned/in_progress/delivered/exception
@@ -19,10 +20,11 @@ export interface ChannelOrder {
     [key: string]: any;
 }
 
-const CAMPUS_HALL = gql`
-    query campusHall {
-        campusHall {
+const CAMPUS_HALL_ALL = gql`
+    query campusHallAll {
+        campusHallAll {
             id code total shipping createdAt
+            channelId channelToken channelName
             customFields { hallStatus hallEnteredAt tip fulfillmentRoute campusZone buildingId deliverySlotText routeGroupId }
         }
     }
@@ -50,14 +52,12 @@ async function activeChannels(): Promise<any[]> {
     return (await fetchStoreList().catch(() => [] as any[])).filter((s: any) => !s.paused);
 }
 
-/** 大厅：逐店铺渠道并行聚合（单渠道失败静默降级为空，不拖垮整厅） */
+/** 大厅：campusHallAll 一次带回全渠道 open 单（失败静默降级为空，不拖垮整厅） */
 export async function fetchHall(): Promise<ChannelOrder[]> {
-    const stores = await activeChannels();
-    const res = await Promise.all(stores.map((s: any) =>
-        riderClient(s.channelToken).request(CAMPUS_HALL)
-            .then((r: any) => (r.campusHall ?? []).map((o: any) => ({ ...o, channelToken: s.channelToken, channelName: s.name })))
-            .catch(() => [] as ChannelOrder[])));
-    return res.flat();
+    const r = await riderClient().request(CAMPUS_HALL_ALL)
+        .then((r: any) => (r.campusHallAll ?? []) as ChannelOrder[])
+        .catch(() => [] as ChannelOrder[]);
+    return r;
 }
 
 export async function grabOrder(orderId: string, channelToken?: string) {

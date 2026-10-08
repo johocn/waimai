@@ -71,11 +71,12 @@
 > - F2/F3 已修复上线（vendure `61fcfb178` + `9b014c863`：withdraw 用 rawConnection 独立事务 + 裸 SQL 行锁 `SELECT id FROM customer WHERE id=$1 FOR UPDATE` 串行化（实体 findOne+lock 会 LEFT JOIN 触发 PG "nullable side of outer join" 限制，生产实测发现后改裸 SQL）；reject/approve 条件 UPDATE 原子认领 + 退回失败补偿恢复 PENDING；插件单测 181/181；生产提现定向冒烟 9 项全绿 `vshop/docs/verify/waimai-withdraw-smoke.cjs`）。
 > - 新增 F14（P2 测试基建）：全链路冒烟时段敏感——订单落在 30min 进厅窗口（dispatch-job.service.ts:122 scheduledFor 前 30min 放量）之外时 hallStatus 停在 scheduled，S5 必挂；应筛选窗口内时段或 scheduled 时降级跳过 S6-S8。
 > - F9/F4 已修复上线（waimai `6dcd5c9` + vendure `06059db3b`，双仓单测 81+181 全绿；F4 生产探针：匿名 campusHall 被拒 `You are not currently authorized`、骑手会话正常返回；提现冒烟部署后重跑全绿）。
+> - F10/F14 已修复（2026-10-08）：F10 nginx `location /admin-api/` 带尾斜杠致裸 `/admin-api` 落 SPA 回退 301 丢 body——改为前缀 `location /admin-api`（1Panel openresty 为 docker 容器 `1Panel-openresty-3I6S`，容器内 `nginx -t`+`-s reload`；备份 `.bak_f10_*`），生产 POST /admin-api 返回 JSON 200，yourbao 基址冒烟 admin 步恢复；F14 冒烟脚本条件断言（vshop `252d94d`），yourbao 基址全链路冒烟 partial PASS（S1-S5，调度流因窗口外跳过）。
 
 1. ~~F1 定时器泄漏~~ ✅ 已上线
 2. ~~F2/F3 提现事务化（资金安全）~~ ✅ 已上线
 3. ~~F9 toFen 精度（一行修）~~ ✅ 已上线
 4. ~~F4 campusHall 鉴权（一行加断言）~~ ✅ 已上线
-5. F10 nginx admin-api location（运维配置）
-6. F5/F6/F7/F8 性能与健壮性（涉及新接口/分页，工作量中等）+ F14 冒烟时段敏感
+5. ~~F10 nginx admin-api location（运维配置）~~ ✅ 已上线 + ~~F14 冒烟时段适配~~ ✅ 已上线
+6. F5/F6/F7/F8 性能与健壮性（涉及新接口/分页，工作量中等）
 7. F11-F13 酌情

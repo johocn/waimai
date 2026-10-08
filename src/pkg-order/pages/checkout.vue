@@ -2,7 +2,7 @@
   <view class="checkout-page">
     <!-- 配送方式（校园配送恒显置首，自提/邮寄按渠道启用情况显示） -->
     <view class="section">
-      <text class="section__title">配送方式</text>
+      <text class="section__title">{{ $t('checkout.shippingTitle') }}</text>
       <view class="seg-control">
         <view
           v-for="tab in shippingTabs"
@@ -18,81 +18,81 @@
 
     <!-- 校园配送面板（waimai 核心方式）：分区 → 宿舍楼 → 送达时段 + 路线说明 -->
     <view class="section" v-if="activeTab === 'campus'">
-      <text class="section__title">配送目标</text>
-      <view v-if="zonesLoading" class="campus-empty"><text>加载中...</text></view>
+      <text class="section__title">{{ $t('checkout.targetTitle') }}</text>
+      <view v-if="zonesLoading" class="campus-empty"><text>{{ $t('checkout.loading') }}</text></view>
       <view v-else-if="!zones.length" class="campus-empty">
-        <text>暂未配置配送分区</text>
-        <text class="campus-empty__hint">请选择其他配送方式</text>
+        <text>{{ $t('checkout.noZones') }}</text>
+        <text class="campus-empty__hint">{{ $t('checkout.chooseOtherHint') }}</text>
       </view>
       <template v-else>
         <view class="campus-default" v-if="defaultAddressSummary" @click="scrollToZones">
-          <text class="campus-default__txt">默认地址：{{ defaultAddressSummary }}</text>
-          <text class="campus-default__chg">改选</text>
+          <text class="campus-default__txt">{{ $t('checkout.defaultAddr').replace('{t}', defaultAddressSummary) }}</text>
+          <text class="campus-default__chg">{{ $t('checkout.change') }}</text>
         </view>
-        <view class="campus-label">选择分区</view>
+        <view class="campus-label">{{ $t('checkout.pickZone') }}</view>
         <view class="chip-row">
           <view v-for="z in zones" :key="z.id" class="chip" :class="{ on: zoneId === z.id }" @click="chooseZone(z)">
             {{ z.name }}<text v-if="z.fee != null" class="chip__sub"> ¥{{ (z.fee / 100).toFixed(2) }}</text>
           </view>
         </view>
-        <view class="campus-label">选择宿舍楼</view>
+        <view class="campus-label">{{ $t('checkout.pickBuilding') }}</view>
         <view class="chip-row">
           <view v-for="b in buildings" :key="b.id" class="chip" :class="{ on: buildingId === b.id }" @click="buildingId = b.id">
             {{ b.name }}<text v-if="b.detail" class="chip__sub"> {{ b.detail }}</text>
           </view>
-          <view v-if="!buildings.length" class="campus-empty__hint">该分区暂无宿舍楼</view>
+          <view v-if="!buildings.length" class="campus-empty__hint">{{ $t('checkout.noBuildings') }}</view>
         </view>
-        <view class="campus-label">送达时段（不选=尽快送，可选未来日期预约）</view>
+        <view class="campus-label">{{ $t('checkout.slotLabel') }}</view>
         <view class="chip-row">
-          <view class="chip" :class="{ on: !slotDate }" @click="clearSlotPick">尽快送</view>
+          <view class="chip" :class="{ on: !slotDate }" @click="clearSlotPick">{{ $t('checkout.asap') }}</view>
           <view v-for="d in slotDates" :key="d" class="chip" :class="{ on: slotDate === d }" @click="pickDate(d)">
             {{ dateLabel(d) }}
           </view>
         </view>
         <view class="chip-row" v-if="slotDate">
           <view v-for="s in slotsOfDate" :key="s.id" class="chip" :class="{ on: slotId === s.id }" @click="slotId = s.id">
-            {{ s.startTime }}-{{ s.endTime }} 剩{{ s.capacity - s.lockedCount }}位
+            {{ $t('checkout.slotLeft').replace('{s}', s.startTime).replace('{e}', s.endTime).replace('{n}', String(s.capacity - s.lockedCount)) }}
           </view>
-          <view v-if="!slotsOfDate.length" class="campus-empty__hint">该日期暂无可订时段</view>
+          <view v-if="!slotsOfDate.length" class="campus-empty__hint">{{ $t('checkout.noSlots') }}</view>
         </view>
-        <view v-if="selectedSlotFuture" class="slot-schedule-hint">预约单将在送达时段前 30 分钟自动进入配送调度</view>
+        <view v-if="selectedSlotFuture" class="slot-schedule-hint">{{ $t('checkout.scheduleHint') }}</view>
         <view class="route-row" v-if="campusRoutes.length">
           <text class="route-row__text">{{ routeText }}</text>
-          <text v-if="canSwitchRoute" class="route-row__switch" @click="toggleRoute">切换</text>
+          <text v-if="canSwitchRoute" class="route-row__switch" @click="toggleRoute">{{ $t('checkout.switchBtn') }}</text>
         </view>
-        <text v-if="routeChoice === 'R2'" class="route-fee-hint">快递运费按商家快递标准收取；校内接力段 ¥0，接力费用在「发接力单」时单独支付</text>
+        <text v-if="routeChoice === 'R2'" class="route-fee-hint">{{ $t('checkout.r2FeeHint') }}</text>
       </template>
     </view>
 
     <!-- 收货地址（仅邮寄方式显示） -->
     <view class="section" v-if="activeTab === 'shipping'">
-      <text class="section__title">收货地址</text>
+      <text class="section__title">{{ $t('checkout.addrTitle') }}</text>
       <!-- 已有地址：显示当前选中地址 + 更换入口 -->
       <view v-if="selectedAddress" class="address-block" @click="showAddressPicker = true">
         <view class="address-block__top">
           <text class="address-block__name">{{ selectedAddress.fullName }}</text>
           <text class="address-block__phone">{{ selectedAddress.phoneNumber }}</text>
-          <text v-if="selectedAddress.defaultShippingAddress" class="address-block__tag">默认</text>
+          <text v-if="selectedAddress.defaultShippingAddress" class="address-block__tag">{{ $t('checkout.defaultTag') }}</text>
         </view>
         <text class="address-block__detail">{{ selectedAddress.province }} {{ selectedAddress.city }} {{ selectedAddress.streetLine1 }}{{ selectedAddress.streetLine2 ? ' ' + selectedAddress.streetLine2 : '' }}</text>
-        <text class="address-block__change">更换 ▾</text>
+        <text class="address-block__change">{{ $t('checkout.changeAddr') }}</text>
       </view>
       <!-- 无地址：显示新增表单 -->
       <view v-else class="address-form">
-        <view class="address-form__tip">您还没有收货地址，请填写以下信息</view>
-        <input v-model="address.fullName" placeholder="收货人姓名" class="input" />
-        <input v-model="address.phoneNumber" placeholder="手机号" type="number" class="input" />
+        <view class="address-form__tip">{{ $t('checkout.addrFormTip') }}</view>
+        <input v-model="address.fullName" :placeholder="$t('checkout.namePh')" class="input" />
+        <input v-model="address.phoneNumber" :placeholder="$t('checkout.phonePh')" type="number" class="input" />
         <view class="region-row" @click="openRegionPicker('inline')">
-          <text :class="{ 'region-row__placeholder': !regionText(address) }">{{ regionText(address) || '请选择省/市/区' }}</text>
+          <text :class="{ 'region-row__placeholder': !regionText(address) }">{{ regionText(address) || $t('checkout.regionPh') }}</text>
           <text class="region-row__arrow">▸</text>
         </view>
-        <input v-model="address.streetLine1" placeholder="详细地址" class="input" />
-        <input v-model="address.streetLine2" placeholder="补充地址(可选)" class="input" />
+        <input v-model="address.streetLine1" :placeholder="$t('checkout.detailPh')" class="input" />
+        <input v-model="address.streetLine2" :placeholder="$t('checkout.detail2Ph')" class="input" />
         <view class="address-form__check">
-          <text>设为默认收货地址</text>
+          <text>{{ $t('checkout.setDefault') }}</text>
           <switch :checked="address.defaultShippingAddress" @change="address.defaultShippingAddress = $event.detail.value" />
         </view>
-        <button class="address-form__save" @click="saveNewAddress">保存并使用</button>
+        <button class="address-form__save" @click="saveNewAddress">{{ $t('checkout.saveUse') }}</button>
       </view>
     </view>
 
@@ -100,7 +100,7 @@
     <view v-if="showAddressPicker" class="addr-modal-mask" @click.self="showAddressPicker = false">
       <view class="addr-modal">
         <view class="addr-modal__head">
-          <text class="addr-modal__title">选择收货地址</text>
+          <text class="addr-modal__title">{{ $t('checkout.pickerTitle') }}</text>
           <text class="addr-modal__close" @click="showAddressPicker = false">✕</text>
         </view>
         <scroll-view class="addr-modal__list" scroll-y>
@@ -114,21 +114,21 @@
             <view class="addr-option__top">
               <text class="addr-option__name">{{ addr.fullName }}</text>
               <text class="addr-option__phone">{{ addr.phoneNumber }}</text>
-              <text v-if="addr.defaultShippingAddress" class="addr-option__tag">默认</text>
+              <text v-if="addr.defaultShippingAddress" class="addr-option__tag">{{ $t('checkout.defaultTag') }}</text>
             </view>
             <text class="addr-option__detail">{{ addr.province }} {{ addr.city }} {{ addr.streetLine1 }}{{ addr.streetLine2 ? ' ' + addr.streetLine2 : '' }}</text>
             <view class="addr-option__actions">
-              <text class="addr-option__edit" @click.stop="openEditForm(addr)">编辑</text>
-              <text class="addr-option__del" @click.stop="deleteAddress(addr.id)">删除</text>
-              <text v-if="!addr.defaultShippingAddress" class="addr-option__default" @click.stop="setDefaultAddress(addr)">设为默认</text>
+              <text class="addr-option__edit" @click.stop="openEditForm(addr)">{{ $t('checkout.edit') }}</text>
+              <text class="addr-option__del" @click.stop="deleteAddress(addr.id)">{{ $t('checkout.del') }}</text>
+              <text v-if="!addr.defaultShippingAddress" class="addr-option__default" @click.stop="setDefaultAddress(addr)">{{ $t('checkout.setDefaultTag') }}</text>
             </view>
           </view>
           <view v-if="customerAddresses.length === 0" class="addr-modal__empty">
-            <text>暂无收货地址</text>
+            <text>{{ $t('checkout.noAddr') }}</text>
           </view>
         </scroll-view>
         <view class="addr-modal__fab" @click="openAddForm">
-          <text>+ 新增地址</text>
+          <text>{{ $t('checkout.addAddr') }}</text>
         </view>
       </view>
     </view>
@@ -137,50 +137,50 @@
     <view v-if="showAddressForm" class="addr-modal-mask" @click.self="showAddressForm = false">
       <view class="addr-modal">
         <view class="addr-modal__head">
-          <text class="addr-modal__title">{{ editingAddressId ? '编辑地址' : '新增地址' }}</text>
+          <text class="addr-modal__title">{{ editingAddressId ? $t('checkout.editAddr') : $t('checkout.addAddrTitle') }}</text>
           <text class="addr-modal__close" @click="showAddressForm = false">✕</text>
         </view>
         <scroll-view class="addr-modal__list" scroll-y>
-          <input v-model="addressForm.fullName" placeholder="收货人姓名" class="input" />
-          <input v-model="addressForm.phoneNumber" placeholder="手机号" type="number" class="input" />
+          <input v-model="addressForm.fullName" :placeholder="$t('checkout.namePh')" class="input" />
+          <input v-model="addressForm.phoneNumber" :placeholder="$t('checkout.phonePh')" type="number" class="input" />
           <view class="region-row" @click="openRegionPicker('modal')">
-            <text :class="{ 'region-row__placeholder': !regionText(addressForm) }">{{ regionText(addressForm) || '请选择省/市/区' }}</text>
+            <text :class="{ 'region-row__placeholder': !regionText(addressForm) }">{{ regionText(addressForm) || $t('checkout.regionPh') }}</text>
             <text class="region-row__arrow">▸</text>
           </view>
-          <input v-model="addressForm.streetLine1" placeholder="详细地址" class="input" />
-          <input v-model="addressForm.streetLine2" placeholder="补充地址(可选)" class="input" />
+          <input v-model="addressForm.streetLine1" :placeholder="$t('checkout.detailPh')" class="input" />
+          <input v-model="addressForm.streetLine2" :placeholder="$t('checkout.detail2Ph')" class="input" />
           <view class="address-form__check">
-            <text>设为默认收货地址</text>
+            <text>{{ $t('checkout.setDefault') }}</text>
             <switch :checked="addressForm.defaultShippingAddress" @change="addressForm.defaultShippingAddress = $event.detail.value" />
           </view>
         </scroll-view>
         <view class="addr-modal__fab addr-modal__fab--save" @click="saveAddressForm">
-          <text>保存</text>
+          <text>{{ $t('checkout.save') }}</text>
         </view>
       </view>
     </view>
 
     <!-- 自提点选择（自提方式显示） -->
     <view class="section" v-if="shippingCategory === 'store-pickup'">
-      <text class="section__title">自提点选择</text>
+      <text class="section__title">{{ $t('checkout.pickupTitle') }}</text>
       <!-- 已选自提点卡片 -->
       <view v-if="selectedPickupLocation" class="pickup-card" @click="showPickupSheet = true">
         <text class="pickup-card__name">{{ selectedPickupLocation.name }}</text>
         <text class="pickup-card__addr">{{ selectedPickupLocation.address }}</text>
         <view class="pickup-card__meta">
-          <text v-if="selectedPickupLocation.businessHours" class="pickup-card__hours">营业: {{ selectedPickupLocation.businessHours }}</text>
+          <text v-if="selectedPickupLocation.businessHours" class="pickup-card__hours">{{ $t('checkout.hours').replace('{t}', selectedPickupLocation.businessHours) }}</text>
           <text v-if="pickupDistance" class="pickup-card__dist">{{ pickupDistance }}</text>
         </view>
-        <text class="pickup-card__change">更换自提点 ▾</text>
+        <text class="pickup-card__change">{{ $t('checkout.changePickup') }}</text>
       </view>
       <!-- 加载中状态 -->
       <view v-else-if="pickupLoading" class="pickup-empty">
-        <text class="pickup-empty__loading">等待加载自提点...</text>
+        <text class="pickup-empty__loading">{{ $t('checkout.pickupLoading') }}</text>
       </view>
       <!-- 加载完成但无数据 -->
       <view v-else class="pickup-empty">
-        <text>当前区域暂无可用自提点</text>
-        <text class="pickup-empty__hint">请选择其他配送方式</text>
+        <text>{{ $t('checkout.noPickup') }}</text>
+        <text class="pickup-empty__hint">{{ $t('checkout.chooseOtherHint') }}</text>
       </view>
     </view>
 
@@ -190,7 +190,7 @@
       :locations="pickupLocations"
       :selected-id="selectedPickupLocation?.id"
       :user-location="userLocation"
-      title="选择自提点"
+      :title="$t('checkout.pickupSheetTitle')"
       @select="onPickupSelect"
     />
 
@@ -203,7 +203,7 @@
     />
 
     <view class="section">
-      <text class="section__title">支付方式</text>
+      <text class="section__title">{{ $t('checkout.payTitle') }}</text>
       <view v-for="pm in paymentMethods" :key="pm.id"
         class="radio-item" :class="{ active: selectedPayment === pm.code }"
         @click="selectedPayment = pm.code">
@@ -215,48 +215,48 @@
     </view>
 
     <view class="checkout-page__summary" v-if="cart.order">
-      <view class="summary-row"><text>商品总额</text><text>¥{{ originalSubTotalYuan }}</text></view>
-      <view class="summary-row" v-if="activeTab === 'campus' && deliveryFeeFen != null"><text>配送费</text><text>¥{{ (deliveryFeeFen / 100).toFixed(2) }}</text></view>
-      <view class="summary-row" v-if="activeTab === 'campus' && minOrderFen != null"><text>起送价</text><text>满 ¥{{ (minOrderFen / 100).toFixed(2) }} 起送</text></view>
-      <view class="summary-row"><text>运费</text>
-        <text v-if="freeShipOn"><text class="ship-orig">¥{{ shipOriginalYuan }}</text>¥0.00<text class="ship-tag">满¥{{ freeShipYuan }}免配送费</text></text>
+      <view class="summary-row"><text>{{ $t('checkout.goodsTotal') }}</text><text>¥{{ originalSubTotalYuan }}</text></view>
+      <view class="summary-row" v-if="activeTab === 'campus' && deliveryFeeFen != null"><text>{{ $t('checkout.deliveryFee') }}</text><text>¥{{ (deliveryFeeFen / 100).toFixed(2) }}</text></view>
+      <view class="summary-row" v-if="activeTab === 'campus' && minOrderFen != null"><text>{{ $t('checkout.minOrder') }}</text><text>{{ $t('checkout.minOrderText').replace('{c}', (minOrderFen / 100).toFixed(2)) }}</text></view>
+      <view class="summary-row"><text>{{ $t('checkout.shipping') }}</text>
+        <text v-if="freeShipOn"><text class="ship-orig">¥{{ shipOriginalYuan }}</text>¥0.00<text class="ship-tag">{{ $t('checkout.freeShipTag').replace('{c}', freeShipYuan) }}</text></text>
         <text v-else>¥{{ shipDisplayYuan }}</text>
       </view>
-      <view class="ship-free-hint" v-if="freeShipShortYuan">满 ¥{{ freeShipYuan }} 免配送费，再买 ¥{{ freeShipShortYuan }} 即免</view>
+      <view class="ship-free-hint" v-if="freeShipShortYuan">{{ $t('checkout.freeShipHint').replace('{a}', freeShipYuan).replace('{b}', freeShipShortYuan) }}</view>
       <view class="summary-row summary-row--coupon" @click="openCouponSheet">
-        <text>优惠券</text>
+        <text>{{ $t('checkout.couponTitle') }}</text>
         <text :class="{ 'coupon-val': attachedCoupon }">
           {{ couponRowText }}
           <text class="coupon-arrow">›</text>
         </text>
       </view>
-      <view class="summary-row summary-row--total"><text>应付</text><text class="checkout-page__total">¥{{ cart.formatPrice(cart.order.totalWithTax) }}</text></view>
+      <view class="summary-row summary-row--total"><text>{{ $t('checkout.payable') }}</text><text class="checkout-page__total">¥{{ cart.formatPrice(cart.order.totalWithTax) }}</text></view>
     </view>
 
     <button class="checkout-page__submit" :disabled="submitting" @click="submitOrder">
-      {{ submitting ? '处理中...' : '提交订单' }}
+      {{ submitting ? $t('checkout.processing') : $t('checkout.submitOrder') }}
     </button>
 
     <!-- 选券弹层（spec §3.3）：换券/不使用实时回显合计，门槛未过置灰 -->
     <view class="coupon-sheet-mask" v-if="showCouponSheet" @click="showCouponSheet = false">
       <view class="coupon-sheet" @click.stop>
-        <view class="coupon-sheet__title">选择优惠券</view>
+        <view class="coupon-sheet__title">{{ $t('checkout.couponSheetTitle') }}</view>
         <scroll-view scroll-y class="coupon-sheet__list">
           <view class="cs-item" v-for="c in sheetCoupons" :key="c.id"
             :class="{ 'cs-item--on': attachedCouponCode === c.code, 'cs-item--off': !!unavailableReason(c) }"
             @click="pickCoupon(c)">
             <view class="cs-item__left">
               <text class="cs-item__amount">{{ csAmount(c) }}</text>
-              <text class="cs-item__cond" v-if="c.template.type === 'FULL'">满 {{ csYuan(c.template.minSpend) }} 可用</text>
+              <text class="cs-item__cond" v-if="c.template.type === 'FULL'">{{ $t('checkout.csCond').replace('{c}', csYuan(c.template.minSpend)) }}</text>
             </view>
             <view class="cs-item__right">
               <text class="cs-item__name">{{ c.template.name }}</text>
-              <text class="cs-item__expire" v-if="c.expiredAt">有效期至 {{ csDate(c.expiredAt) }}</text>
+              <text class="cs-item__expire" v-if="c.expiredAt">{{ $t('checkout.csExpire').replace('{t}', csDate(c.expiredAt)) }}</text>
               <text class="cs-item__reason" v-if="unavailableReason(c)">{{ unavailableReason(c) }}</text>
             </view>
           </view>
           <view class="cs-item cs-item--none" @click="clearCoupon">
-            <text>不使用优惠券</text>
+            <text>{{ $t('checkout.noCouponBtn') }}</text>
           </view>
         </scroll-view>
       </view>
@@ -284,6 +284,7 @@ import { fetchStoreList } from '../../api/queries/waimai';
 import { filterCampusRoutes } from '../../utils/errand';
 import { pickDefaultCampusAddress, isValidCampusTarget } from '../../utils/profile-mapping';
 import { useAuthStore } from '../../stores/auth';
+import { useLocaleStore } from '../../stores/locale';
 import { getMyCoupons } from '../../api/queries/coupon';
 import { applyCouponToOrder, clearCouponFromOrder } from '../../api/mutations/coupon';
 import { estimateDiscountFen, pickBestCoupon, couponUnavailableReason, type CouponTemplateLike } from '../../utils/coupon-estimate';
@@ -295,6 +296,7 @@ const cart = useCartStore();
 const ui = useUIStore();
 const tenantStore = useTenantStore();
 const authStore = useAuthStore();
+const locale = useLocaleStore();
 const shippingMethods = ref<any[]>([]);
 const paymentMethods = ref<any[]>([]);
 const selectedShipping = ref('');
@@ -342,10 +344,10 @@ const defaultAddressSummary = ref('');           // 默认校园地址摘要（T
 const campusRouteOptions = computed(() => filterCampusRoutes(campusRoutes.value));
 const canSwitchRoute = computed(() => campusRouteOptions.value.length > 1);
 const routeText = computed(() => {
-    if (!campusRoutes.value.length) return '配送路线以商家实际安排为准';
-    if (routeChoice.value === 'R1') return '商家送至校门口，拾光传信者接力送到手（R1）';
-    if (routeChoice.value === 'R2') return '快递到校，拾光传信者接力送到手（R2）';
-    return '档口现做，拾光传信者送至楼层（R3）';
+    if (!campusRoutes.value.length) return locale.t('checkout.routeDefault');
+    if (routeChoice.value === 'R1') return locale.t('checkout.routeR1');
+    if (routeChoice.value === 'R2') return locale.t('checkout.routeR2');
+    return locale.t('checkout.routeR3');
 });
 // DeliverySlot 无 remaining 字段，余量 = capacity - lockedCount（schema 校准）
 const slotsWithRemain = computed(() => slots.value.filter(s => s.capacity - s.lockedCount > 0));
@@ -361,8 +363,8 @@ const selectedSlotFuture = computed(() => {
     return !!s && s.slotDate > todayStr; // 今天余下时段照旧即时调度，仅未来日期提示预约
 });
 function dateLabel(d: string): string {
-    if (d === todayStr) return '今天';
-    if (d === tomorrowStr) return '明天';
+    if (d === todayStr) return locale.t('checkout.today');
+    if (d === tomorrowStr) return locale.t('checkout.tomorrow');
     return d.slice(5); // MM-DD
 }
 function pickDate(d: string) { slotDate.value = d; slotId.value = ''; }
@@ -408,7 +410,7 @@ async function applyDefaultAddress(): Promise<{ zoneId: string; buildingId: stri
     } catch (e) { console.error('默认地址预选失败', e); return null; }
 }
 
-function scrollToZones() { uni.showToast({ title: '可在下方重新选择分区楼栋', icon: 'none' }); }
+function scrollToZones() { uni.showToast({ title: locale.t('checkout.repickHint'), icon: 'none' }); }
 
 async function chooseZone(z: any) {
     zoneId.value = z.id;
@@ -439,12 +441,12 @@ async function loadCampusData() {
 
 async function saveCampusTarget(): Promise<boolean> {
     if (!zoneId.value || !buildingId.value) {
-        ui.showToast('请选择宿舍楼');
+        ui.showToast(locale.t('checkout.buildingRequired'));
         return false;
     }
     // 选了预约日期但没选具体时段 → 提示补全（或切回尽快送）
     if (slotDate.value && !slotId.value) {
-        ui.showToast('请选择具体送达时段，或点「尽快送」');
+        ui.showToast(locale.t('checkout.slotRequired'));
         return false;
     }
     await setDeliveryTarget({
@@ -488,7 +490,7 @@ const freeShipShortYuan = computed(() => freeShipShortFen.value ? (freeShipShort
 
 // Tab = 校园配送（恒显置首）+ eligible 启用的自提/邮寄
 const shippingTabs = computed(() => {
-    const tabs: { key: TabKey; label: string; method?: any }[] = [{ key: 'campus', label: '拾光达配送' }];
+    const tabs: { key: TabKey; label: string; method?: any }[] = [{ key: 'campus', label: locale.t('checkout.tabCampus') }];
     for (const sm of shippingMethods.value) {
         const cat = categorizeShipping(sm);
         if (!tabs.find(t => t.key === cat)) {
@@ -503,14 +505,15 @@ function getPaymentIcon(code: string): string {
     return icons[code] || '💳';
 }
 
-// PM 展示名：管理端 name 缺失或为原始 code 时按内置中文名兜底（extra PM 如 wechatpay-yourbao-h5）
+// PM 展示名：管理端 name 缺失或为原始 code 时按内置文案兜底（extra PM 如 wechatpay-yourbao-h5）
 function getPaymentName(pm: any): string {
     if (pm.name && pm.name !== pm.code) return pm.name;
-    const labels: Record<string, string> = {
-        'wechatpay': '微信支付', 'wechatpay-yourbao-h5': '微信支付', 'alipay': '支付宝',
-        'cod': '货到付款', 'balance-pay': '余额支付', 'aggregate-pay': '聚合收款',
+    const labelKeys: Record<string, string> = {
+        'wechatpay': 'payWechat', 'wechatpay-yourbao-h5': 'payWechat', 'alipay': 'payAlipay',
+        'cod': 'payCod', 'balance-pay': 'payBalance', 'aggregate-pay': 'payAggregate',
     };
-    return labels[pm.code] || pm.code;
+    const k = labelKeys[pm.code];
+    return k ? locale.t(`checkout.${k}`) : pm.code;
 }
 
 function categorizeShipping(sm: any): ShippingCategory {
@@ -519,11 +522,11 @@ function categorizeShipping(sm: any): ShippingCategory {
 }
 
 function tabLabel(cat: ShippingCategory): string {
-    const labels: Record<ShippingCategory, string> = {
-        shipping: '邮寄',
-        'store-pickup': '自提',
+    const labelKeys: Record<ShippingCategory, string> = {
+        shipping: 'tabShipping',
+        'store-pickup': 'tabPickup',
     };
-    return labels[cat] || '配送方式';
+    return locale.t(`checkout.${labelKeys[cat]}`) || locale.t('checkout.shippingTitle');
 }
 
 function getLocationWithTimeout(ms: number): Promise<{ lat: number; lng: number } | null> {
@@ -659,7 +662,7 @@ function openEditForm(addr: any) {
 // 保存地址表单（新增或编辑）
 async function saveAddressForm() {
     if (!addressForm.value.fullName || !addressForm.value.phoneNumber || !addressForm.value.streetLine1) {
-        ui.showToast('请填写完整地址信息');
+        ui.showToast(locale.t('checkout.addrIncomplete'));
         return;
     }
     try {
@@ -670,7 +673,7 @@ async function saveAddressForm() {
         } else {
             await createCustomerAddress(payload);
         }
-        ui.showToast('保存成功', 'success');
+        ui.showToast(locale.t('checkout.saved'), 'success');
         showAddressForm.value = false;
         await reloadCustomerAddresses();
     } catch (e: any) { ui.showToast(e.message); }
@@ -680,7 +683,7 @@ async function saveAddressForm() {
 // 保存内嵌新增表单并使用
 async function saveNewAddress() {
     if (!address.value.fullName || !address.value.phoneNumber || !address.value.streetLine1) {
-        ui.showToast('请填写完整地址信息');
+        ui.showToast(locale.t('checkout.addrIncomplete'));
         return;
     }
     try {
@@ -691,7 +694,7 @@ async function saveNewAddress() {
         if (newId) {
             selectedAddress.value = customerAddresses.value.find((a: any) => a.id === newId) || null;
         }
-        ui.showToast('保存成功', 'success');
+        ui.showToast(locale.t('checkout.saved'), 'success');
     } catch (e: any) { ui.showToast(e.message); }
     ui.hideLoading();
 }
@@ -700,8 +703,8 @@ async function saveNewAddress() {
 async function deleteAddress(id: string) {
     return new Promise<void>((resolve) => {
         uni.showModal({
-            title: '删除地址',
-            content: '确定删除该收货地址?',
+            title: locale.t('checkout.delAddrTitle'),
+            content: locale.t('checkout.delAddrConfirm'),
             success: async (r: any) => {
                 if (r.confirm) {
                     try {
@@ -709,7 +712,7 @@ async function deleteAddress(id: string) {
                         await deleteCustomerAddress(id);
                         if (selectedAddress.value?.id === id) selectedAddress.value = null;
                         await reloadCustomerAddresses();
-                        ui.showToast('已删除', 'success');
+                        ui.showToast(locale.t('checkout.deleted'), 'success');
                     } catch (e: any) { ui.showToast(e.message); }
                     ui.hideLoading();
                 }
@@ -724,7 +727,7 @@ async function setDefaultAddress(addr: any) {
     try {
         ui.showLoading();
         await updateCustomerAddress({ id: addr.id, defaultShippingAddress: true });
-        ui.showToast('已设为默认', 'success');
+        ui.showToast(locale.t('checkout.setDefaultOk'), 'success');
         await reloadCustomerAddresses();
         // 同步当前选中地址
         if (selectedAddress.value?.id === addr.id) {
@@ -755,7 +758,7 @@ const couponRowText = computed(() => {
         const d = (cart.order?.discounts ?? []).reduce((s: number, x: any) => s + (x.amountWithTax ?? 0), 0);
         return d > 0 ? `-¥${cart.formatPrice(d)}` : attachedCouponCode.value;
     }
-    return myUnusedCoupons.value.length ? `${myUnusedCoupons.value.length} 张可用` : '暂无可用';
+    return myUnusedCoupons.value.length ? locale.t('checkout.couponsAvailable').replace('{n}', String(myUnusedCoupons.value.length)) : locale.t('checkout.noCoupon');
 });
 
 const attachedCoupon = computed(() => !!attachedCouponCode.value);
@@ -770,8 +773,8 @@ function unavailableReason(c: any): string | null {
 
 function csAmount(c: any): string {
     const t = c.template;
-    if (t.type === 'PERCENT') return `${(t.discountValue / 10).toFixed(1).replace(/\.0$/, '')}折`;
-    if (t.type === 'FREE_SHIPPING') return '免运费';
+    if (t.type === 'PERCENT') return `${(t.discountValue / 10).toFixed(1).replace(/\.0$/, '')}${locale.t('checkout.csPercentSuffix')}`;
+    if (t.type === 'FREE_SHIPPING') return locale.t('checkout.csFreeShipping');
     const yuan = t.discountValue / 100;
     return `¥${Number.isInteger(yuan) ? yuan : yuan.toFixed(2)}`;
 }
@@ -808,7 +811,7 @@ async function pickCoupon(c: any) {
         showCouponSheet.value = false;
     } catch (e: any) {
         // 并发用掉/订单态变化：toast + 刷新弹层券列表 + 重算费用，不阻塞下单
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || '用券失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('checkout.couponFail'), icon: 'none' });
         await loadMyCoupons();
     } finally {
         couponApplying.value = false;
@@ -823,7 +826,7 @@ async function clearCoupon() {
         cart.setOrder(res.clearCouponFromOrder);
         showCouponSheet.value = false;
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || '操作失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('checkout.opFail'), icon: 'none' });
     } finally {
         couponApplying.value = false;
     }
@@ -839,7 +842,7 @@ async function consumePrefillCoupon() {
     try {
         const res: any = await applyCouponToOrder(code);
         cart.setOrder(res.applyCouponToOrder);
-        uni.showToast({ title: '已使用优惠券', icon: 'none' });
+        uni.showToast({ title: locale.t('checkout.couponUsed'), icon: 'none' });
     } catch { /* 预挂失败静默（券可能已用/失效），可手动选 */ }
 }
 
@@ -855,7 +858,7 @@ async function tryAutoApplyBest() {
     try {
         const res = await applyCouponToOrder((best as any).code);
         cart.setOrder(res.applyCouponToOrder);
-        uni.showToast({ title: '已自动使用最优优惠券', icon: 'none' });
+        uni.showToast({ title: locale.t('checkout.couponAutoUsed'), icon: 'none' });
     } catch { /* 试挂失败静默，用户可手动选 */ }
 }
 
@@ -934,7 +937,7 @@ async function prepareOrderAddressAndShipping(): Promise<boolean> {
         if (!selectedAddress.value) {
             // 没有已选地址，尝试用内嵌表单数据
             if (!address.value.fullName || !address.value.phoneNumber || !address.value.streetLine1) {
-                ui.showToast('请填写收货地址');
+                ui.showToast(locale.t('checkout.addrRequired'));
                 return false;
             }
             await setOrderShippingAddress({ ...address.value, streetLine1: buildStreetLine1(address.value) });
@@ -955,7 +958,7 @@ async function prepareOrderAddressAndShipping(): Promise<boolean> {
     } else {
         // 自提方式：设置自提点
         if (!selectedPickupLocation.value) {
-            ui.showToast('请选择自提点');
+            ui.showToast(locale.t('checkout.pickupRequired'));
             return false;
         }
         await setOrderPickupLocation(selectedPickupLocation.value.id, shippingCategory.value);
@@ -994,7 +997,7 @@ async function payCurrentOrder(method: string): Promise<{ code: string; status: 
     const payRes: any = await addPaymentToOrder(method, paymentMetadata);
     const order = payRes.addPaymentToOrder;
     // PM 拒单（如微信 openid 校验失败）返回 ErrorResult——直接上抛透出后端错误信息
-    if (order?.errorCode) throw new Error(order.message || '支付失败');
+    if (order?.errorCode) throw new Error(order.message || locale.t('checkout.payFail'));
     // 从最新一笔 payment 取 metadata（后端在 payment.metadata.public 中返回支付参数）
     const lastPayment = order?.payments?.[order.payments.length - 1];
     const pub = lastPayment?.metadata?.public || lastPayment?.metadata || {};
@@ -1030,7 +1033,7 @@ async function submitOrder() {
     // 起送价软校验：未达标仅 toast 提示，不阻断（硬校验二期后端化）
     if (activeTab.value === 'campus' && minOrderFen.value != null
         && (cart.order?.subTotalWithTax || 0) < minOrderFen.value) {
-        ui.showToast(`商品未满起送价 ¥${(minOrderFen.value / 100).toFixed(2)}，请确认后再下单`);
+        ui.showToast(locale.t('checkout.minOrderWarn').replace('{c}', (minOrderFen.value / 100).toFixed(2)));
     }
     submitting.value = true;
     try {
@@ -1041,7 +1044,7 @@ async function submitOrder() {
         await transitionOrderToState('ArrangingPayment');
         const pay = await payCurrentOrder(selectedPayment.value);
         // fail = 支付未完成（取消/失败/addPaymentToOrder 报错），不得伪装成功
-        if (pay.status === 'fail' || !pay.code) { ui.showToast('支付未完成，请重试或更换支付方式'); return; }
+        if (pay.status === 'fail' || !pay.code) { ui.showToast(locale.t('checkout.payIncomplete')); return; }
         uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(pay.code)}&status=${pay.status}` });
     } catch (e: any) { ui.showToast(e?.response?.errors?.[0]?.message || e.message); }
     ui.hideLoading();

@@ -17,26 +17,26 @@
           v-for="t in TAGS" :key="t"
           class="tag" :class="{ on: picked.includes(t) }"
           @tap="toggleTag(t)"
-        >{{ t }}</text>
+        >{{ tagLabel(t) }}</text>
       </view>
       <textarea
         v-model="content"
         class="content"
         :maxlength="300"
-        :placeholder="isFollowUp ? '补充说说使用/食用后的感受吧～' : '这次的用餐体验如何～'"
+        :placeholder="isFollowUp ? $t('reviewCreate.phFollowUp') : $t('reviewCreate.phDefault')"
         placeholder-class="content-ph"
       />
       <view class="imgs">
         <VImageUpload v-model="images" :maxCount="3" />
       </view>
       <view v-if="!isFollowUp" class="meta">
-        <text>匿名评价</text>
+        <text>{{ $t('reviewCreate.anonymousLabel') }}</text>
         <switch :checked="anonymous" color="#16a34a" style="transform: scale(0.7)" @change="(e: any) => (anonymous = e.detail.value)" />
       </view>
     </view>
 
     <button class="submit" :disabled="submitting" @tap="submit">
-      {{ submitting ? '发布中…' : isFollowUp ? '发布追评' : '发布评价' }}
+      {{ submitting ? $t('reviewCreate.publishing') : isFollowUp ? $t('reviewCreate.publishFollowUp') : $t('reviewCreate.publish') }}
     </button>
   </view>
 </template>
@@ -45,11 +45,17 @@
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { createReview, createFollowUpReview } from '../../api/queries/review';
+import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
 import VImageUpload from '../../components/ImageUpload.vue';
 
+const locale = useLocaleStore();
+// TAGS 值为提交后端的业务 tag，保持中文；展示时经 labelKey 映射转 i18n
 const TAGS = ['口味赞', '分量足', '配送快', '包装好', '性价比高'];
-const LABELS: Record<number, string> = { 5: '5.0 极赞', 4: '4.0 推荐', 3: '3.0 一般', 2: '2.0 不佳', 1: '1.0 很差' };
+const TAG_LABELS: Record<string, string> = { '口味赞': 'tagTaste', '分量足': 'tagPortion', '配送快': 'tagSpeed', '包装好': 'tagPacking', '性价比高': 'tagValue' };
+function tagLabel(t: string): string { return locale.t(`reviewCreate.${TAG_LABELS[t]}`); }
+// 星级文案 labelKey 映射（键存档位枚举）
+const LABELS: Record<number, string> = { 5: 'r5', 4: 'r4', 3: 'r3', 2: 'r2', 1: 'r1' };
 
 const productId = ref('');
 const orderLineId = ref('');
@@ -67,7 +73,7 @@ const images = ref<string[]>([]);
 const anonymous = ref(false);
 const submitting = ref(false);
 
-const ratingLabel = computed(() => LABELS[rating.value] || '');
+const ratingLabel = computed(() => LABELS[rating.value] ? locale.t(`reviewCreate.${LABELS[rating.value]}`) : '');
 
 onLoad((q: any) => {
   productId.value = q.productId || '';
@@ -99,7 +105,7 @@ function toggleTag(t: string) {
 
 async function submit() {
   if (!content.value.trim()) {
-    uni.showToast({ title: '写点什么再发布吧', icon: 'none' });
+    uni.showToast({ title: locale.t('reviewCreate.contentRequired'), icon: 'none' });
     return;
   }
   submitting.value = true;
@@ -109,7 +115,7 @@ async function submit() {
         content: content.value.trim(),
         images: images.value.length ? images.value : undefined,
       });
-      uni.showToast({ title: '追评已提交，审核通过后展示', icon: 'none' });
+      uni.showToast({ title: locale.t('reviewCreate.followUpDone'), icon: 'none' });
     } else {
       await createReview({
         productId: productId.value,
@@ -121,11 +127,11 @@ async function submit() {
         tags: picked.value.length ? picked.value : undefined,
         isAnonymous: anonymous.value,
       });
-      uni.showToast({ title: '评价已提交，审核通过后展示', icon: 'none' });
+      uni.showToast({ title: locale.t('reviewCreate.reviewDone'), icon: 'none' });
     }
     setTimeout(() => uni.navigateBack(), 1200);
   } catch (err: any) {
-    uni.showToast({ title: err?.message || '发布失败', icon: 'none' });
+    uni.showToast({ title: err?.message || locale.t('reviewCreate.publishFail'), icon: 'none' });
   } finally {
     submitting.value = false;
   }

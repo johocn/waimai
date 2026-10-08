@@ -6,7 +6,7 @@
         <view class="sku-sheet__head-info">
           <PriceTag :price="currentVariant?.priceWithTax || 0" :large="true" />
           <text class="sku-sheet__stock">{{ stockText }}</text>
-          <text class="sku-sheet__picked">已选：{{ pickedText }} · {{ quantity }} 件</text>
+          <text class="sku-sheet__picked">{{ $t('comp.selected').replace('{s}', pickedText).replace('{n}', String(quantity)) }}</text>
         </view>
         <text class="sku-sheet__close" @click="close">✕</text>
       </view>
@@ -26,7 +26,7 @@
         </view>
 
         <view class="sku-qty">
-          <text class="sku-qty__label">数量</text>
+          <text class="sku-qty__label">{{ $t('comp.quantity') }}</text>
           <view class="qty-control">
             <text class="qty-btn" @click="changeQty(-1)">-</text>
             <text class="qty-num">{{ quantity }}</text>
@@ -36,8 +36,8 @@
       </scroll-view>
 
       <view class="sku-sheet__bar">
-        <button class="sku-sheet__btn sku-sheet__btn--cart" :disabled="!currentVariant" @click="emitAction('cart')">加入购物车</button>
-        <button class="sku-sheet__btn sku-sheet__btn--buy" :disabled="!currentVariant" @click="emitAction('buy')">立即购买</button>
+        <button class="sku-sheet__btn sku-sheet__btn--cart" :disabled="!currentVariant" @click="emitAction('cart')">{{ $t('comp.addToCart') }}</button>
+        <button class="sku-sheet__btn sku-sheet__btn--buy" :disabled="!currentVariant" @click="emitAction('buy')">{{ $t('comp.buyNow') }}</button>
       </view>
     </view>
   </view>
@@ -47,6 +47,9 @@
 import { computed, ref, watch } from 'vue';
 import VImage from './VImage.vue';
 import PriceTag from './PriceTag.vue';
+import { useLocaleStore } from '../stores/locale';
+
+const locale = useLocaleStore();
 
 const props = defineProps<{
     visible: boolean;
@@ -76,9 +79,9 @@ const variantAsset = computed(() => currentVariant.value?.featuredAsset?.preview
 
 const stockText = computed(() => {
     const v = currentVariant.value;
-    if (!v) return '暂无库存';
+    if (!v) return locale.t('comp.noStock');
     const stock = Number(v.stockLevel);
-    if (Number.isFinite(stock) && stock >= 0) return `库存 ${stock}`;
+    if (Number.isFinite(stock) && stock >= 0) return locale.t('comp.stock').replace('{n}', String(stock));
     return '';
 });
 
@@ -91,8 +94,8 @@ const pickedText = computed(() => {
     }
     if (names.length) return names.join(' / ');
     // 单规格商品（无规格组）没有「未选」状态：直接显示当前变体名，不出现「请选择规格」
-    if (!optionGroups.value.length) return currentVariant.value?.name || '请选择规格';
-    return '请选择规格';
+    if (!optionGroups.value.length) return currentVariant.value?.name || locale.t('comp.pickSpec');
+    return locale.t('comp.pickSpec');
 });
 
 /** 某选项是否可点：把它代入当前已选后，必须能命中一个存在的变体（库存为 0 也算命中但置灰不可选） */

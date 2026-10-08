@@ -1,7 +1,7 @@
 <template>
   <view class="orders-page">
     <view class="orders-tabs">
-      <text v-for="t in tabs" :key="t.value" class="orders-tab" :class="{ active: activeTab === t.value }" @click="switchTab(t.value)">{{ t.label }}</text>
+      <text v-for="t in tabs" :key="t.value" class="orders-tab" :class="{ active: activeTab === t.value }" @click="switchTab(t.value)">{{ $t(t.label) }}</text>
     </view>
     <scroll-view class="orders-page__scroll" scroll-y @scrolltolower="loadMore" refresher-enabled @refresherrefresh="onRefresh" :refresher-triggered="refreshing">
       <view v-for="order in orders" :key="order.id" class="order-card" @click="goDetail(order.code)">
@@ -18,14 +18,14 @@
           <text class="order-card__qty">x{{ line.quantity }}</text>
         </view>
         <view class="order-card__footer">
-          <text>共{{ order.totalQuantity }}件</text>
+          <text>{{ $t('orders.totalItems').replace('{n}', String(order.totalQuantity)) }}</text>
           <PriceTag :price="order.totalWithTax" />
         </view>
       </view>
       <view class="orders-page__footer">
         <LoadingSkeleton v-if="loading" type="list" :count="3" />
-        <text v-else-if="!hasMore && orders.length > 0" class="footer-text">没有更多了</text>
-        <EmptyState v-if="!loading && orders.length === 0" text="暂无订单" />
+        <text v-else-if="!hasMore && orders.length > 0" class="footer-text">{{ $t('orders.noMore') }}</text>
+        <EmptyState v-if="!loading && orders.length === 0" :text="$t('orders.empty')" />
       </view>
     </scroll-view>
   </view>
@@ -37,28 +37,31 @@ import { getOrdersForChannel } from '../../api/queries/order';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { fulfillmentBadge } from '../../utils/order-badge';
 import { storeDisplayName } from '../../utils/store-display';
+import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
 import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
+const locale = useLocaleStore();
 const orders = ref<any[]>([]);
 const loading = ref(false);
 const hasMore = ref(true);
 const refreshing = ref(false);
 const activeTab = ref('');
 const tabs = [
-    { value: '', label: '全部' }, { value: 'ArrangingPayment', label: '待付款' },
-    { value: 'PaymentAuthorized,PaymentSettled', label: '待发货' }, { value: 'Delivered', label: '待收货' },
-    { value: 'Cancelled', label: '已取消' },
+    { value: '', label: 'orders.tabAll' }, { value: 'ArrangingPayment', label: 'orders.stAwaitPay' },
+    { value: 'PaymentAuthorized,PaymentSettled', label: 'orders.stAwaitShip' }, { value: 'Delivered', label: 'orders.stAwaitReceive' },
+    { value: 'Cancelled', label: 'orders.stCancelled' },
 ];
-const statusMap: Record<string, string> = { ArrangingPayment:'待付款', Created:'待付款', PaymentAuthorized:'待发货', PaymentSettled:'待发货', Delivered:'待收货', Shipped:'待收货', Cancelled:'已取消' };
+// 值为 i18n 键（rider 样式：label 存键不存中文），经 locale.t 解析展示
+const statusMap: Record<string, string> = { ArrangingPayment:'orders.stAwaitPay', Created:'orders.stAwaitPay', PaymentAuthorized:'orders.stAwaitShip', PaymentSettled:'orders.stAwaitShip', Delivered:'orders.stAwaitReceive', Shipped:'orders.stAwaitReceive', Cancelled:'orders.stCancelled' };
 // 订单落在各渠道（vendure myOrders 按 activeChannel 过滤），聚合 = 站点渠道 + 全部店铺渠道。
 // 渠道身份归一：空 token 与 vendure 内建 '__default_channel__' 是同一渠道，须去重（店铺可挂在默认渠道上）。
 const PLATFORM_TOKEN = (import.meta.env.VITE_CHANNEL_TOKEN as string) || '__default_channel__';
 function normChannel(t: string): string {
     return !t || t === '__default_channel__' ? '__default_channel__' : t;
 }
-let channels: Array<{ token: string; name: string }> = [{ token: normChannel(PLATFORM_TOKEN), name: '平台' }];
+let channels: Array<{ token: string; name: string }> = [{ token: normChannel(PLATFORM_TOKEN), name: locale.t('orders.platform') }];
 let channelsLoaded = false;
 let page = 0;
 const take = 10;
@@ -66,18 +69,18 @@ const take = 10;
 /** 履约徽标优先（校园配送单），否则回退订单 state 文案 */
 function stateLabel(order: any): string {
     const cf = order.customFields || {};
-    return fulfillmentBadge(cf.fulfillmentRoute, cf.deliveryStatus) || statusMap[order.state] || order.state;
+    return fulfillmentBadge(cf.fulfillmentRoute, cf.deliveryStatus) || (statusMap[order.state] ? locale.t(statusMap[order.state]) : order.state);
 }
 
 async function loadChannels() {
     if (channelsLoaded) return;
-    const map = new Map<string, string>([[normChannel(PLATFORM_TOKEN), '平台']]);
+    const map = new Map<string, string>([[normChannel(PLATFORM_TOKEN), locale.t('orders.platform')]]);
     try {
         const stores = await fetchStoreList();
         for (const s of stores) {
             const key = normChannel(s.channelToken || '');
             if (!map.has(key) || key === normChannel(PLATFORM_TOKEN)) {
-                map.set(key, storeDisplayName(s.name) || map.get(key) || '平台'); // 店铺挂在站点渠道时显示店铺名
+                map.set(key, storeDisplayName(s.name) || map.get(key) || locale.t('orders.platform')); // 店铺挂在站点渠道时显示店铺名
             }
         }
     } catch (e) { console.error(e); }

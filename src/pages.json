@@ -1,59 +1,71 @@
 {
     "pages": [
-        { "path": "pages/home/index", "style": { "navigationBarTitleText": "拾光达", "navigationStyle": "custom", "enablePullDownRefresh": true } },
-        { "path": "pages/orders/index", "style": { "navigationBarTitleText": "订单" } },
-        { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } },
-        { "path": "pages/shop/menu", "style": { "navigationBarTitleText": "店铺" } },
-        { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录" } },
-        { "path": "pages/webview/index", "style": { "navigationBarTitleText": "支付", "navigationStyle": "custom" } }
+        { "path": "pages/home/index", "style": { "navigationBarTitleText": "%nav.global%", "navigationStyle": "custom", "enablePullDownRefresh": true } },
+        { "path": "pages/orders/index", "style": { "navigationBarTitleText": "%nav.orders%" } },
+        { "path": "pages/profile/index", "style": { "navigationBarTitleText": "%nav.profile%" } },
+        { "path": "pages/shop/menu", "style": { "navigationBarTitleText": "%nav.shop%" } },
+        { "path": "pages/login/index", "style": { "navigationBarTitleText": "%nav.login%" } },
+        { "path": "pages/webview/index", "style": { "navigationBarTitleText": "%nav.pay%", "navigationStyle": "custom" } }
     ],
     "subPackages": [
         {
             "root": "pkg-order",
             "pages": [
-                { "path": "pages/checkout", "style": { "navigationBarTitleText": "确认订单" } },
-                { "path": "pages/order-detail", "style": { "navigationBarTitleText": "订单跟踪" } },
-                { "path": "pages/pay-result", "style": { "navigationBarTitleText": "支付结果" } },
-                { "path": "pages/review-create", "style": { "navigationBarTitleText": "评价" } },
-                { "path": "pages/after-sale-create", "style": { "navigationBarTitleText": "申请售后" } },
-                { "path": "pages/after-sale-detail", "style": { "navigationBarTitleText": "售后详情" } },
-                { "path": "pages/my-reviews", "style": { "navigationBarTitleText": "我的评价" } }
+                { "path": "pages/checkout", "style": { "navigationBarTitleText": "%nav.checkout%" } },
+                { "path": "pages/order-detail", "style": { "navigationBarTitleText": "%nav.orderTrack%" } },
+                { "path": "pages/pay-result", "style": { "navigationBarTitleText": "%nav.payResult%" } },
+                { "path": "pages/review-create", "style": { "navigationBarTitleText": "%nav.review%" } },
+                { "path": "pages/after-sale-create", "style": { "navigationBarTitleText": "%nav.aftersaleCreate%" } },
+                { "path": "pages/after-sale-detail", "style": { "navigationBarTitleText": "%nav.aftersaleDetail%" } },
+                { "path": "pages/my-reviews", "style": { "navigationBarTitleText": "%nav.myReviews%" } }
             ]
         },
         {
             "root": "pkg-rider",
             "pages": [
-                { "path": "pages/rider-join", "style": { "navigationBarTitleText": "传信者入驻" } },
-                { "path": "pages/rider-home", "style": { "navigationBarTitleText": "接单大厅" } },
-                { "path": "pages/rider-delivering", "style": { "navigationBarTitleText": "配送中" } },
-                { "path": "pages/rider-earning", "style": { "navigationBarTitleText": "我的收入" } },
-                { "path": "pages/rider-wallet", "style": { "navigationBarTitleText": "骑手钱包" } },
-                { "path": "pages/rider-withdraw", "style": { "navigationBarTitleText": "申请提现" } }
+                { "path": "pages/rider-join", "style": { "navigationBarTitleText": "%nav.riderJoin%" } },
+                { "path": "pages/rider-home", "style": { "navigationBarTitleText": "%nav.riderHall%" } },
+                { "path": "pages/rider-delivering", "style": { "navigationBarTitleText": "%nav.riderDelivering%" } },
+                { "path": "pages/rider-earning", "style": { "navigationBarTitleText": "%nav.riderEarning%" } },
+                { "path": "pages/rider-wallet", "style": { "navigationBarTitleText": "%nav.riderWallet%" } },
+                { "path": "pages/rider-withdraw", "style": { "navigationBarTitleText": "%nav.riderWithdraw%" } }
             ]
         },
         {
             "root": "pkg-campus",
             "pages": [
-                { "path": "errand/create", "style": { "navigationBarTitleText": "校内拾光达" } },
-                { "path": "errand/list", "style": { "navigationBarTitleText": "我的跑腿单" } }
+                { "path": "errand/create", "style": { "navigationBarTitleText": "%nav.errandCreate%" } },
+                { "path": "errand/list", "style": { "navigationBarTitleText": "%nav.errandList%" } }
             ]
         },
         {
             "root": "pkg-user",
             "pages": [
-                { "path": "pages/profile-edit", "style": { "navigationBarTitleText": "编辑资料" } },
-                { "path": "pages/address-book", "style": { "navigationBarTitleText": "常用地址" } },
-                { "path": "pages/address-edit", "style": { "navigationBarTitleText": "编辑地址" } },
-                { "path": "pages/invoice-titles", "style": { "navigationBarTitleText": "发票抬头" } },
-                { "path": "pages/invite", "style": { "navigationBarTitleText": "邀请好友" } },
-                { "path": "pages/about", "style": { "navigationBarTitleText": "关于拾光达" } }
+                { "path": "pages/profile-edit", "style": { "navigationBarTitleText": "%nav.profileEdit%" } },
+                { "path": "pages/address-book", "style": { "navigationBarTitleText": "%nav.addressBook%" } },
+                { "path": "pages/address-edit", "style": { "navigationBarTitleText": "%nav.addressEdit%" } },
+                { "path": "pages/invoice-titles", "style": { "navigationBarTitleText": "%nav.invoice%" } },
+                { "path": "pages/invite", "style": { "navigationBarTitleText": "%nav.invite%" } },
+                { "path": "pages/about", "style": { "navigationBarTitleText": "%nav.about%" } }
+            ]
+        },
+        {
+            "root": "pkg-jianghu",
+            "pages": [
+                { "path": "pages/jh-hall", "style": { "navigationBarTitleText": "江湖大厅" } },
+                { "path": "pages/jh-letter-detail", "style": { "navigationBarTitleText": "密信详情" } },
+                { "path": "pages/jh-submit", "style": { "navigationBarTitleText": "提交传闻" } },
+                { "path": "pages/jh-intel-hall", "style": { "navigationBarTitleText": "情报阁" } },
+                { "path": "pages/jh-rank", "style": { "navigationBarTitleText": "段位晋升" } },
+                { "path": "pages/jh-event", "style": { "navigationBarTitleText": "江湖事件簿" } },
+                { "path": "pages/jh-admin", "style": { "navigationBarTitleText": "江湖运营后台" } }
             ]
         },
         {
             "root": "pkg-promotion",
             "pages": [
-                { "path": "pages/coupon-centre", "style": { "navigationBarTitleText": "领券中心" } },
-                { "path": "pages/my-coupons", "style": { "navigationBarTitleText": "我的优惠券" } }
+                { "path": "pages/coupon-centre", "style": { "navigationBarTitleText": "%nav.couponCentre%" } },
+                { "path": "pages/my-coupons", "style": { "navigationBarTitleText": "%nav.myCoupons%" } }
             ]
         }
     ],
@@ -63,14 +75,14 @@
         "backgroundColor": "#ffffff",
         "borderStyle": "black",
         "list": [
-            { "pagePath": "pages/home/index", "text": "首页" },
-            { "pagePath": "pages/orders/index", "text": "订单" },
-            { "pagePath": "pages/profile/index", "text": "我的" }
+            { "pagePath": "pages/home/index", "text": "%tab.home%" },
+            { "pagePath": "pages/orders/index", "text": "%tab.orders%" },
+            { "pagePath": "pages/profile/index", "text": "%tab.profile%" }
         ]
     },
     "globalStyle": {
         "navigationBarTextStyle": "black",
-        "navigationBarTitleText": "拾光达",
+        "navigationBarTitleText": "%nav.global%",
         "navigationBarBackgroundColor": "#ffffff",
         "backgroundColor": "#f5f5f5"
     }

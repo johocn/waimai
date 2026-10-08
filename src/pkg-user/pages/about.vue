@@ -1,30 +1,33 @@
 <template>
   <view class="ab2-page">
     <view class="ab2-page__hero">
-      <text class="ab2-page__logo">拾光达</text>
-      <text class="ab2-page__ver">版本 {{ APP_VERSION }}</text>
+      <text class="ab2-page__logo">{{ $t('about.brandName') }}</text>
+      <text class="ab2-page__ver">{{ $t('about.version').replace('{n}', APP_VERSION) }}</text>
     </view>
     <view class="ab2-page__menu">
       <view class="ab2-page__item" @click="callService">
-        <text>客服电话</text><text class="ab2-page__val">{{ SERVICE_PHONE || '未配置' }}</text>
+        <text>{{ $t('about.serviceHotline') }}</text><text class="ab2-page__val">{{ SERVICE_PHONE || $t('about.notConfigured') }}</text>
       </view>
       <view class="ab2-page__item" @click="openDoc('user')">
-        <text>用户协议</text><text class="ab2-page__val">></text>
+        <text>{{ $t('about.userAgreement') }}</text><text class="ab2-page__val">></text>
       </view>
       <view class="ab2-page__item" @click="openDoc('privacy')">
-        <text>隐私政策</text><text class="ab2-page__val">></text>
+        <text>{{ $t('about.privacyPolicy') }}</text><text class="ab2-page__val">></text>
       </view>
     </view>
     <view class="ab2-page__doc" v-if="docOpen">
       <text class="ab2-page__doc-title">{{ docTitle }}</text>
       <text class="ab2-page__doc-body">{{ docBody }}</text>
-      <button class="ab2-page__close" @click="docOpen = false">关闭</button>
+      <button class="ab2-page__close" @click="docOpen = false">{{ $t('about.close') }}</button>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useLocaleStore } from '../../stores/locale';
+
+const locale = useLocaleStore();
 
 const APP_VERSION = '1.1.0'; // 发版时手动递增（package.json version 同步）
 const SERVICE_PHONE = (import.meta.env.VITE_SERVICE_PHONE as string) || '';
@@ -33,23 +36,22 @@ const docOpen = ref(false);
 const docTitle = ref('');
 const docBody = ref('');
 
-const DOCS: Record<string, { title: string; body: string }> = {
+// 协议/隐私长文本本期不迁 i18n（保留中文原文，正式文案由运营补充后替换）
+const DOCS: Record<string, { body: string }> = {
     user: {
-        title: '用户协议',
         body: '1. 拾光达为校园配送服务平台，下单前请确认送达信息准确。\n2. 订单支付后由商家备餐、骑手配送；如遇问题可联系客服或申请售后。\n3. 平台禁止利用系统漏洞套利，违者有权限制账号。\n（正式文案由运营补充后替换本段）',
     },
     privacy: {
-        title: '隐私政策',
         body: '1. 我们收集的信息：账号资料（昵称/电话）、订单与配送地址。\n2. 信息用途：仅用于订单履约、配送联系与客服支持，不对外出售。\n3. 你的权利：可在「个人中心-编辑资料」修改资料、删除常用地址。\n（正式文案由运营补充后替换本段）',
     },
 };
 
 function callService() {
-    if (!SERVICE_PHONE) { uni.showToast({ title: '客服电话未配置', icon: 'none' }); return; }
+    if (!SERVICE_PHONE) { uni.showToast({ title: locale.t('about.hotlineMissing'), icon: 'none' }); return; }
     uni.makePhoneCall({ phoneNumber: SERVICE_PHONE });
 }
 function openDoc(kind: 'user' | 'privacy') {
-    docTitle.value = DOCS[kind].title;
+    docTitle.value = locale.t(kind === 'user' ? 'about.userAgreement' : 'about.privacyPolicy');
     docBody.value = DOCS[kind].body;
     docOpen.value = true;
 }

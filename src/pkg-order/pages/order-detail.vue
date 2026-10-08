@@ -11,23 +11,23 @@
       class="section exc-banner"
       :class="{ 'exc-banner--done': exceptionFinal }"
     >
-      <text class="exc-banner__title">{{ exceptionPending ? '骑手上报异常，平台处理中' : '异常已处理' }}</text>
+      <text class="exc-banner__title">{{ exceptionPending ? $t('orderDetail.excPending') : $t('orderDetail.excDone') }}</text>
       <text class="exc-banner__sub" v-if="exceptionResultText">{{ exceptionResultText }}</text>
-      <text class="exc-banner__sub" v-else-if="exceptionPending">我们会尽快为您处理，请留意通知</text>
+      <text class="exc-banner__sub" v-else-if="exceptionPending">{{ $t('orderDetail.excWaiting') }}</text>
     </view>
 
     <!-- 售后状态卡：存在售后单时展示摘要，点击进详情；进行中售后单隐藏「申请售后」入口 -->
     <view class="section as-card" v-if="afterSale" @tap="goAfterSaleDetail">
       <view class="as-card__row">
-        <text class="as-card__title">售后 {{ asStateLabel }}</text>
+        <text class="as-card__title">{{ $t('orderDetail.afterSale') }} {{ asStateLabel }}</text>
         <text class="as-card__amount">¥{{ ((afterSale.actualRefundAmount ?? afterSale.refundAmount) / 100).toFixed(2) }}</text>
       </view>
-      <text class="as-card__sub">{{ afterSale.reason }} · 提交于 {{ formatTime(afterSale.createdAt) }}，点击查看详情 ›</text>
+      <text class="as-card__sub">{{ afterSale.reason }} · {{ $t('orderDetail.submittedAt').replace('{t}', formatTime(afterSale.createdAt)) }}</text>
     </view>
 
     <!-- 履约时间线（校园单：按路线 R1/R3 区分节点，spec §5.4） -->
     <view class="section" v-if="campusRoute && campusRoute !== 'R4'">
-      <text class="section__title">配送进度</text>
+      <text class="section__title">{{ $t('orderDetail.timelineTitle') }}</text>
       <view class="tl">
         <view
           v-for="(n, i) in timeline"
@@ -40,52 +40,52 @@
         </view>
       </view>
       <view class="tl-meta" v-if="order.customFields?.campusZone || order.customFields?.deliverySlotText">
-        <text v-if="order.customFields?.campusZone">配送至：{{ order.customFields.campusZone }}</text>
-        <text v-if="order.customFields?.deliverySlotText">送达时段：{{ order.customFields.deliverySlotText }}</text>
+        <text v-if="order.customFields?.campusZone">{{ $t('orderDetail.deliverTo').replace('{t}', order.customFields.campusZone) }}</text>
+        <text v-if="order.customFields?.deliverySlotText">{{ $t('orderDetail.slotText').replace('{t}', order.customFields.deliverySlotText) }}</text>
       </view>
     </view>
 
     <!-- R2 快递到校卡（二期 spec §5.2）：preparing=确认到校；arrived_gate=选取件方式 -->
     <view class="section r2-card" v-if="campusRoute === 'R2'">
-      <text class="section__title">快递到校</text>
+      <text class="section__title">{{ $t('orderDetail.r2Title') }}</text>
       <template v-if="(order.customFields?.leg1Status ?? 'preparing') === 'preparing'">
-        <text class="r2-hint">快递配送中，到达校内代收点后请点击确认</text>
-        <button class="action-btn action-btn--primary r2-btn" @click="confirmArrived">快递已到校</button>
+        <text class="r2-hint">{{ $t('orderDetail.r2Preparing') }}</text>
+        <button class="action-btn action-btn--primary r2-btn" @click="confirmArrived">{{ $t('orderDetail.r2ArrivedBtn') }}</button>
       </template>
       <template v-else>
-        <text class="r2-hint">快递已到校 · 请选择取件方式</text>
+        <text class="r2-hint">{{ $t('orderDetail.r2Arrived') }}</text>
         <text class="r2-hint" v-if="relayLabel">{{ relayLabel }}</text>
         <view class="r2-actions">
-          <button class="action-btn r2-btn" @click="selfPickup">我去自取</button>
-          <button class="action-btn action-btn--primary r2-btn" @click="goRelay" :disabled="relayActive">发 R5 接力</button>
+          <button class="action-btn r2-btn" @click="selfPickup">{{ $t('orderDetail.selfPickupBtn') }}</button>
+          <button class="action-btn action-btn--primary r2-btn" @click="goRelay" :disabled="relayActive">{{ $t('orderDetail.relayBtn') }}</button>
         </view>
       </template>
     </view>
 
     <!-- R4 到店自取核销码（二期 spec §5.4） -->
     <view class="section pickup-code" v-if="isR4 && pickupCode">
-      <text class="section__title">到店自取核销码</text>
+      <text class="section__title">{{ $t('orderDetail.pickupTitle') }}</text>
       <text class="code-text">{{ pickupCode.code }}</text>
-      <text class="r2-hint" v-if="pickupCode.status === 'redeemed'">已核销</text>
-      <button class="action-btn r2-btn" v-else-if="canSelfRedeem" @click="selfRedeem">自助核销</button>
-      <text class="r2-hint" v-else>到店出示给店员核销</text>
+      <text class="r2-hint" v-if="pickupCode.status === 'redeemed'">{{ $t('orderDetail.redeemed') }}</text>
+      <button class="action-btn r2-btn" v-else-if="canSelfRedeem" @click="selfRedeem">{{ $t('orderDetail.selfRedeem') }}</button>
+      <text class="r2-hint" v-else>{{ $t('orderDetail.showToStaff') }}</text>
     </view>
 
     <!-- 骑手卡：有骑手显示姓名/信用分；无骑手显示等待/调度中/人工介入提示（10s 轮询）
          plan 2.2：配送中（assigned/in_progress）且有坐标时内嵌腾讯地图显示骑手 Marker（送达/转单后端即不返回位置） -->
     <view class="section rider" v-if="campusRoute && !['R2','R4'].includes(campusRoute) && !isScheduled && (rider || !timelineFinished)">
       <view v-if="rider" class="rider__row">
-        <view class="rider__avatar"><text>骑</text></view>
+        <view class="rider__avatar"><text>{{ $t('orderDetail.riderAvatar') }}</text></view>
         <view class="rider__info">
           <text class="rider__name">{{ rider.realName }}</text>
-          <text class="rider__sub">信用分 {{ rider.credit ?? '—' }}<text v-if="campusRoute === 'R1'"> · 接力传信者 · 第二程</text></text>
+          <text class="rider__sub">{{ $t('orderDetail.credit').replace('{n}', String(rider.credit ?? '—')) }}<text v-if="campusRoute === 'R1'">{{ $t('orderDetail.relayRider') }}</text></text>
         </view>
-        <text class="rider__contact" @tap="callStore">联系商家</text>
+        <text class="rider__contact" @tap="callStore">{{ $t('orderDetail.contactStore') }}</text>
       </view>
       <text v-else class="rider__hint">{{ riderHint }}</text>
       <view class="rider__urge" v-if="canUrge">
-        <text v-if="urged" class="rider__urged-tag">已催单，正在加急配送</text>
-        <button v-else class="rider__urge-btn" @tap="onUrge">催单</button>
+        <text v-if="urged" class="rider__urged-tag">{{ $t('orderDetail.urgedTag') }}</text>
+        <button v-else class="rider__urge-btn" @tap="onUrge">{{ $t('orderDetail.urgeBtn') }}</button>
       </view>
       <map
         v-if="rider?.location"
@@ -98,20 +98,20 @@
     </view>
 
     <view class="section" v-if="!campusRoute && order.shippingAddress">
-      <text class="section__title">收货地址</text>
+      <text class="section__title">{{ $t('orderDetail.addrTitle') }}</text>
       <text>{{ order.shippingAddress.fullName }} {{ order.shippingAddress.phoneNumber }}</text>
       <text class="section__sub">{{ order.shippingAddress.province }} {{ order.shippingAddress.city }} {{ order.shippingAddress.streetLine1 }}</text>
     </view>
     <view class="section" v-if="!campusRoute && order.shippingLines?.length">
-      <text class="section__title">物流信息</text>
+      <text class="section__title">{{ $t('orderDetail.logisticsTitle') }}</text>
       <view class="logistics">
-        <text>{{ order.shippingLines[0]?.shippingMethod?.name || '邮寄' }}</text>
-        <text v-if="trackingNo" class="logistics__no">运单号: {{ trackingNo }}</text>
-        <text v-else class="logistics__empty">暂无物流信息</text>
+        <text>{{ order.shippingLines[0]?.shippingMethod?.name || $t('orderDetail.mailing') }}</text>
+        <text v-if="trackingNo" class="logistics__no">{{ $t('orderDetail.trackingNoLabel').replace('{t}', trackingNo) }}</text>
+        <text v-else class="logistics__empty">{{ $t('orderDetail.logisticsEmpty') }}</text>
       </view>
     </view>
     <view class="section">
-      <text class="section__title">商品信息</text>
+      <text class="section__title">{{ $t('orderDetail.goodsTitle') }}</text>
       <view v-for="line in order.lines" :key="line.id" class="order-line">
         <VImage :src="line.featuredAsset?.preview || ''" width="140rpx" height="140rpx" />
         <view class="order-line__info">
@@ -125,44 +125,44 @@
       </view>
     </view>
     <view class="section summary">
-      <view class="summary__row"><text>商品总额</text><text>¥{{ (order.subTotalWithTax / 100).toFixed(2) }}</text></view>
-      <view class="summary__row"><text>运费</text><text>¥{{ (order.shippingWithTax / 100).toFixed(2) }}</text></view>
-      <view class="summary__row" v-if="order.discounts?.length"><text>优惠</text><text class="discount">-¥{{ (discountTotal / 100).toFixed(2) }}</text></view>
-      <view class="summary__row summary__row--total"><text>实付</text><text class="summary__total">¥{{ (order.totalWithTax / 100).toFixed(2) }}</text></view>
+      <view class="summary__row"><text>{{ $t('orderDetail.goodsTotal') }}</text><text>¥{{ (order.subTotalWithTax / 100).toFixed(2) }}</text></view>
+      <view class="summary__row"><text>{{ $t('orderDetail.shipping') }}</text><text>¥{{ (order.shippingWithTax / 100).toFixed(2) }}</text></view>
+      <view class="summary__row" v-if="order.discounts?.length"><text>{{ $t('orderDetail.discount') }}</text><text class="discount">-¥{{ (discountTotal / 100).toFixed(2) }}</text></view>
+      <view class="summary__row summary__row--total"><text>{{ $t('orderDetail.paid') }}</text><text class="summary__total">¥{{ (order.totalWithTax / 100).toFixed(2) }}</text></view>
     </view>
     <view class="section" v-if="order.couponCodes?.length">
-      <text class="section__title">优惠券</text>
+      <text class="section__title">{{ $t('orderDetail.couponTitle') }}</text>
       <text v-for="c in order.couponCodes" :key="c" class="coupon-tag">{{ c }}</text>
     </view>
     <view class="section info">
-      <view class="info__row"><text>订单编号</text><text @click="copyCode">{{ order.code }}</text></view>
-      <view class="info__row"><text>下单时间</text><text>{{ formatTime(order.createdAt) }}</text></view>
-      <view class="info__row" v-if="order.payments?.length"><text>支付方式</text><text>{{ order.payments[0]?.method }}</text></view>
+      <view class="info__row"><text>{{ $t('orderDetail.orderNo') }}</text><text @click="copyCode">{{ order.code }}</text></view>
+      <view class="info__row"><text>{{ $t('orderDetail.orderTime') }}</text><text>{{ formatTime(order.createdAt) }}</text></view>
+      <view class="info__row" v-if="order.payments?.length"><text>{{ $t('orderDetail.payMethod') }}</text><text>{{ order.payments[0]?.method }}</text></view>
     </view>
     <!-- 发票：已提交开票申请只读条（Task 11） -->
     <view class="invoice-done" v-if="order.customFields?.invoiceApplied">
-      <text class="invoice-done__tag">已提交开票申请</text>
+      <text class="invoice-done__tag">{{ $t('orderDetail.invoiceApplied') }}</text>
       <text class="invoice-done__txt">{{ invoiceSummary(order.customFields.invoiceInfo) }}</text>
     </view>
     <view class="order-detail__actions">
-      <button v-if="canReceive" class="action-btn action-btn--primary" @click="confirmReceive">确认收货</button>
-      <button v-if="canAfterSale" class="action-btn" @click="goAfterSale">申请售后</button>
-      <button v-if="canInvoice" class="action-btn" @click="openInvoice">开发票</button>
-      <button v-if="canCancel" class="action-btn action-btn--ghost" @click="cancelOrder">取消订单</button>
-      <button v-if="canReview" class="action-btn" @click="goReview">去评价</button>
-      <button class="action-btn action-btn--primary" @click="reorder">再来一单</button>
+      <button v-if="canReceive" class="action-btn action-btn--primary" @click="confirmReceive">{{ $t('orderDetail.receiveBtn') }}</button>
+      <button v-if="canAfterSale" class="action-btn" @click="goAfterSale">{{ $t('orderDetail.afterSaleBtn') }}</button>
+      <button v-if="canInvoice" class="action-btn" @click="openInvoice">{{ $t('orderDetail.invoice') }}</button>
+      <button v-if="canCancel" class="action-btn action-btn--ghost" @click="cancelOrder">{{ $t('orderDetail.cancelBtn') }}</button>
+      <button v-if="canReview" class="action-btn" @click="goReview">{{ $t('orderDetail.reviewBtn') }}</button>
+      <button class="action-btn action-btn--primary" @click="reorder">{{ $t('orderDetail.reorderBtn') }}</button>
     </view>
 
     <!-- 开发票弹层（Task 11）：抬头选择 + 接收邮箱 + 提交申请 -->
     <view class="invoice-mask" v-if="invoiceShow" @click="invoiceShow = false">
       <view class="invoice-sheet" @click.stop>
-        <text class="invoice-sheet__title">开发票</text>
+        <text class="invoice-sheet__title">{{ $t('orderDetail.invoice') }}</text>
         <view class="invoice-sheet__opt" v-for="(t, i) in invoiceTitles" :key="i"
               :class="{ on: invoiceSelIdx === i }" @click="invoiceEmail = t.email; invoiceSelIdx = i">
-          <text>{{ t.name }}（{{ t.type === 'company' ? '企业' : '个人' }}）</text>
+          <text>{{ t.name }}（{{ t.type === 'company' ? $t('orderDetail.titleCompany') : $t('orderDetail.titlePersonal') }}）</text>
         </view>
-        <input class="invoice-sheet__ipt" v-model="invoiceEmail" placeholder="接收邮箱" />
-        <button class="invoice-sheet__btn" @click="submitInvoice">提交申请</button>
+        <input class="invoice-sheet__ipt" v-model="invoiceEmail" :placeholder="$t('orderDetail.emailPh')" />
+        <button class="invoice-sheet__btn" @click="submitInvoice">{{ $t('orderDetail.submitInvoiceBtn') }}</button>
       </view>
     </view>
   </view>
@@ -182,8 +182,10 @@ import { parseInvoiceTitles, type InvoiceTitle } from '../../utils/profile-mappi
 import { fetchMyPickupCode, claimPickup } from '../../api/queries/pickup';
 import { relayStatusLabel } from '../../utils/errand';
 import { buildTimeline, isNoRiderFinal, isExceptionFinal } from '../../utils/timeline';
+import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
+const locale = useLocaleStore();
 const order = ref<any>(null);
 const trackingNo = ref('');
 const rider = ref<{ realName: string; credit: number; location?: { lat: number; lng: number } | null } | null>(null);
@@ -197,7 +199,7 @@ const riderMarkers = computed(() => {
         width: 28,
         height: 28,
         callout: {
-            content: `${rider.value!.realName} 配送中${order.value?.customFields?.campusZone ? ' · 送往 ' + order.value.customFields.campusZone : ''}`,
+            content: `${rider.value!.realName} ${locale.t('orderDetail.calloutDelivering')}${order.value?.customFields?.campusZone ? locale.t('orderDetail.calloutTo').replace('{t}', order.value.customFields.campusZone) : ''}`,
             display: 'ALWAYS',
             fontSize: 12,
             borderRadius: 6,
@@ -205,10 +207,17 @@ const riderMarkers = computed(() => {
         },
     }];
 });
-const statusMap: Record<string, string> = { Created:'待付款', PaymentAuthorized:'待发货', PaymentSettled:'待发货', Delivered:'待收货', PartiallyDelivered:'待收货', Shipped:'待收货', Cancelled:'已取消', Modified:'已修改' };
-const statusHintMap: Record<string, string> = { Created:'请尽快完成支付', PaymentAuthorized:'商家正在处理', PaymentSettled:'商家正在处理', Delivered:'请确认收货', Shipped:'商品正在配送中' };
-const statusLabel = computed(() => statusMap[order.value?.state] || order.value?.state || '');
-const statusHint = computed(() => statusHintMap[order.value?.state] || '');
+// 状态展示映射：值存 i18n 键（enum → labelKey 模式）
+const statusMap: Record<string, string> = { Created:'stCreated', PaymentAuthorized:'stToShip', PaymentSettled:'stToShip', Delivered:'stToReceive', PartiallyDelivered:'stToReceive', Shipped:'stToReceive', Cancelled:'stCancelled', Modified:'stModified' };
+const statusHintMap: Record<string, string> = { Created:'hintPayNow', PaymentAuthorized:'hintProcessing', PaymentSettled:'hintProcessing', Delivered:'hintConfirmReceive', Shipped:'hintDelivering' };
+const statusLabel = computed(() => {
+    const k = statusMap[order.value?.state];
+    return k ? locale.t(`orderDetail.${k}`) : order.value?.state || '';
+});
+const statusHint = computed(() => {
+    const k = statusHintMap[order.value?.state];
+    return k ? locale.t(`orderDetail.${k}`) : '';
+});
 // —— 异常赔付（plan 3.4）：骑手上报异常 → 平台处置（退差价/发券/退单/重派）——
 const exceptionPending = computed(() => {
     const cf = order.value?.customFields;
@@ -219,21 +228,25 @@ const exceptionResultText = computed(() => {
     const cf = order.value?.customFields;
     if (!cf) return '';
     if (cf.exceptionAction === 'refund_diff' && cf.exceptionCompensation != null) {
-        return `平台已赔付 ¥${(cf.exceptionCompensation / 100).toFixed(2)}（原路退回）`;
+        return locale.t('orderDetail.excRefundDiff').replace('{c}', (cf.exceptionCompensation / 100).toFixed(2));
     }
-    if (cf.exceptionAction === 'coupon') return '平台已发放补偿券，可在「我的-卡券」查看';
-    if (cf.exceptionAction === 'refund_all') return '订单已全额退款';
-    if (cf.exceptionAction === 'reassign') return '平台已重新安排配送';
+    if (cf.exceptionAction === 'coupon') return locale.t('orderDetail.excCoupon');
+    if (cf.exceptionAction === 'refund_all') return locale.t('orderDetail.excRefundAll');
+    if (cf.exceptionAction === 'reassign') return locale.t('orderDetail.excReassign');
     return '';
 });
 const discountTotal = computed(() => order.value?.discounts?.reduce((s:number,d:any)=>s+d.amountWithTax,0) || 0);
 // —— 售后（送达后 24h 内，整单/按行部分退）——
 const afterSale = ref<AfterSaleRequest | null>(null);
+// 售后状态映射：值存 i18n 键
 const asStateLabels: Record<string, string> = {
-    Pending: '商家审核中', Approved: '商家已同意', Received: '退款处理中', Refunded: '已退款',
-    RefundFailed: '退款失败处理中', Rejected: '商家已拒绝', Appealed: '平台仲裁中', Closed: '已关闭',
+    Pending: 'asPending', Approved: 'asApproved', Received: 'asReceived', Refunded: 'asRefunded',
+    RefundFailed: 'asRefundFailed', Rejected: 'asRejected', Appealed: 'asAppealed', Closed: 'asClosed',
 };
-const asStateLabel = computed(() => asStateLabels[afterSale.value?.state ?? ''] ?? '');
+const asStateLabel = computed(() => {
+    const k = asStateLabels[afterSale.value?.state ?? ''];
+    return k ? locale.t(`orderDetail.${k}`) : '';
+});
 const deliveredAt = computed(() => order.value?.customFields?.deliveredAt ?? null);
 const withinAfterSaleWindow = computed(() => {
     if (!deliveredAt.value) return false;
@@ -270,9 +283,9 @@ const dispatching = computed(() => {
 });
 const riderHint = computed(() => {
     const cf = order.value?.customFields;
-    if (isNoRiderFinal(cf?.hallStatus ?? null)) return '暂无传信者接单，平台人工介入处理中';
-    if (dispatching.value) return '平台调度中，正在为您加急派单';
-    return '等待传信者接单…';
+    if (isNoRiderFinal(cf?.hallStatus ?? null)) return locale.t('orderDetail.hintNoRider');
+    if (dispatching.value) return locale.t('orderDetail.hintDispatching');
+    return locale.t('orderDetail.hintWaiting');
 });
 // —— 催单/联系商家（plan 2.4）——
 const urged = computed(() => !!order.value?.customFields?.urged);
@@ -282,16 +295,16 @@ const canUrge = computed(() => {
 });
 function onUrge() {
     uni.showModal({
-        title: '确认催单？',
-        content: '将通知平台与骑手加急配送（10 分钟内仅可催一次）',
+        title: locale.t('orderDetail.urgeTitle'),
+        content: locale.t('orderDetail.urgeConfirm'),
         success: async (r: any) => {
             if (!r.confirm) return;
             try {
                 await urgeOrder(String(order.value.id));
-                uni.showToast({ title: '已收到催单', icon: 'success' });
+                uni.showToast({ title: locale.t('orderDetail.urgedOk'), icon: 'success' });
                 await reloadOrder();
             } catch (e: any) {
-                uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '催单失败', icon: 'none' });
+                uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || locale.t('orderDetail.urgeFail'), icon: 'none' });
             }
         },
     });
@@ -303,9 +316,9 @@ async function callStore() {
         const token = order.value?.channelToken;
         const store = (token && list.find(s => s.channelToken === token)) || list[0];
         const phone = store?.storePhone;
-        if (!phone) return uni.showToast({ title: '暂无商家电话', icon: 'none' });
+        if (!phone) return uni.showToast({ title: locale.t('orderDetail.noPhone'), icon: 'none' });
         uni.makePhoneCall({ phoneNumber: phone });
-    } catch { uni.showToast({ title: '获取商家电话失败', icon: 'none' }); }
+    } catch { uni.showToast({ title: locale.t('orderDetail.phoneFail'), icon: 'none' }); }
 }
 onMounted(async () => {
     const pages = getCurrentPages(); const page = pages[pages.length - 1] as any;
@@ -360,8 +373,8 @@ const relayActive = computed(() => {
 
 function confirmArrived() {
     uni.showModal({
-        title: '确认快递已到达校内代收点？',
-        content: '确认后不可撤销，可直接自取或发接力单',
+        title: locale.t('orderDetail.arriveTitle'),
+        content: locale.t('orderDetail.arriveConfirm'),
         success: async (r: any) => {
             if (!r.confirm) return;
             try {
@@ -369,7 +382,7 @@ function confirmArrived() {
                 await reloadOrder();
                 startRiderPolling(); // leg1Status 已变 arrived_gate，重启轮询进入接力状态轮询
             } catch (e: any) {
-                uni.showToast({ title: e?.response?.errors?.[0]?.message || '确认失败', icon: 'none' });
+                uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('orderDetail.arriveFail'), icon: 'none' });
             }
         },
     });
@@ -381,8 +394,8 @@ async function reloadOrder() {
 }
 function selfPickup() {
     uni.showModal({
-        title: '去自取',
-        content: '请凭取件通知前往校内代收点自取；取到后点击「确认收货」完成订单',
+        title: locale.t('orderDetail.selfPickupTitle'),
+        content: locale.t('orderDetail.selfPickupContent'),
         showCancel: false,
     });
 }
@@ -413,15 +426,15 @@ async function selfRedeem() {
     try {
         await claimPickup(String(order.value.id), pickupCode.value.code);
         await loadPickupCode();
-        uni.showToast({ title: '核销成功', icon: 'success' });
+        uni.showToast({ title: locale.t('orderDetail.redeemOk'), icon: 'success' });
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || '核销失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('orderDetail.redeemFail'), icon: 'none' });
     }
 }
 function formatTime(t: string) { return t ? new Date(t).toLocaleString('zh-CN') : ''; }
-function copyCode() { uni.setClipboardData({ data: order.value.code }); uni.showToast({ title: '已复制', icon: 'success' }); }
-function confirmReceive() { uni.showModal({ title: '确认收货', content: '确认已收到商品?', success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { transitionOrderToState(state: "Delivered") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: '已确认收货' }); order.value.state = 'Delivered'; } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
-function cancelOrder() { uni.showModal({ title: '取消订单', content: '确定取消该订单?', success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { cancelOrder(orderId: "${order.value.id}") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: '已取消' }); order.value.state = 'Cancelled'; stopRiderPolling(); } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
+function copyCode() { uni.setClipboardData({ data: order.value.code }); uni.showToast({ title: locale.t('orderDetail.copied'), icon: 'success' }); }
+function confirmReceive() { uni.showModal({ title: locale.t('orderDetail.receiveBtn'), content: locale.t('orderDetail.receiveConfirm'), success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { transitionOrderToState(state: "Delivered") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: locale.t('orderDetail.received') }); order.value.state = 'Delivered'; } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
+function cancelOrder() { uni.showModal({ title: locale.t('orderDetail.cancelBtn'), content: locale.t('orderDetail.cancelConfirm'), success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { cancelOrder(orderId: "${order.value.id}") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: locale.t('orderDetail.cancelled') }); order.value.state = 'Cancelled'; stopRiderPolling(); } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
 // 去评价：默认带第一个商品行（同一行同一客户只能评一次，后端防重）
 function goReview() {
     const line = order.value?.lines?.[0];
@@ -448,7 +461,7 @@ async function openInvoice() {
     } catch (e) { /* 未登录等场景静默，走空抬头引导 */ }
     if (!invoiceTitles.value.length) {
         uni.showModal({
-            title: '还没有发票抬头', content: '先去「我的-发票抬头」新增一个抬头？',
+            title: locale.t('orderDetail.noTitleTitle'), content: locale.t('orderDetail.noTitleContent'),
             success: (r: any) => { if (r.confirm) uni.navigateTo({ url: '/pkg-user/pages/invoice-titles' }); },
         });
         return;
@@ -462,16 +475,16 @@ async function submitInvoice() {
     const t = invoiceTitles.value[invoiceSelIdx.value];
     if (!t) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invoiceEmail.value)) {
-        uni.showToast({ title: '邮箱格式不正确', icon: 'none' }); return;
+        uni.showToast({ title: locale.t('orderDetail.emailInvalid'), icon: 'none' }); return;
     }
     try {
         const snapshot = JSON.stringify({ titleType: t.type, titleName: t.name, taxNo: t.taxNo || '', email: invoiceEmail.value, appliedAt: new Date().toISOString() });
         await applyOrderInvoice(String(order.value.id), snapshot);
         order.value.customFields = { ...(order.value.customFields || {}), invoiceApplied: true, invoiceInfo: snapshot };
         invoiceShow.value = false;
-        uni.showToast({ title: '开票申请已提交', icon: 'success' });
+        uni.showToast({ title: locale.t('orderDetail.invoiceDone'), icon: 'success' });
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '提交失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || locale.t('orderDetail.submitFail'), icon: 'none' });
     }
 }
 

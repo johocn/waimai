@@ -4,7 +4,7 @@
     <view class="status-card">
       <text class="status-card__state">{{ stateLabel }}</text>
       <text class="status-card__hint">{{ stateHint }}</text>
-      <text class="status-card__amount" v-if="req.state === 'Refunded'">¥{{ ((req.actualRefundAmount ?? req.refundAmount) / 100).toFixed(2) }} 已原路退回</text>
+      <text class="status-card__amount" v-if="req.state === 'Refunded'">¥{{ ((req.actualRefundAmount ?? req.refundAmount) / 100).toFixed(2) }} {{ $t('afterSaleDetail.refundedText') }}</text>
     </view>
 
     <!-- 四段步骤条：提交申请 → 商家审核 → 平台仲裁 → 完成 -->
@@ -19,24 +19,24 @@
 
     <!-- 被拒理由 / 申诉 -->
     <view class="section reject" v-if="req.state === 'Rejected' || (req.state === 'Closed' && req.rejectReason)">
-      <text class="section__title">商家拒绝理由</text>
+      <text class="section__title">{{ $t('afterSaleDetail.rejectTitle') }}</text>
       <text class="reject__text">{{ req.rejectReason }}</text>
       <template v-if="req.state === 'Rejected'">
-        <textarea v-if="appealOpen" class="reject__input" v-model="appealNote" placeholder="填写申诉说明：为什么您认为应该退款（必填）" maxlength="200" />
-        <button v-if="!appealOpen" class="btn ghost" @tap="appealOpen = true">申请平台仲裁</button>
-        <button v-else class="btn" :disabled="appealing" @tap="doAppeal">{{ appealing ? '提交中…' : '提交仲裁申请' }}</button>
+        <textarea v-if="appealOpen" class="reject__input" v-model="appealNote" :placeholder="$t('afterSaleDetail.appealPh')" maxlength="200" />
+        <button v-if="!appealOpen" class="btn ghost" @tap="appealOpen = true">{{ $t('afterSaleDetail.appealOpen') }}</button>
+        <button v-else class="btn" :disabled="appealing" @tap="doAppeal">{{ appealing ? $t('afterSaleDetail.submitting') : $t('afterSaleDetail.appealSubmit') }}</button>
       </template>
     </view>
 
     <!-- 退款信息 -->
     <view class="section">
-      <text class="section__title">退款信息</text>
-      <view class="kv"><text>申请编号</text><text>售后 #{{ req.id }}</text></view>
-      <view class="kv"><text>售后原因</text><text>{{ req.reason }}</text></view>
-      <view class="kv"><text>预计退款</text><text class="money">¥{{ (req.refundAmount / 100).toFixed(2) }}</text></view>
-      <view class="kv" v-if="req.refundedAt"><text>退款时间</text><text>{{ fmtTime(req.refundedAt) }}</text></view>
-      <view class="kv" v-if="req.refundTransactionId"><text>退款单号</text><text>{{ req.refundTransactionId }}</text></view>
-      <view class="kv" v-if="req.refundError"><text>失败原因</text><text class="err">{{ req.refundError }}</text></view>
+      <text class="section__title">{{ $t('afterSaleDetail.refundInfoTitle') }}</text>
+      <view class="kv"><text>{{ $t('afterSaleDetail.applyNo') }}</text><text>{{ $t('afterSaleDetail.asNo').replace('{c}', String(req.id)) }}</text></view>
+      <view class="kv"><text>{{ $t('afterSaleDetail.reasonLabel') }}</text><text>{{ req.reason }}</text></view>
+      <view class="kv"><text>{{ $t('afterSaleDetail.expectRefund') }}</text><text class="money">¥{{ (req.refundAmount / 100).toFixed(2) }}</text></view>
+      <view class="kv" v-if="req.refundedAt"><text>{{ $t('afterSaleDetail.refundTime') }}</text><text>{{ fmtTime(req.refundedAt) }}</text></view>
+      <view class="kv" v-if="req.refundTransactionId"><text>{{ $t('afterSaleDetail.refundNo') }}</text><text>{{ req.refundTransactionId }}</text></view>
+      <view class="kv" v-if="req.refundError"><text>{{ $t('afterSaleDetail.failReason') }}</text><text class="err">{{ req.refundError }}</text></view>
       <text class="desc" v-if="req.description">{{ req.description }}</text>
       <view class="evidence" v-if="req.evidenceImages?.length">
         <image v-for="img in req.evidenceImages" :key="img" :src="img" mode="aspectFill" class="evidence__img" @tap="preview(img)" />
@@ -45,23 +45,23 @@
 
     <!-- 留言卡 -->
     <view class="section">
-      <text class="section__title">协商留言</text>
-      <view v-if="!messages.length" class="msg-empty">暂无留言</view>
+      <text class="section__title">{{ $t('afterSaleDetail.msgTitle') }}</text>
+      <view v-if="!messages.length" class="msg-empty">{{ $t('afterSaleDetail.msgEmpty') }}</view>
       <view v-for="m in messages" :key="m.id" class="msg" :class="{ 'msg--mine': m.senderType === 'customer' }">
-        <text class="msg__name">{{ m.senderType === 'customer' ? '我' : m.senderName }}</text>
+        <text class="msg__name">{{ m.senderType === 'customer' ? $t('afterSaleDetail.msgMine') : m.senderName }}</text>
         <text class="msg__content">{{ m.content }}</text>
         <text class="msg__time">{{ fmtTime(m.createdAt) }}</text>
       </view>
       <view class="msg-input" v-if="req.state !== 'Closed'">
-        <input v-model="msgContent" placeholder="输入留言…" confirm-type="send" @confirm="sendMsg" />
-        <button class="btn small" :disabled="msgSending || !msgContent" @tap="sendMsg">发送</button>
+        <input v-model="msgContent" :placeholder="$t('afterSaleDetail.msgPh')" confirm-type="send" @confirm="sendMsg" />
+        <button class="btn small" :disabled="msgSending || !msgContent" @tap="sendMsg">{{ $t('afterSaleDetail.send') }}</button>
       </view>
-      <text v-else class="msg-closed">售后单已关闭，无法继续留言</text>
+      <text v-else class="msg-closed">{{ $t('afterSaleDetail.msgClosed') }}</text>
     </view>
 
     <!-- 操作区 -->
     <view class="footbar" v-if="req.state === 'Pending'">
-      <button class="btn ghost" @tap="doCancel">撤销申请</button>
+      <button class="btn ghost" @tap="doCancel">{{ $t('afterSaleDetail.cancel') }}</button>
     </view>
   </view>
   <LoadingSkeleton v-else type="card" :count="2" />
@@ -74,8 +74,10 @@ import {
     appealAfterSale, addAfterSaleMessage,
 } from '../../api/queries/afterSale';
 import type { AfterSaleRequest } from '../../api/queries/afterSale';
+import { useLocaleStore } from '../../stores/locale';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 
+const locale = useLocaleStore();
 const req = ref<AfterSaleRequest | null>(null);
 const messages = ref<any[]>([]);
 const appealOpen = ref(false);
@@ -84,25 +86,31 @@ const appealing = ref(false);
 const msgContent = ref('');
 const msgSending = ref(false);
 
-const STATE_MAP: Record<string, { label: string; hint: string }> = {
-    Pending:      { label: '商家审核中', hint: '商家将在 48 小时内处理，超时自动同意退款' },
-    Approved:     { label: '商家已同意', hint: '退款处理中，将原路退回' },
-    Received:     { label: '待退款', hint: '退款处理中，将原路退回' },
-    Refunded:     { label: '已退款', hint: '退款已原路退回，请留意到账' },
-    RefundFailed: { label: '退款失败处理中', hint: '系统将自动重试退款' },
-    Rejected:     { label: '商家已拒绝', hint: '如不认可拒绝理由，可申请平台仲裁' },
-    Appealed:     { label: '平台仲裁中', hint: '平台将根据双方凭证尽快仲裁' },
-    Closed:       { label: '已关闭', hint: '售后单已关闭' },
+const STATE_MAP: Record<string, { labelKey: string; hintKey: string }> = {
+    Pending:      { labelKey: 'stPending', hintKey: 'hintPending' },
+    Approved:     { labelKey: 'stApproved', hintKey: 'hintApproved' },
+    Received:     { labelKey: 'stReceived', hintKey: 'hintReceived' },
+    Refunded:     { labelKey: 'stRefunded', hintKey: 'hintRefunded' },
+    RefundFailed: { labelKey: 'stRefundFailed', hintKey: 'hintRefundFailed' },
+    Rejected:     { labelKey: 'stRejected', hintKey: 'hintRejected' },
+    Appealed:     { labelKey: 'stAppealed', hintKey: 'hintAppealed' },
+    Closed:       { labelKey: 'stClosed', hintKey: 'hintClosed' },
 };
-const stateLabel = computed(() => STATE_MAP[req.value?.state ?? '']?.label ?? req.value?.state ?? '');
-const stateHint = computed(() => STATE_MAP[req.value?.state ?? '']?.hint ?? '');
+const stateLabel = computed(() => {
+    const m = STATE_MAP[req.value?.state ?? ''];
+    return m ? locale.t(`afterSaleDetail.${m.labelKey}`) : req.value?.state ?? '';
+});
+const stateHint = computed(() => {
+    const m = STATE_MAP[req.value?.state ?? ''];
+    return m ? locale.t(`afterSaleDetail.${m.hintKey}`) : '';
+});
 
 // 四段步骤条：提交申请 → 商家审核 → 平台仲裁 → 完成
 const steps = computed(() => {
     const st = req.value?.state ?? '';
     const mk = (k: string, done: boolean) => ({
         key: k,
-        label: k === 'submit' ? '提交申请' : k === 'review' ? '商家审核' : k === 'arbitrate' ? '平台仲裁' : '完成',
+        label: locale.t(`afterSaleDetail.${k === 'submit' ? 'stSubmit' : k === 'review' ? 'stReview' : k === 'arbitrate' ? 'stArbitrate' : 'stFinish'}`),
         done,
     });
     const list = [
@@ -143,27 +151,27 @@ function preview(url: string) { uni.previewImage({ urls: [url] }); }
 
 function doCancel() {
     uni.showModal({
-        title: '撤销申请', content: '确定撤销本次售后申请？',
+        title: locale.t('afterSaleDetail.cancel'), content: locale.t('afterSaleDetail.cancelConfirm'),
         success: async (r: any) => {
             if (!r.confirm) return;
             try {
                 req.value = await cancelAfterSale(String(req.value!.id));
-                uni.showToast({ title: '已撤销', icon: 'success' });
+                uni.showToast({ title: locale.t('afterSaleDetail.cancelled'), icon: 'success' });
             } catch (e: any) {
-                uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '撤销失败', icon: 'none' });
+                uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || locale.t('afterSaleDetail.cancelFail'), icon: 'none' });
             }
         },
     });
 }
 async function doAppeal() {
-    if (!appealNote.value.trim()) return uni.showToast({ title: '请填写申诉说明', icon: 'none' });
+    if (!appealNote.value.trim()) return uni.showToast({ title: locale.t('afterSaleDetail.appealNoteRequired'), icon: 'none' });
     appealing.value = true;
     try {
         req.value = await appealAfterSale(String(req.value!.id), appealNote.value.trim());
         appealOpen.value = false;
-        uni.showToast({ title: '已提交平台仲裁', icon: 'success' });
+        uni.showToast({ title: locale.t('afterSaleDetail.appealed'), icon: 'success' });
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '申诉失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || locale.t('afterSaleDetail.appealFail'), icon: 'none' });
     } finally { appealing.value = false; }
 }
 async function sendMsg() {
@@ -174,7 +182,7 @@ async function sendMsg() {
         messages.value.push(m);
         msgContent.value = '';
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '发送失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || locale.t('afterSaleDetail.sendFail'), icon: 'none' });
     } finally { msgSending.value = false; }
 }
 </script>

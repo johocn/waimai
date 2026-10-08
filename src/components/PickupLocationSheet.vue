@@ -2,16 +2,16 @@
   <view v-if="visible" class="sheet-mask" @click.self="close">
     <view class="sheet">
       <view class="sheet__head">
-        <text class="sheet__title">{{ title }}</text>
+        <text class="sheet__title">{{ title || $t('comp.pickupTitle') }}</text>
         <view class="sheet__head-actions">
           <text class="sheet__close" @click="close">✕</text>
-          <text class="sheet__top-confirm" :class="{ disabled: !tempSelectedId }" @click="confirm">确定</text>
+          <text class="sheet__top-confirm" :class="{ disabled: !tempSelectedId }" @click="confirm">{{ $t('comp.confirm') }}</text>
         </view>
       </view>
       <input
         class="sheet__search"
         v-model="keyword"
-        placeholder="搜索自提点 / 地址"
+        :placeholder="$t('comp.pickupSearchPh')"
         @input="onKeywordChange"
       />
       <scroll-view
@@ -27,24 +27,24 @@
             <view class="sheet__item-meta">
               <text v-if="loc.contactPerson" class="sheet__item-contact">👤 {{ loc.contactPerson }}</text>
               <text v-if="loc.phoneNumber" class="sheet__item-phone">☎ {{ loc.phoneNumber }}</text>
-              <text v-if="loc.businessHours" class="sheet__item-hours">营业: {{ loc.businessHours }}</text>
+              <text v-if="loc.businessHours" class="sheet__item-hours">{{ $t('comp.hours').replace('{v}', loc.businessHours) }}</text>
               <text v-if="getDistance(loc) !== null" class="sheet__item-dist">{{ getDistance(loc) }}</text>
             </view>
           </view>
         </view>
 
         <view v-if="pagedLocations.length === 0" class="sheet__empty">
-          <text>未找到匹配的自提点</text>
+          <text>{{ $t('comp.pickupEmpty') }}</text>
         </view>
         <view v-if="pagedLocations.length < filteredLocations.length" class="sheet__loading-more">
-          <text>上拉加载更多</text>
+          <text>{{ $t('comp.loadMore') }}</text>
         </view>
       </scroll-view>
       <button
         class="sheet__confirm"
         :disabled="!tempSelectedId"
         @click="confirm"
-      >确认</button>
+      >{{ $t('comp.confirmBtn') }}</button>
     </view>
   </view>
 </template>
@@ -62,7 +62,6 @@ const props = withDefaults(defineProps<{
 }>(), {
   selectedId: '',
   userLocation: null,
-  title: '选择自提点',
 });
 
 const emit = defineEmits<{

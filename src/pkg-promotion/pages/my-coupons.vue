@@ -1,7 +1,7 @@
 <template>
   <view class="mc-page">
     <view class="mc-tabs">
-      <text v-for="k in TABS" :key="k.key" class="mc-tab" :class="{ on: tab === k.key }" @tap="switchTab(k.key)">{{ k.label }}</text>
+      <text v-for="k in TABS" :key="k.key" class="mc-tab" :class="{ on: tab === k.key }" @tap="switchTab(k.key)">{{ $t('myCoupons.' + k.label) }}</text>
     </view>
 
     <scroll-view scroll-y class="mc-list">
@@ -10,15 +10,15 @@
           <view class="ticket__amount">
             <text class="ticket__symbol" v-if="c.template.type === 'FIXED' || c.template.type === 'FULL'">¥</text>
             <text class="ticket__num">{{ amountText(c.template) }}</text>
-            <text class="ticket__unit" v-if="c.template.type === 'PERCENT'">折</text>
+            <text class="ticket__unit" v-if="c.template.type === 'PERCENT'">{{ $t('myCoupons.unitPercent') }}</text>
           </view>
           <text class="ticket__cond">{{ condText(c.template) }}</text>
         </view>
         <view class="ticket__right">
           <text class="ticket__name">{{ c.template.name }}</text>
-          <text class="ticket__expire" v-if="c.expiredAt">有效期至 {{ fmtDate(c.expiredAt) }}</text>
+          <text class="ticket__expire" v-if="c.expiredAt">{{ $t('myCoupons.validUntil').replace('{n}', fmtDate(c.expiredAt)) }}</text>
           <text class="ticket__state">{{ stateText(c.status) }}</text>
-          <button v-if="c.status === 'UNUSED'" class="ticket__btn" @tap="useCoupon(c)">去使用</button>
+          <button v-if="c.status === 'UNUSED'" class="ticket__btn" @tap="useCoupon(c)">{{ $t('myCoupons.use') }}</button>
         </view>
       </view>
       <view class="empty-wrap" v-if="!loading && list.length === 0">
@@ -26,7 +26,7 @@
       </view>
 
       <view class="mc-footer" v-if="tab === 'unused'" @tap="goCentre">
-        <text>去领券中心逛逛 →</text>
+        <text>{{ $t('myCoupons.goCentre') }}</text>
       </view>
       <view class="scroll-pad"></view>
     </scroll-view>
@@ -40,24 +40,27 @@ import { useAuthStore } from '../../stores/auth';
 import { useCartStore } from '../../stores/cart';
 import { getMyCoupons } from '../../api/queries/coupon';
 import EmptyState from '../../components/EmptyState.vue';
+import { useLocaleStore } from '../../stores/locale';
 
+// label 存 i18n 键，不存中文
 const TABS = [
-    { key: 'UNUSED', label: '未使用' },
-    { key: 'USED', label: '已使用' },
-    { key: 'EXPIRED', label: '已过期' },
+    { key: 'UNUSED', label: 'tabUnused' },
+    { key: 'USED', label: 'tabUsed' },
+    { key: 'EXPIRED', label: 'tabExpired' },
 ] as const;
 
 const auth = useAuthStore();
+const locale = useLocaleStore();
 const tab = ref<string>('UNUSED');
 const data = ref<Record<string, any[]>>({ UNUSED: [], USED: [], EXPIRED: [] });
 const loading = ref(false);
 
 const list = computed(() => data.value[tab.value] ?? []);
-const emptyText = computed(() => (tab.value === 'UNUSED' ? '暂无可用优惠券' : tab.value === 'USED' ? '暂无已使用记录' : '暂无已过期优惠券'));
+const emptyText = computed(() => (tab.value === 'UNUSED' ? locale.t('myCoupons.emptyUnused') : tab.value === 'USED' ? locale.t('myCoupons.emptyUsed') : locale.t('myCoupons.emptyExpired')));
 
 function amountText(t: any): string {
     if (t.type === 'PERCENT') return (t.discountValue / 10).toFixed(1).replace(/\.0$/, '');
-    if (t.type === 'FREE_SHIPPING') return '免';
+    if (t.type === 'FREE_SHIPPING') return locale.t('myCoupons.freeShort');
     const yuan = t.discountValue / 100;
     return Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
 }
@@ -66,15 +69,15 @@ function condText(t: any): string {
     if (t.type === 'FULL') {
         const yuan = t.minSpend / 100;
         const y = Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
-        return `满 ${y} 可用`;
+        return locale.t('myCoupons.condFull').replace('{n}', y);
     }
-    if (t.type === 'PERCENT') return '折扣券';
-    if (t.type === 'FREE_SHIPPING') return '免配送费';
-    return '无门槛';
+    if (t.type === 'PERCENT') return locale.t('myCoupons.condPercent');
+    if (t.type === 'FREE_SHIPPING') return locale.t('myCoupons.condFreeShip');
+    return locale.t('myCoupons.condNone');
 }
 
 function stateText(s: string): string {
-    return s === 'USED' ? '已使用' : s === 'EXPIRED' ? '已过期' : '';
+    return s === 'USED' ? locale.t('myCoupons.stUsed') : s === 'EXPIRED' ? locale.t('myCoupons.stExpired') : '';
 }
 
 function fmtDate(s: string | null): string {

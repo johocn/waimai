@@ -2,35 +2,35 @@
   <view class="login-page">
     <view class="login-page__logo">
       <text class="login-logo-icon">🍜</text>
-      <text class="login-logo-text">拾光达</text>
+      <text class="login-logo-text">{{ $t('login.brand') }}</text>
     </view>
     <view class="login-page__form" v-if="mode === 'phone'">
-      <input class="login-page__input" v-model="phone" type="number" placeholder="手机号" />
+      <input class="login-page__input" v-model="phone" type="number" :placeholder="$t('login.phonePh')" />
       <view class="login-page__code-row">
-        <input class="login-page__input" v-model="code" type="number" placeholder="验证码" />
+        <input class="login-page__input" v-model="code" type="number" :placeholder="$t('login.codePh')" />
         <button class="login-page__code-btn" :disabled="countdown > 0" @click="sendCode">
-          {{ countdown > 0 ? countdown + 's' : '发送验证码' }}
+          {{ countdown > 0 ? countdown + 's' : $t('login.sendCode') }}
         </button>
       </view>
-      <button class="login-page__submit" :disabled="!phone || !code" @click="loginWithPhone">登录</button>
+      <button class="login-page__submit" :disabled="!phone || !code" @click="loginWithPhone">{{ $t('login.login') }}</button>
     </view>
     <view class="login-page__form" v-if="mode === 'local'">
-      <input class="login-page__input" v-model="username" type="text" placeholder="用户名" />
-      <input class="login-page__input" v-model="password" type="password" placeholder="密码" />
-      <button class="login-page__submit" :disabled="!username || !password" @click="loginWithLocal">登录</button>
+      <input class="login-page__input" v-model="username" type="text" :placeholder="$t('login.userPh')" />
+      <input class="login-page__input" v-model="password" type="password" :placeholder="$t('login.passPh')" />
+      <button class="login-page__submit" :disabled="!username || !password" @click="loginWithLocal">{{ $t('login.login') }}</button>
     </view>
     <view class="login-page__actions" v-if="mode === 'select'">
       <!-- #ifdef MP-WEIXIN -->
-      <button class="login-btn login-btn--wechat" v-if="authMethods.includes('wechat')" @click="loginWithWechat">微信快捷登录</button>
+      <button class="login-btn login-btn--wechat" v-if="authMethods.includes('wechat')" @click="loginWithWechat">{{ $t('login.wechatQuick') }}</button>
       <!-- #endif -->
       <!-- #ifdef H5 -->
-      <button class="login-btn login-btn--wechat" v-if="authMethods.includes('wechat') && isWechatBrowser && wechatAppId" @click="loginWithWechatH5('snsapi_userinfo')">微信登录</button>
+      <button class="login-btn login-btn--wechat" v-if="authMethods.includes('wechat') && isWechatBrowser && wechatAppId" @click="loginWithWechatH5('snsapi_userinfo')">{{ $t('login.wechat') }}</button>
       <!-- #endif -->
       <!-- #ifdef H5 || MP-ALIPAY -->
-      <button class="login-btn login-btn--alipay" v-if="authMethods.includes('alipay')" @click="loginWithAlipayH5">支付宝登录</button>
+      <button class="login-btn login-btn--alipay" v-if="authMethods.includes('alipay')" @click="loginWithAlipayH5">{{ $t('login.alipay') }}</button>
       <!-- #endif -->
       <!-- #ifdef H5 || MP-TOUTIAO -->
-      <button class="login-btn login-btn--douyin" v-if="authMethods.includes('douyin')" @click="loginWithDouyinH5">抖音登录</button>
+      <button class="login-btn login-btn--douyin" v-if="authMethods.includes('douyin')" @click="loginWithDouyinH5">{{ $t('login.douyin') }}</button>
       <!-- #endif -->
       <!-- #ifdef H5 -->
       <button
@@ -38,16 +38,16 @@
         :key="p.providerKey"
         class="login-btn login-btn--sso"
         @click="loginWithSso(p)"
-      >{{ p.name }} 登录</button>
+      >{{ p.name }} {{ $t('login.login') }}</button>
       <!-- #endif -->
-      <button class="login-btn login-btn--phone" v-if="authMethods.includes('phone')" @click="mode = 'phone'">手机号登录</button>
-      <button class="login-btn login-btn--local" v-if="authMethods.includes('native')" @click="mode = 'local'">账号登录</button>
+      <button class="login-btn login-btn--phone" v-if="authMethods.includes('phone')" @click="mode = 'phone'">{{ $t('login.phoneLogin') }}</button>
+      <button class="login-btn login-btn--local" v-if="authMethods.includes('native')" @click="mode = 'local'">{{ $t('login.localLogin') }}</button>
     </view>
     <view class="login-page__agreement">
-      <text class="agreement-text">登录即代表同意</text>
-      <text class="agreement-link">《用户协议》</text>
-      <text class="agreement-text">和</text>
-      <text class="agreement-link">《隐私政策》</text>
+      <text class="agreement-text">{{ $t('login.agreePrefix') }}</text>
+      <text class="agreement-link">{{ $t('login.terms') }}</text>
+      <text class="agreement-text">{{ $t('login.and') }}</text>
+      <text class="agreement-link">{{ $t('login.privacy') }}</text>
     </view>
   </view>
 </template>
@@ -57,6 +57,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { useAuthStore } from '../../stores/auth';
 import { useTenantStore } from '../../stores/tenant';
 import { useUIStore } from '../../stores/ui';
+import { useLocaleStore } from '../../stores/locale';
 import { sendPhoneVerificationCode, authenticateWithPhone, authenticateWithWechat, authenticateWithAlipay, authenticateWithDouyin, login, ssoLogin, authenticateSsoWithToken } from '../../api/mutations/auth';
 import { getGraphQLClient } from '../../api/client';
 import { detectPlatform } from '../../utils/detect-env';
@@ -64,6 +65,7 @@ import { detectPlatform } from '../../utils/detect-env';
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
 const ui = useUIStore();
+const locale = useLocaleStore();
 const mode = ref<'select' | 'phone' | 'local'>('select');
 const phone = ref('');
 const code = ref('');
@@ -173,7 +175,7 @@ async function sendCode() {
     if (!phone.value) return;
     try {
         await sendPhoneVerificationCode(phone.value);
-        ui.showToast('验证码已发送', 'success');
+        ui.showToast(locale.t('login.codeSent'), 'success');
         countdown.value = 60;
         const timer = setInterval(() => { countdown.value--; if (countdown.value <= 0) clearInterval(timer); }, 1000);
     } catch (e: any) { ui.showToast(e.message); }
@@ -186,7 +188,7 @@ async function loginWithPhone() {
         if (result.userId) {
             authStore.setAuth(result.token, result.userId);
             if (authStore.inviteCode) { tryUpdateReferredBy(authStore.inviteCode); }
-            ui.showToast('登录成功', 'success');
+            ui.showToast(locale.t('login.loginOk'), 'success');
             navigateAfterLogin();
         }
     } catch (e: any) { ui.showToast(e.message); }
@@ -199,7 +201,7 @@ async function loginWithLocal() {
         if (result.userId) {
             authStore.setAuth(result.token, result.userId);
             if (authStore.inviteCode) { tryUpdateReferredBy(authStore.inviteCode); }
-            ui.showToast('登录成功', 'success');
+            ui.showToast(locale.t('login.loginOk'), 'success');
             navigateAfterLogin();
         }
     } catch (e: any) { ui.showToast(e.message); }
@@ -218,7 +220,7 @@ async function loginWithWechat() {
                 }
             } catch (e: any) { ui.showToast(e.message); }
         },
-        fail: (err: any) => { ui.showToast('微信登录失败: ' + err.errMsg); }
+        fail: (err: any) => { ui.showToast(locale.t('login.wechatFail').replace('{msg}', err.errMsg)); }
     });
     // #endif
 }
@@ -226,7 +228,7 @@ async function loginWithWechat() {
 function loginWithWechatH5(scope: 'snsapi_base' | 'snsapi_userinfo' = 'snsapi_base') {
     // #ifdef H5
     if (!wechatAppId.value) {
-        ui.showToast('微信登录未配置');
+        ui.showToast(locale.t('login.wechatNotConfigured'));
         return;
     }
     const redirectUri = encodeURIComponent(window.location.href.split('?')[0]);
@@ -249,16 +251,16 @@ async function handleWechatH5Callback(oauthCode: string) {
         if (result.userId) {
             authStore.setAuth(result.token, result.userId);
             if (authStore.inviteCode) { tryUpdateReferredBy(authStore.inviteCode); }
-            ui.showToast('登录成功', 'success');
+            ui.showToast(locale.t('login.loginOk'), 'success');
             navigateAfterLogin();
         } else {
             lastWechatAuthFailed.value = true;
-            ui.showToast('微信登录失败，请重试', 'none');
+            ui.showToast(locale.t('login.wechatFailRetry'), 'none');
             mode.value = 'select';
         }
     } catch (e: any) {
         lastWechatAuthFailed.value = true;
-        ui.showToast('微信登录失败: ' + e.message);
+        ui.showToast(locale.t('login.wechatFail').replace('{msg}', e.message));
         mode.value = 'select';
     }
     // #endif
@@ -267,7 +269,7 @@ async function handleWechatH5Callback(oauthCode: string) {
 function loginWithAlipayH5() {
     // #ifdef H5
     if (!alipayAppId) {
-        ui.showToast('支付宝登录未配置');
+        ui.showToast(locale.t('login.alipayNotConfigured'));
         return;
     }
     const redirectUri = encodeURIComponent(window.location.origin + '/#/pages/login/index');
@@ -285,7 +287,7 @@ function loginWithAlipayH5() {
                 }
             } catch (e: any) { ui.showToast(e.message); }
         },
-        fail: () => { ui.showToast('支付宝登录失败'); }
+        fail: () => { ui.showToast(locale.t('login.alipayFail')); }
     });
     // #endif
 }
@@ -293,7 +295,7 @@ function loginWithAlipayH5() {
 function loginWithDouyinH5() {
     // #ifdef H5
     if (!douyinAppId) {
-        ui.showToast('抖音登录未配置');
+        ui.showToast(locale.t('login.douyinNotConfigured'));
         return;
     }
     const redirectUri = encodeURIComponent(window.location.origin + '/#/pages/login/index');
@@ -311,7 +313,7 @@ function loginWithDouyinH5() {
                 }
             } catch (e: any) { ui.showToast(e.message); }
         },
-        fail: (err: any) => { ui.showToast('抖音登录失败: ' + err.errMsg); }
+        fail: (err: any) => { ui.showToast(locale.t('login.douyinFail').replace('{msg}', err.errMsg)); }
     });
     // #endif
 }
@@ -323,10 +325,10 @@ async function handleAlipayH5Callback(authCode: string) {
         if (result.userId) {
             authStore.setAuth(result.token, result.userId);
             if (authStore.inviteCode) { tryUpdateReferredBy(authStore.inviteCode); }
-            ui.showToast('登录成功', 'success');
+            ui.showToast(locale.t('login.loginOk'), 'success');
             navigateAfterLogin();
         } else {
-            ui.showToast('登录失败');
+            ui.showToast(locale.t('login.loginFail'));
             mode.value = 'select';
         }
     } catch (e: any) { ui.showToast(e.message); mode.value = 'select'; }
@@ -340,10 +342,10 @@ async function handleDouyinH5Callback(code: string) {
         if (result.userId) {
             authStore.setAuth(result.token, result.userId);
             if (authStore.inviteCode) { tryUpdateReferredBy(authStore.inviteCode); }
-            ui.showToast('登录成功', 'success');
+            ui.showToast(locale.t('login.loginOk'), 'success');
             navigateAfterLogin();
         } else {
-            ui.showToast('登录失败');
+            ui.showToast(locale.t('login.loginFail'));
             mode.value = 'select';
         }
     } catch (e: any) { ui.showToast(e.message); mode.value = 'select'; }
@@ -418,7 +420,7 @@ async function handleSsoCallback(): Promise<boolean> {
                 sessionStorage.removeItem('sso_state');
                 sessionStorage.removeItem('sso_auto_jumped');
                 authStore.setAuth(result.token, result.userId);
-                ui.showToast('登录成功', 'success');
+                ui.showToast(locale.t('login.loginOk'), 'success');
                 window.history.replaceState({}, '', cleanUrl());
                 navigateAfterLogin();
                 return true;
@@ -427,7 +429,7 @@ async function handleSsoCallback(): Promise<boolean> {
             sessionStorage.removeItem('sso_provider');
             sessionStorage.removeItem('sso_state');
             window.history.replaceState({}, '', cleanUrl());
-            ui.showToast('SSO 登录失败: ' + e.message);
+            ui.showToast(locale.t('login.ssoFail').replace('{msg}', e.message));
             mode.value = 'select';
             return true;
         }

@@ -7,7 +7,7 @@
       </view>
       <view v-if="images.length < maxCount" class="image-upload__add" @click="chooseImage">
         <text class="image-upload__icon">+</text>
-        <text class="image-upload__text">添加图片</text>
+        <text class="image-upload__text">{{ $t('comp.addImage') }}</text>
       </view>
     </view>
   </view>
@@ -16,6 +16,9 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { uploadCustomerAsset } from '../api/mutations/upload';
+import { useLocaleStore } from '../stores/locale';
+
+const locale = useLocaleStore();
 
 const props = defineProps<{
     modelValue?: string[];
@@ -45,7 +48,7 @@ function chooseImage() {
             res.tempFilePaths.forEach((filePath: string) => {
                 const fileInfo = res.tempFiles?.find((f: any) => f.path === filePath);
                 if (fileInfo && fileInfo.size > maxSize * 1024) {
-                    uni.showToast({ title: '图片过大', icon: 'none' });
+                    uni.showToast({ title: locale.t('comp.imageTooLarge'), icon: 'none' });
                     return;
                 }
                 uploadImage(filePath);
@@ -55,13 +58,13 @@ function chooseImage() {
 }
 
 async function uploadImage(filePath: string) {
-    uni.showLoading({ title: '上传中...' });
+    uni.showLoading({ title: locale.t('comp.uploading') });
     try {
         const asset = await uploadCustomerAsset(filePath);
         images.value.push(asset.source);
         emit('update:modelValue', images.value);
     } catch (e: any) {
-        uni.showToast({ title: e?.message || '上传失败', icon: 'none' });
+        uni.showToast({ title: e?.message || locale.t('comp.uploadFail'), icon: 'none' });
     }
     uni.hideLoading();
 }

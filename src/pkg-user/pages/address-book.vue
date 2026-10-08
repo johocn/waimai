@@ -4,22 +4,22 @@
       <view class="ab-page__main" @click="onItemClick(a)">
         <view class="ab-page__badges">
           <text class="ab-page__name">{{ a.fullName }}</text>
-          <text class="ab-page__default" v-if="a.defaultShippingAddress">默认</text>
-          <text class="ab-page__invalid" v-if="a._invalid">待更新</text>
+          <text class="ab-page__default" v-if="a.defaultShippingAddress">{{ $t('addressBook.defaultTag') }}</text>
+          <text class="ab-page__invalid" v-if="a._invalid">{{ $t('addressBook.invalidTag') }}</text>
         </view>
         <text class="ab-page__phone">{{ a.phoneNumber }}</text>
         <text class="ab-page__addr">{{ a._addrText }}</text>
       </view>
       <view class="ab-page__ops">
-        <text class="ab-page__op" v-if="!a.defaultShippingAddress && !a._invalid" @click="setDefault(a)">设默认</text>
-        <text class="ab-page__op ab-page__op--danger" @click="del(a)">删除</text>
+        <text class="ab-page__op" v-if="!a.defaultShippingAddress && !a._invalid" @click="setDefault(a)">{{ $t('addressBook.setDefault') }}</text>
+        <text class="ab-page__op ab-page__op--danger" @click="del(a)">{{ $t('addressBook.del') }}</text>
       </view>
     </view>
     <view class="ab-page__empty" v-if="!items.length">
-      <text>还没有常用地址，添加后下单自动带出</text>
+      <text>{{ $t('addressBook.empty') }}</text>
     </view>
     <view class="ab-page__footer">
-      <button class="ab-page__add" @click="goEdit(null)">新增地址</button>
+      <button class="ab-page__add" @click="goEdit(null)">{{ $t('addressBook.add') }}</button>
     </view>
   </view>
 </template>
@@ -30,7 +30,9 @@ import { onShow } from '@dcloudio/uni-app';
 import { getActiveCustomer } from '../../api/queries/user';
 import { updateCustomerAddress, deleteCustomerAddress } from '../../api/mutations/user';
 import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
+import { useLocaleStore } from '../../stores/locale';
 
+const locale = useLocaleStore();
 const items = ref<any[]>([]);
 let zones: any[] = [];
 
@@ -50,7 +52,7 @@ async function refresh() {
             const zone = zones.find((z) => String(z.id) === String(cf.zoneId));
             const building = allBuildings.find((b) => String(b.id) === String(cf.buildingId));
             const invalid = !zone || !building;
-            return { ...a, _invalid: invalid, _addrText: invalid ? '分区/楼栋已变更，请重新选择' : `${zone.name} ${building.name} ${a.streetLine1 || ''}`.trim() };
+            return { ...a, _invalid: invalid, _addrText: invalid ? locale.t('addressBook.invalidAddr') : `${zone.name} ${building.name} ${a.streetLine1 || ''}`.trim() };
         });
     } catch (e) { console.error(e); }
 }
@@ -73,22 +75,22 @@ async function setDefault(a: any) {
             id: a.id, fullName: a.fullName, phoneNumber: a.phoneNumber || '', streetLine1: a.streetLine1 || '',
             zoneId: a.customFields?.zoneId || '', buildingId: a.customFields?.buildingId || '', defaultShipping: true,
         });
-        uni.showToast({ title: '已设为默认', icon: 'success' });
+        uni.showToast({ title: locale.t('addressBook.setDefaultDone'), icon: 'success' });
         refresh();
-    } catch (e: any) { uni.showToast({ title: e?.message || '操作失败', icon: 'none' }); }
+    } catch (e: any) { uni.showToast({ title: e?.message || locale.t('addressBook.opFail'), icon: 'none' }); }
 }
 
 function del(a: any) {
     uni.showModal({
-        title: '删除地址',
-        content: `确定删除「${a.fullName}」的地址吗？`,
+        title: locale.t('addressBook.delTitle'),
+        content: locale.t('addressBook.delConfirm').replace('{n}', a.fullName),
         success: async (res: any) => {
             if (!res.confirm) return;
             try {
                 await deleteCustomerAddress(a.id);
-                uni.showToast({ title: '已删除', icon: 'success' });
+                uni.showToast({ title: locale.t('addressBook.deleted'), icon: 'success' });
                 refresh();
-            } catch (e: any) { uni.showToast({ title: e?.message || '删除失败', icon: 'none' }); }
+            } catch (e: any) { uni.showToast({ title: e?.message || locale.t('addressBook.delFail'), icon: 'none' }); }
         },
     });
 }

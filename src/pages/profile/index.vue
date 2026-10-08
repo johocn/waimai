@@ -4,49 +4,50 @@
       <view class="profile-page__idrow" @click="goProfileEdit">
         <view class="profile-page__avatar">
           <image v-if="avatarUrl" :src="avatarUrl" mode="aspectFill" />
-          <text v-else>{{ (customer?.firstName || '客')[0] }}</text>
+          <text v-else>{{ (customer?.firstName || $t('profile.guest'))[0] }}</text>
         </view>
         <view class="profile-page__id">
-          <text class="profile-page__name">{{ customer?.firstName || '未登录' }} {{ customer?.lastName || '' }}</text>
-          <text class="profile-page__phone">{{ customer?.phoneNumber || '未绑定电话' }}</text>
+          <text class="profile-page__name">{{ customer?.firstName || $t('profile.notLoggedIn') }} {{ customer?.lastName || '' }}</text>
+          <text class="profile-page__phone">{{ customer?.phoneNumber || $t('profile.noPhone') }}</text>
         </view>
-        <text class="profile-page__edit" v-if="logged">编辑资料</text>
+        <text class="profile-page__edit" v-if="logged">{{ $t('profile.editProfile') }}</text>
       </view>
     </view>
 
     <view class="profile-page__assets" v-if="logged">
       <view class="asset-item" @click="nav('/pkg-promotion/pages/my-coupons')">
-        <text class="asset-item__ico">券</text><text class="asset-item__lbl">优惠券</text>
+        <text class="asset-item__ico">{{ $t('profile.icoCoupon') }}</text><text class="asset-item__lbl">{{ $t('profile.coupons') }}</text>
         <text class="asset-item__badge" v-if="unusedCouponCount > 0">{{ unusedCouponCount > 99 ? '99+' : unusedCouponCount }}</text>
       </view>
       <view class="asset-item" @click="nav('/pkg-user/pages/address-book')">
-        <text class="asset-item__ico">址</text><text class="asset-item__lbl">常用地址</text>
+        <text class="asset-item__ico">{{ $t('profile.icoAddress') }}</text><text class="asset-item__lbl">{{ $t('profile.addresses') }}</text>
       </view>
       <view class="asset-item" @click="nav('/pkg-user/pages/invoice-titles')">
-        <text class="asset-item__ico">票</text><text class="asset-item__lbl">发票抬头</text>
+        <text class="asset-item__ico">{{ $t('profile.icoInvoice') }}</text><text class="asset-item__lbl">{{ $t('profile.invoices') }}</text>
       </view>
       <view class="asset-item" @click="nav('/pkg-user/pages/invite')">
-        <text class="asset-item__ico">邀</text><text class="asset-item__lbl">邀请好友</text>
+        <text class="asset-item__ico">{{ $t('profile.icoInvite') }}</text><text class="asset-item__lbl">{{ $t('profile.invite') }}</text>
       </view>
     </view>
 
     <view class="profile-page__orders" v-if="logged">
       <view class="order-shortcut" v-for="s in orderShortcuts" :key="s.label" @click="goOrdersTab(s.tab)">
-        <text class="order-shortcut__ico">{{ s.ico }}</text>
-        <text class="order-shortcut__lbl">{{ s.label }}</text>
+        <text class="order-shortcut__ico">{{ $t(s.ico) }}</text>
+        <text class="order-shortcut__lbl">{{ $t(s.label) }}</text>
       </view>
     </view>
 
     <view class="profile-page__menu">
-      <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/my-reviews')"><text>我的评价</text><text class="menu-arrow">></text></view>
-      <view class="menu-item" v-if="logged" @click="nav('/pkg-campus/pages/errand/list')"><text>我的跑腿单</text><text class="menu-arrow">></text></view>
-      <view class="menu-item" v-if="logged" @click="callService"><text>联系客服</text><text class="menu-arrow">></text></view>
-      <view class="menu-item" @click="nav('/pkg-user/pages/about')"><text>关于拾光达</text><text class="menu-arrow">></text></view>
-      <view class="menu-item" @click="goRiderCenter"><text>成为传信者</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/my-reviews')"><text>{{ $t('profile.myReviews') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-campus/pages/errand/list')"><text>{{ $t('profile.myErrands') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="callService"><text>{{ $t('profile.contactService') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" @click="nav('/pkg-user/pages/about')"><text>{{ $t('profile.about') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" @click="switchLang"><text>{{ $t('profile.language') }}</text><text class="menu-value">{{ langName }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" @click="goRiderCenter"><text>{{ $t('profile.becomeRider') }}</text><text class="menu-arrow">></text></view>
     </view>
 
-    <button class="profile-page__logout" v-if="logged" @click="doLogout">退出登录</button>
-    <button class="profile-page__logout" v-else @click="doLogin">登录 / 注册</button>
+    <button class="profile-page__logout" v-if="logged" @click="doLogout">{{ $t('profile.logout') }}</button>
+    <button class="profile-page__logout" v-else @click="doLogin">{{ $t('profile.loginRegister') }}</button>
   </view>
 </template>
 
@@ -60,21 +61,24 @@ import { useCartStore } from '../../stores/cart';
 import { getSessionToken } from '../../api/client';
 import { logout } from '../../api/mutations/auth';
 import { fetchMyRiderProfile } from '../../api/mutations/campus';
+import { useLocaleStore } from '../../stores/locale';
 
 const authStore = useAuthStore();
 const cartStore = useCartStore();
+const locale = useLocaleStore();
 const customer = ref<any>(null);
 const unusedCouponCount = ref(0);
 const SERVICE_PHONE = (import.meta.env.VITE_SERVICE_PHONE as string) || '';
 
 const logged = computed(() => !!(authStore.token || getSessionToken()));
 const avatarUrl = computed(() => customer.value?.customFields?.avatarUrl || '');
+const langName = computed(() => locale.locale === 'en' ? locale.t('profile.langEn') : locale.t('profile.langZh'));
 
 const orderShortcuts = [
-    { ico: '付', label: '待付款', tab: 'ArrangingPayment' },
-    { ico: '送', label: '待送达', tab: 'PaymentAuthorized,PaymentSettled' },
-    { ico: '评', label: '待评价', tab: 'Delivered' },
-    { ico: '退', label: '退款售后', tab: '' },
+    { ico: 'profile.icoPay', label: 'profile.stWaitPay', tab: 'ArrangingPayment' },
+    { ico: 'profile.icoShip', label: 'profile.stWaitReceive', tab: 'PaymentAuthorized,PaymentSettled' },
+    { ico: 'profile.icoReview', label: 'profile.stWaitReview', tab: 'Delivered' },
+    { ico: 'profile.icoRefund', label: 'profile.stRefund', tab: '' },
 ];
 
 onShow(async () => {
@@ -104,7 +108,7 @@ function goOrdersTab(tab: string) {
     uni.switchTab({ url: '/pages/orders/index' });
 }
 function callService() {
-    if (!SERVICE_PHONE) { uni.showToast({ title: '客服电话未配置', icon: 'none' }); return; }
+    if (!SERVICE_PHONE) { uni.showToast({ title: locale.t('profile.servicePhoneMissing'), icon: 'none' }); return; }
     uni.makePhoneCall({ phoneNumber: SERVICE_PHONE });
 }
 async function goRiderCenter() {
@@ -122,6 +126,18 @@ async function doLogout() {
     uni.reLaunch({ url: '/pages/login/index' });
 }
 function doLogin() { authStore.requireLogin(); }
+
+// F11 i18n：语言切换（同步 uni.setLocale，导航栏/TabBar %key% 文案随动）
+function switchLang() {
+    const opts = [locale.t('profile.langZh'), locale.t('profile.langEn')];
+    uni.showActionSheet({
+        itemList: opts,
+        success: (res) => {
+            const next = res.tapIndex === 1 ? 'en' : 'zh-Hans';
+            if (next !== locale.locale) locale.apply(next);
+        }
+    });
+}
 </script>
 
 <style lang="scss" scoped>
@@ -165,6 +181,8 @@ function doLogin() { authStore.requireLogin(); }
 .menu-item {
     display: flex; justify-content: space-between; align-items: center;
     padding: 30rpx; border-bottom: 1rpx solid $border-color; font-size: 28rpx;
+    > text:first-child { flex: 1; }
 }
+.menu-value { color: $text-color-placeholder; margin-right: 12rpx; }
 .menu-arrow { color: $text-color-placeholder; }
 </style>

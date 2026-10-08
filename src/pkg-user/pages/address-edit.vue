@@ -1,36 +1,36 @@
 <template>
   <view class="ae-page">
     <view class="ae-page__cell">
-      <text class="ae-page__lbl">联系人</text>
-      <input class="ae-page__input" v-model="form.fullName" placeholder="收餐人姓名" />
+      <text class="ae-page__lbl">{{ $t('addressEdit.contactLabel') }}</text>
+      <input class="ae-page__input" v-model="form.fullName" :placeholder="$t('addressEdit.phContact')" />
     </view>
     <view class="ae-page__cell">
-      <text class="ae-page__lbl">电话</text>
-      <input class="ae-page__input" v-model="form.phoneNumber" type="number" maxlength="11" placeholder="手机号" />
+      <text class="ae-page__lbl">{{ $t('addressEdit.phoneLabel') }}</text>
+      <input class="ae-page__input" v-model="form.phoneNumber" type="number" maxlength="11" :placeholder="$t('addressEdit.phPhone')" />
     </view>
     <picker mode="selector" :range="zoneNames" @change="onZoneChange">
       <view class="ae-page__cell">
-        <text class="ae-page__lbl">分区</text>
+        <text class="ae-page__lbl">{{ $t('addressEdit.zoneLabel') }}</text>
         <text class="ae-page__val" :class="{ placeholder: !form.zoneId }">{{ zoneLabel }}</text>
         <text class="ae-page__arrow">></text>
       </view>
     </picker>
     <picker mode="selector" :range="buildingNames" @change="onBuildingChange" :disabled="!form.zoneId">
       <view class="ae-page__cell">
-        <text class="ae-page__lbl">楼栋</text>
+        <text class="ae-page__lbl">{{ $t('addressEdit.buildingLabel') }}</text>
         <text class="ae-page__val" :class="{ placeholder: !form.buildingId }">{{ buildingLabel }}</text>
         <text class="ae-page__arrow">></text>
       </view>
     </picker>
     <view class="ae-page__cell">
-      <text class="ae-page__lbl">房号</text>
-      <input class="ae-page__input" v-model="form.room" placeholder="如 502（选填）" />
+      <text class="ae-page__lbl">{{ $t('addressEdit.roomLabel') }}</text>
+      <input class="ae-page__input" v-model="form.room" :placeholder="$t('addressEdit.phRoom')" />
     </view>
     <view class="ae-page__cell" @click="form.defaultShipping = !form.defaultShipping">
-      <text class="ae-page__lbl">设为默认地址</text>
+      <text class="ae-page__lbl">{{ $t('addressEdit.defaultLabel') }}</text>
       <switch :checked="form.defaultShipping" color="#ff6600" style="transform: scale(.8)" />
     </view>
-    <button class="ae-page__save" :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存' }}</button>
+    <button class="ae-page__save" :disabled="saving" @click="save">{{ saving ? $t('addressEdit.saving') : $t('addressEdit.save') }}</button>
   </view>
 </template>
 
@@ -38,7 +38,9 @@
 import { ref, computed, onMounted } from 'vue';
 import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
 import { createCustomerAddress, updateCustomerAddress } from '../../api/mutations/user';
+import { useLocaleStore } from '../../stores/locale';
 
+const locale = useLocaleStore();
 const zones = ref<any[]>([]);
 const buildings = ref<any[]>([]);
 const saving = ref(false);
@@ -61,9 +63,9 @@ onMounted(async () => {
 });
 
 const zoneNames = computed(() => zones.value.map((z) => z.name));
-const zoneLabel = computed(() => zones.value.find((z) => String(z.id) === String(form.value.zoneId))?.name || '选择分区');
+const zoneLabel = computed(() => zones.value.find((z) => String(z.id) === String(form.value.zoneId))?.name || locale.t('addressEdit.selectZone'));
 const buildingNames = computed(() => buildings.value.map((b) => b.name));
-const buildingLabel = computed(() => buildings.value.find((b) => String(b.id) === String(form.value.buildingId))?.name || '选择楼栋');
+const buildingLabel = computed(() => buildings.value.find((b) => String(b.id) === String(form.value.buildingId))?.name || locale.t('addressEdit.selectBuilding'));
 
 async function onZoneChange(e: any) {
     const z = zones.value[Number(e.detail.value)];
@@ -78,9 +80,9 @@ function onBuildingChange(e: any) {
 }
 
 async function save() {
-    if (!form.value.fullName.trim()) { uni.showToast({ title: '请填写联系人', icon: 'none' }); return; }
-    if (!/^1\d{10}$/.test(form.value.phoneNumber)) { uni.showToast({ title: '手机号格式不正确', icon: 'none' }); return; }
-    if (!form.value.zoneId || !form.value.buildingId) { uni.showToast({ title: '请选择分区与楼栋', icon: 'none' }); return; }
+    if (!form.value.fullName.trim()) { uni.showToast({ title: locale.t('addressEdit.contactRequired'), icon: 'none' }); return; }
+    if (!/^1\d{10}$/.test(form.value.phoneNumber)) { uni.showToast({ title: locale.t('addressEdit.phoneInvalid'), icon: 'none' }); return; }
+    if (!form.value.zoneId || !form.value.buildingId) { uni.showToast({ title: locale.t('addressEdit.zoneBuildingRequired'), icon: 'none' }); return; }
     const zone = zones.value.find((z) => String(z.id) === String(form.value.zoneId));
     const building = buildings.value.find((b) => String(b.id) === String(form.value.buildingId));
     const streetLine1 = `${zone?.name || ''}${building?.name || ''} ${form.value.room}`.trim();
@@ -95,11 +97,11 @@ async function save() {
             ? await updateCustomerAddress({ id: addressId.value, ...payload })
             : await createCustomerAddress(payload);
         const body = addressId.value ? res?.updateCustomerAddress : res?.createCustomerAddress;
-        if (body?.errorCode) throw new Error(body.message || '保存失败');
-        uni.showToast({ title: '已保存', icon: 'success' });
+        if (body?.errorCode) throw new Error(body.message || locale.t('addressEdit.saveFail'));
+        uni.showToast({ title: locale.t('addressEdit.saved'), icon: 'success' });
         setTimeout(() => uni.navigateBack(), 600);
     } catch (e: any) {
-        uni.showToast({ title: e?.message || '保存失败', icon: 'none' });
+        uni.showToast({ title: e?.message || locale.t('addressEdit.saveFail'), icon: 'none' });
     }
     saving.value = false;
 }

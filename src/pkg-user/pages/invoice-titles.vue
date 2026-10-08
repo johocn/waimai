@@ -4,30 +4,30 @@
       <view class="it-page__main" @click="openForm(i)">
         <view class="it-page__row">
           <text class="it-page__name">{{ t.name }}</text>
-          <text class="it-page__tag" :class="{ company: t.type === 'company' }">{{ t.type === 'company' ? '企业' : '个人' }}</text>
-          <text class="it-page__tag it-page__tag--def" v-if="i === 0">默认</text>
+          <text class="it-page__tag" :class="{ company: t.type === 'company' }">{{ t.type === 'company' ? $t('invoice.typeCompany') : $t('invoice.typePersonal') }}</text>
+          <text class="it-page__tag it-page__tag--def" v-if="i === 0">{{ $t('invoice.defaultTag') }}</text>
         </view>
-        <text class="it-page__meta">{{ t.type === 'company' ? `税号 ${t.taxNo}` : '个人抬头' }} · {{ t.email }}</text>
+        <text class="it-page__meta">{{ t.type === 'company' ? $t('invoice.taxNoPrefix').replace('{n}', t.taxNo) : $t('invoice.personalTitle') }} · {{ t.email }}</text>
       </view>
-      <text class="it-page__del" @click="del(i)">删除</text>
+      <text class="it-page__del" @click="del(i)">{{ $t('invoice.del') }}</text>
     </view>
-    <view class="it-page__empty" v-if="!titles.length"><text>暂无抬头，新增后订单页可直接选用来开票</text></view>
+    <view class="it-page__empty" v-if="!titles.length"><text>{{ $t('invoice.empty') }}</text></view>
 
     <view class="it-page__mask" v-if="showForm" @click="showForm = false">
       <view class="it-page__form" @click.stop>
         <view class="it-page__type-row">
-          <text class="it-page__type" :class="{ on: draft.type === 'personal' }" @click="draft.type = 'personal'">个人</text>
-          <text class="it-page__type" :class="{ on: draft.type === 'company' }" @click="draft.type = 'company'">企业</text>
+          <text class="it-page__type" :class="{ on: draft.type === 'personal' }" @click="draft.type = 'personal'">{{ $t('invoice.typePersonal') }}</text>
+          <text class="it-page__type" :class="{ on: draft.type === 'company' }" @click="draft.type = 'company'">{{ $t('invoice.typeCompany') }}</text>
         </view>
-        <input class="it-page__ipt" v-model="draft.name" :placeholder="draft.type === 'company' ? '单位名称' : '姓名'" />
-        <input class="it-page__ipt" v-if="draft.type === 'company'" v-model="draft.taxNo" placeholder="纳税人识别号（15-20 位）" />
-        <input class="it-page__ipt" v-model="draft.email" type="text" placeholder="接收邮箱" />
-        <button class="it-page__save" :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存抬头' }}</button>
+        <input class="it-page__ipt" v-model="draft.name" :placeholder="draft.type === 'company' ? $t('invoice.phCompanyName') : $t('invoice.phName')" />
+        <input class="it-page__ipt" v-if="draft.type === 'company'" v-model="draft.taxNo" :placeholder="$t('invoice.phTaxNo')" />
+        <input class="it-page__ipt" v-model="draft.email" type="text" :placeholder="$t('invoice.phEmail')" />
+        <button class="it-page__save" :disabled="saving" @click="save">{{ saving ? $t('invoice.saving') : $t('invoice.save') }}</button>
       </view>
     </view>
 
     <view class="it-page__footer" v-if="!showForm">
-      <button class="it-page__add" :disabled="titles.length >= 5" @click="openForm(-1)">{{ titles.length >= 5 ? '最多 5 条，请先删除' : '新增抬头' }}</button>
+      <button class="it-page__add" :disabled="titles.length >= 5" @click="openForm(-1)">{{ titles.length >= 5 ? $t('invoice.maxReached') : $t('invoice.add') }}</button>
     </view>
   </view>
 </template>
@@ -37,7 +37,9 @@ import { ref, onMounted } from 'vue';
 import { getActiveCustomer } from '../../api/queries/user';
 import { updateInvoiceTitles } from '../../api/mutations/user';
 import { parseInvoiceTitles, validateInvoiceTitle, type InvoiceTitle } from '../../utils/profile-mapping';
+import { useLocaleStore } from '../../stores/locale';
 
+const locale = useLocaleStore();
 const titles = ref<InvoiceTitle[]>([]);
 const showForm = ref(false);
 const saving = ref(false);
@@ -62,11 +64,12 @@ function openForm(i: number) {
 async function save() {
     const err = validateInvoiceTitle(draft.value);
     if (err) {
-        const msg: Record<string, string> = {
-            TYPE_INVALID: '抬头类型无效', NAME_REQUIRED: '请填写名称', TAXNO_REQUIRED: '请填写税号',
-            TAXNO_INVALID: '税号须为 15-20 位字母数字', EMAIL_INVALID: '邮箱格式不正确',
+        // 展示键映射（键存枚举，不存中文）
+        const msgKeys: Record<string, string> = {
+            TYPE_INVALID: 'errTypeInvalid', NAME_REQUIRED: 'errNameRequired', TAXNO_REQUIRED: 'errTaxNoRequired',
+            TAXNO_INVALID: 'errTaxNoInvalid', EMAIL_INVALID: 'errEmailInvalid',
         };
-        uni.showToast({ title: msg[err] || err, icon: 'none' });
+        uni.showToast({ title: msgKeys[err] ? locale.t(`invoice.${msgKeys[err]}`) : err, icon: 'none' });
         return;
     }
     saving.value = true;
@@ -75,21 +78,21 @@ async function save() {
         if (editIndex.value >= 0) next[editIndex.value] = { ...draft.value };
         else next.unshift({ ...draft.value }); // 新增置首=默认
         await updateInvoiceTitles(JSON.stringify(next.slice(0, 5)));
-        uni.showToast({ title: '已保存', icon: 'success' });
+        uni.showToast({ title: locale.t('invoice.saved'), icon: 'success' });
         showForm.value = false;
         refresh();
-    } catch (e: any) { uni.showToast({ title: e?.message || '保存失败', icon: 'none' }); }
+    } catch (e: any) { uni.showToast({ title: e?.message || locale.t('invoice.saveFail'), icon: 'none' }); }
     saving.value = false;
 }
 
 function del(i: number) {
     uni.showModal({
-        title: '删除抬头', content: `确定删除「${titles.value[i].name}」吗？`,
+        title: locale.t('invoice.delTitle'), content: locale.t('invoice.delConfirm').replace('{n}', titles.value[i].name),
         success: async (res: any) => {
             if (!res.confirm) return;
             const next = titles.value.filter((_, idx) => idx !== i);
-            try { await updateInvoiceTitles(JSON.stringify(next)); uni.showToast({ title: '已删除', icon: 'success' }); refresh(); }
-            catch (e: any) { uni.showToast({ title: e?.message || '删除失败', icon: 'none' }); }
+            try { await updateInvoiceTitles(JSON.stringify(next)); uni.showToast({ title: locale.t('invoice.deleted'), icon: 'success' }); refresh(); }
+            catch (e: any) { uni.showToast({ title: e?.message || locale.t('invoice.delFail'), icon: 'none' }); }
         },
     });
 }

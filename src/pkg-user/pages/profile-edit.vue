@@ -1,24 +1,24 @@
 <template>
   <view class="pe-page">
     <view class="pe-page__cell" @click="chooseAvatar">
-      <text class="pe-page__lbl">头像</text>
+      <text class="pe-page__lbl">{{ $t('profileEdit.avatarLabel') }}</text>
       <view class="pe-page__right">
         <view class="pe-page__avatar">
           <image v-if="avatarUrl" :src="avatarUrl" mode="aspectFill" />
-          <text v-else>{{ (form.firstName || '客')[0] }}</text>
+          <text v-else>{{ (form.firstName || $t('profileEdit.avatarFallback'))[0] }}</text>
         </view>
         <text class="pe-page__arrow">></text>
       </view>
     </view>
     <view class="pe-page__cell">
-      <text class="pe-page__lbl">昵称</text>
-      <input class="pe-page__input" v-model="form.firstName" placeholder="填写昵称" />
+      <text class="pe-page__lbl">{{ $t('profileEdit.nicknameLabel') }}</text>
+      <input class="pe-page__input" v-model="form.firstName" :placeholder="$t('profileEdit.phNickname')" />
     </view>
     <view class="pe-page__cell">
-      <text class="pe-page__lbl">电话</text>
-      <input class="pe-page__input" v-model="form.phoneNumber" type="number" maxlength="11" placeholder="填写手机号" />
+      <text class="pe-page__lbl">{{ $t('profileEdit.phoneLabel') }}</text>
+      <input class="pe-page__input" v-model="form.phoneNumber" type="number" maxlength="11" :placeholder="$t('profileEdit.phPhone')" />
     </view>
-    <button class="pe-page__save" :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存' }}</button>
+    <button class="pe-page__save" :disabled="saving" @click="save">{{ saving ? $t('profileEdit.saving') : $t('profileEdit.save') }}</button>
   </view>
 </template>
 
@@ -27,6 +27,9 @@ import { ref, onMounted } from 'vue';
 import { getActiveCustomer } from '../../api/queries/user';
 import { updateCustomerProfile } from '../../api/mutations/user';
 import { uploadCustomerAsset } from '../../api/mutations/upload';
+import { useLocaleStore } from '../../stores/locale';
+
+const locale = useLocaleStore();
 
 const form = ref<{ firstName: string; phoneNumber: string }>({ firstName: '', phoneNumber: '' });
 const avatarUrl = ref('');
@@ -47,19 +50,19 @@ async function chooseAvatar() {
     const filePath = res?.tempFilePaths?.[0];
     if (!filePath) return;
     try {
-        uni.showLoading({ title: '上传中' });
+        uni.showLoading({ title: locale.t('profileEdit.uploading') });
         const asset = await uploadCustomerAsset(filePath);
         avatarUrl.value = asset.source;
         uni.hideLoading();
     } catch (e: any) {
         uni.hideLoading();
-        uni.showToast({ title: e?.message || '上传失败', icon: 'none' });
+        uni.showToast({ title: e?.message || locale.t('profileEdit.uploadFail'), icon: 'none' });
     }
 }
 
 async function save() {
     const phone = form.value.phoneNumber.trim();
-    if (phone && !/^1\d{10}$/.test(phone)) { uni.showToast({ title: '手机号格式不正确', icon: 'none' }); return; }
+    if (phone && !/^1\d{10}$/.test(phone)) { uni.showToast({ title: locale.t('profileEdit.phoneInvalid'), icon: 'none' }); return; }
     saving.value = true;
     try {
         const res: any = await updateCustomerProfile({
@@ -67,11 +70,11 @@ async function save() {
             phoneNumber: phone,
             avatarUrl: avatarUrl.value || '',
         });
-        if (res?.updateCustomer?.errorCode) throw new Error(res.updateCustomer.message || '保存失败');
-        uni.showToast({ title: '已保存', icon: 'success' });
+        if (res?.updateCustomer?.errorCode) throw new Error(res.updateCustomer.message || locale.t('profileEdit.saveFail'));
+        uni.showToast({ title: locale.t('profileEdit.saved'), icon: 'success' });
         setTimeout(() => uni.navigateBack(), 600);
     } catch (e: any) {
-        uni.showToast({ title: e?.message || '保存失败', icon: 'none' });
+        uni.showToast({ title: e?.message || locale.t('profileEdit.saveFail'), icon: 'none' });
     }
     saving.value = false;
 }

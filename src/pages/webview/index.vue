@@ -5,7 +5,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
+import { useLocaleStore } from '../../stores/locale';
 
+const locale = useLocaleStore();
 const url = ref('');
 
 const DEFAULT_ALLOWED_HOSTS = ['joho.cn', 'weixin.qq.com', 'wx.tenpay.com', 'alipay.com', 'alipayobjects.com'];
@@ -36,7 +38,7 @@ function isAllowed(target: string): boolean {
 onLoad((query: any) => {
     const target = decodeURIComponent(query?.url || '');
     if (!isAllowed(target)) {
-        uni.showToast({ title: '链接无效', icon: 'none' });
+        uni.showToast({ title: locale.t('webview.invalidLink'), icon: 'none' });
         uni.navigateBack();
         return;
     }

@@ -6,17 +6,17 @@
       <text v-else style="font-size: 120rpx;">❌</text>
     </view>
     <text class="pay-result__title">{{ statusText }}</text>
-    <text v-if="orderCodes.length === 1" class="pay-result__code">订单号: {{ orderCodes[0] }}</text>
+    <text v-if="orderCodes.length === 1" class="pay-result__code">{{ $t('payResult.orderNo').replace('{c}', orderCodes[0]) }}</text>
     <view v-else class="pay-result__codes">
-      <text class="pay-result__codes-title">本次共生成 {{ orderCodes.length }} 笔订单</text>
+      <text class="pay-result__codes-title">{{ $t('payResult.orderCount').replace('{n}', String(orderCodes.length)) }}</text>
       <view v-for="code in orderCodes" :key="code" class="pay-result__code-item">
-        <text>订单号: {{ code }}</text>
-        <text class="pay-result__code-link" @click="viewOrder(code)">查看</text>
+        <text>{{ $t('payResult.orderNo').replace('{c}', code) }}</text>
+        <text class="pay-result__code-link" @click="viewOrder(code)">{{ $t('payResult.view') }}</text>
       </view>
     </view>
     <view class="pay-result__actions">
-      <button class="btn-primary" @click="viewOrder(orderCodes[0] || '')">查看订单</button>
-      <button class="btn-secondary" @click="goHome">继续购物</button>
+      <button class="btn-primary" @click="viewOrder(orderCodes[0] || '')">{{ $t('payResult.viewOrder') }}</button>
+      <button class="btn-secondary" @click="goHome">{{ $t('payResult.continueShopping') }}</button>
     </view>
   </view>
 </template>
@@ -26,9 +26,11 @@ import { computed } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import { useCartStore } from '../../stores/cart';
+import { useLocaleStore } from '../../stores/locale';
 import { addItemToOrder } from '../../api/mutations/cart';
 
 const cart = useCartStore();
+const locale = useLocaleStore();
 
 onShow(async () => {
     const pending = [...cart.pendingLines];
@@ -49,9 +51,9 @@ const orderCodes = ref<string[]>([]);
 
 const statusText = computed(() => {
     switch (status.value) {
-        case 'success': return '支付成功';
-        case 'pending': return '等待支付确认';
-        default: return '支付失败';
+        case 'success': return locale.t('payResult.stSuccess');
+        case 'pending': return locale.t('payResult.stPending');
+        default: return locale.t('payResult.stFail');
     }
 });
 

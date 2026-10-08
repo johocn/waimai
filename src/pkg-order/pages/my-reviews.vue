@@ -1,7 +1,7 @@
 <template>
   <view class="my-reviews">
-    <view v-if="loading" class="hint">加载中…</view>
-    <view v-else-if="!list.length" class="hint">还没有评价，订单完成后可以去评价</view>
+    <view v-if="loading" class="hint">{{ $t('myReviews.loading') }}</view>
+    <view v-else-if="!list.length" class="hint">{{ $t('myReviews.empty') }}</view>
     <view v-for="r in list" :key="r.id" class="card">
       <view class="head">
         <text class="stars">{{ '★'.repeat(r.rating) }}<text class="off">{{ '★'.repeat(5 - r.rating) }}</text></text>
@@ -11,19 +11,19 @@
       <view v-if="r.images?.length" class="imgs">
         <VImage v-for="(img, i) in r.images" :key="i" :src="img" width="140rpx" height="140rpx" />
       </view>
-      <view v-if="r.reply" class="reply"><text class="reply__who">商家回复</text>{{ r.reply }}</view>
+      <view v-if="r.reply" class="reply"><text class="reply__who">{{ $t('myReviews.merchantReply') }}</text>{{ r.reply }}</view>
       <view v-for="fu in r.followUps ?? []" :key="fu.id" class="reply">
-        <text class="reply__who">追加评价</text>{{ fu.content }}
+        <text class="reply__who">{{ $t('myReviews.followUpTag') }}</text>{{ fu.content }}
       </view>
       <view class="foot">
         <text class="date">{{ formatDate(r.createdAt) }}</text>
         <view class="acts">
-          <text v-if="canFollowUp(r)" class="followup" @tap="goFollowUp(r)">追评</text>
-          <text v-else-if="r.followUps?.length" class="followed">已追评</text>
+          <text v-if="canFollowUp(r)" class="followup" @tap="goFollowUp(r)">{{ $t('myReviews.followUp') }}</text>
+          <text v-else-if="r.followUps?.length" class="followed">{{ $t('myReviews.followed') }}</text>
           <text
             v-if="r.status !== 'deleted' && !r.parentId"
             class="del" @tap="del(r)"
-          >删除</text>
+          >{{ $t('myReviews.del') }}</text>
         </view>
       </view>
     </view>
@@ -34,8 +34,10 @@
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getMyReviews, deleteReview } from '../../api/queries/review';
+import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
 
+const locale = useLocaleStore();
 const list = ref<any[]>([]);
 const loading = ref(true);
 
@@ -53,7 +55,9 @@ onShow(async () => {
 });
 
 function statusLabel(s: string) {
-  return { pending: '审核中', approved: '已通过', rejected: '未通过', deleted: '已删除' }[s] || s;
+  const keys: Record<string, string> = { pending: 'stPending', approved: 'stApproved', rejected: 'stRejected', deleted: 'stDeleted' };
+  const k = keys[s];
+  return k ? locale.t(`myReviews.${k}`) : s;
 }
 function formatDate(d: string) {
   return d ? new Date(d).toLocaleDateString('zh-CN') : '';
@@ -76,16 +80,16 @@ function goFollowUp(r: any) {
 
 function del(r: any) {
   uni.showModal({
-    title: '删除评价',
-    content: '删除后不可恢复，确定删除？',
+    title: locale.t('myReviews.delTitle'),
+    content: locale.t('myReviews.delConfirm'),
     success: async (m) => {
       if (!m.confirm) return;
       try {
         await deleteReview(r.id);
         list.value = list.value.filter(x => x.id !== r.id);
-        uni.showToast({ title: '已删除', icon: 'none' });
+        uni.showToast({ title: locale.t('myReviews.deleted'), icon: 'none' });
       } catch (err: any) {
-        uni.showToast({ title: err?.message || '删除失败', icon: 'none' });
+        uni.showToast({ title: err?.message || locale.t('myReviews.delFail'), icon: 'none' });
       }
     },
   });

@@ -1,10 +1,10 @@
 <template>
   <view class="iv-page">
     <view class="iv-page__card">
-      <text class="iv-page__title">我的邀请码</text>
+      <text class="iv-page__title">{{ $t('invite.title') }}</text>
       <text class="iv-page__code">{{ referralCode || '—' }}</text>
-      <text class="iv-page__hint">好友通过你的链接注册并下单，双方都可获得福利</text>
-      <button class="iv-page__copy" @click="copyLink">复制邀请链接</button>
+      <text class="iv-page__hint">{{ $t('invite.hint') }}</text>
+      <button class="iv-page__copy" @click="copyLink">{{ $t('invite.copy') }}</button>
     </view>
   </view>
 </template>
@@ -12,7 +12,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { getActiveCustomer } from '../../api/queries/user';
+import { useLocaleStore } from '../../stores/locale';
 
+const locale = useLocaleStore();
 const referralCode = ref('');
 
 onMounted(async () => {
@@ -23,11 +25,11 @@ onMounted(async () => {
 });
 
 function copyLink() {
-    if (!referralCode.value) { uni.showToast({ title: '邀请码未生成', icon: 'none' }); return; }
+    if (!referralCode.value) { uni.showToast({ title: locale.t('invite.codeMissing'), icon: 'none' }); return; }
     const link = `${window.location.origin}/waimai/?invite_code=${referralCode.value}`;
     uni.setClipboardData({
         data: link,
-        success: () => uni.showToast({ title: '链接已复制，快去分享吧', icon: 'none' }),
+        success: () => uni.showToast({ title: locale.t('invite.copied'), icon: 'none' }),
     });
 }
 </script>

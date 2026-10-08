@@ -16,9 +16,9 @@
         </view>
         <!-- 三 Tab -->
         <view class="tabs">
-            <view class="tb" :class="{ on: tab === 'goods' }" @tap="switchTab('goods')">商品</view>
-            <view class="tb" :class="{ on: tab === 'reviews' }" @tap="switchTab('reviews')">评论</view>
-            <view class="tb" :class="{ on: tab === 'merchant' }" @tap="switchTab('merchant')">商家</view>
+            <view class="tb" :class="{ on: tab === 'goods' }" @tap="switchTab('goods')">{{ $t('menu.tabGoods') }}</view>
+            <view class="tb" :class="{ on: tab === 'reviews' }" @tap="switchTab('reviews')">{{ $t('menu.tabReviews') }}</view>
+            <view class="tb" :class="{ on: tab === 'merchant' }" @tap="switchTab('merchant')">{{ $t('menu.tabMerchant') }}</view>
         </view>
 
         <!-- 商品：左分类右商品 -->
@@ -26,7 +26,7 @@
             <view class="body">
                 <scroll-view scroll-y class="cats">
                     <view v-for="c in cats" :key="c.id" class="cat" :class="{ on: c.id === activeCat }" @tap="activeCat = c.id">
-                        {{ c.name }}
+                        {{ c.id === 'all' ? $t('menu.catAll') : c.name }}
                     </view>
                 </scroll-view>
                 <scroll-view scroll-y class="goods">
@@ -38,21 +38,21 @@
                             <view class="good-rate" v-if="g.customFields?.reviewCount > 0">
                                 <text class="good-rate__star">★</text>
                                 <text class="good-rate__num">{{ (g.customFields.reviewRating || 0).toFixed(1) }}</text>
-                                <text class="good-rate__cnt">{{ g.customFields.reviewCount }}条评价</text>
+                                <text class="good-rate__cnt">{{ $t('menu.reviewCount').replace('{n}', String(g.customFields.reviewCount)) }}</text>
                             </view>
                             <view class="good-coupon" v-if="couponOf(g)" @tap.stop="claimProduct(couponOf(g))">
                                 <text class="good-coupon__txt">{{ couponChipText(couponOf(g)) }}</text>
-                                <text class="good-coupon__action">{{ couponClaimed(g.id) ? '已领取' : '领取' }}</text>
+                                <text class="good-coupon__action">{{ couponClaimed(g.id) ? $t('menu.claimed') : $t('menu.claim') }}</text>
                             </view>
                             <view class="price-row">
                                 <PriceTag :price="g.variants[0]?.priceWithTax || 0" />
                             </view>
                         </view>
-                        <view class="add-btn spec" v-if="(g.variants?.length ?? 0) > 1" @tap.stop="pickSku(g)">选规格</view>
+                        <view class="add-btn spec" v-if="(g.variants?.length ?? 0) > 1" @tap.stop="pickSku(g)">{{ $t('menu.pickSpec') }}</view>
                         <view class="add-btn" v-else @tap.stop="addToCart(g)">+</view>
                     </view>
                     <view class="scroll-pad"></view>
-                    <EmptyState v-if="!goodsOf(activeCat).length" text="该分类暂无商品" />
+                    <EmptyState v-if="!goodsOf(activeCat).length" :text="$t('menu.emptyCat')" />
                 </scroll-view>
             </view>
         </view>
@@ -63,7 +63,7 @@
                 <view class="rv-sum-top">
                     <view class="rv-score">
                         <text class="rv-score__num">{{ reviewStats.averageRating }}</text>
-                        <text class="rv-score__lab">综合评分</text>
+                        <text class="rv-score__lab">{{ $t('menu.overallScore') }}</text>
                     </view>
                     <view class="rv-dist">
                         <view v-for="d in reviewStats.ratingDistribution" :key="d.rating" class="rv-dist__row">
@@ -74,8 +74,8 @@
                     </view>
                 </view>
                 <view class="rv-sum-foot">
-                    <text>共 {{ reviewStats.totalCount }} 条评价</text>
-                    <text>好评率 {{ reviewStats.goodRate }}%</text>
+                    <text>{{ $t('menu.totalReviews').replace('{n}', String(reviewStats.totalCount)) }}</text>
+                    <text>{{ $t('menu.goodRate').replace('{n}', String(reviewStats.goodRate)) }}</text>
                 </view>
             </view>
             <view class="rv-chips">
@@ -83,7 +83,7 @@
                     v-for="f in reviewFilters" :key="f.key"
                     class="rv-chip" :class="{ on: reviewFilter === f.key }"
                     @tap="switchReviewFilter(f.key)"
-                >{{ f.label }}</view>
+                >{{ $t(f.label) }}</view>
             </view>
             <view v-for="r in reviewList" :key="r.id" class="rv-item">
                 <view class="rv-head">
@@ -101,14 +101,14 @@
                 <view v-if="r.tags?.length" class="rv-tags">
                     <text v-for="(t, i) in r.tags" :key="i" class="rv-tag">{{ t }}</text>
                 </view>
-                <view v-if="r.reply" class="rv-reply"><text class="rv-reply__who">商家回复</text>{{ r.reply }}</view>
+                <view v-if="r.reply" class="rv-reply"><text class="rv-reply__who">{{ $t('menu.merchantReply') }}</text>{{ r.reply }}</view>
                 <view v-for="fu in r.followUps ?? []" :key="fu.id" class="rv-reply">
-                    <text class="rv-reply__who">追加评价</text>{{ fu.content }}
+                    <text class="rv-reply__who">{{ $t('menu.followUp') }}</text>{{ fu.content }}
                 </view>
             </view>
-            <view v-if="reviewLoading" class="rv-more">加载中…</view>
-            <view v-else-if="reviewList.length && !reviewHasMore" class="rv-more">没有更多了</view>
-            <EmptyState v-if="!reviewLoading && !reviewList.length" text="商家暂无评价，下单后评价将在这里展示" />
+            <view v-if="reviewLoading" class="rv-more">{{ $t('menu.loading') }}</view>
+            <view v-else-if="reviewList.length && !reviewHasMore" class="rv-more">{{ $t('menu.noMore') }}</view>
+            <EmptyState v-if="!reviewLoading && !reviewList.length" :text="$t('menu.emptyReviews')" />
             <view class="scroll-pad"></view>
         </scroll-view>
 
@@ -116,21 +116,21 @@
         <scroll-view scroll-y class="panel solo" v-show="tab === 'merchant'">
             <view class="mcard">
                 <view class="mrow"><text class="mico">🏪</text><text class="mval">{{ shopName }}</text></view>
-                <view class="mrow"><text class="mico">🛵</text><text class="mlab">配送服务：</text><text class="mval">{{ routeDetailText }}</text></view>
-                <view class="mrow"><text class="mico">🕐</text><text class="mlab">营业时间：</text><text class="mval">10:00–22:00</text></view>
-                <view class="mrow"><text class="mico">📍</text><text class="mlab">配送范围：</text><text class="mval">校内宿舍楼与教学楼</text></view>
-                <view class="mrow" v-if="storeInfo?.storeAddress"><text class="mico">🏠</text><text class="mlab">店铺地址：</text><text class="mval">{{ storeInfo.storeAddress }}</text></view>
-                <view class="mrow" v-if="storeInfo?.storePhone"><text class="mico">📞</text><text class="mlab" @tap="callStore">联系电话：</text><text class="mval" @tap="callStore">{{ storeInfo.storePhone }}</text></view>
+                <view class="mrow"><text class="mico">🛵</text><text class="mlab">{{ $t('menu.deliveryService') }}</text><text class="mval">{{ routeDetailText }}</text></view>
+                <view class="mrow"><text class="mico">🕐</text><text class="mlab">{{ $t('menu.businessHours') }}</text><text class="mval">10:00–22:00</text></view>
+                <view class="mrow"><text class="mico">📍</text><text class="mlab">{{ $t('menu.deliveryArea') }}</text><text class="mval">{{ $t('menu.deliveryAreaVal') }}</text></view>
+                <view class="mrow" v-if="storeInfo?.storeAddress"><text class="mico">🏠</text><text class="mlab">{{ $t('menu.storeAddress') }}</text><text class="mval">{{ storeInfo.storeAddress }}</text></view>
+                <view class="mrow" v-if="storeInfo?.storePhone"><text class="mico">📞</text><text class="mlab" @tap="callStore">{{ $t('menu.storePhone') }}</text><text class="mval" @tap="callStore">{{ storeInfo.storePhone }}</text></view>
             </view>
             <view class="mcard" v-if="promoText || storeInfo?.storeNotice">
-                <view class="mrow" v-if="storeInfo?.storeNotice"><text class="mico">📣</text><text class="mlab">店铺公告：</text><text class="mval">{{ storeInfo.storeNotice }}</text></view>
-                <view class="mrow" v-if="promoText"><text class="mico">📢</text><text class="mlab">店铺活动：</text><text class="mval">{{ promoText }}</text></view>
+                <view class="mrow" v-if="storeInfo?.storeNotice"><text class="mico">📣</text><text class="mlab">{{ $t('menu.storeNotice') }}</text><text class="mval">{{ storeInfo.storeNotice }}</text></view>
+                <view class="mrow" v-if="promoText"><text class="mico">📢</text><text class="mlab">{{ $t('menu.storePromo') }}</text><text class="mval">{{ promoText }}</text></view>
             </view>
             <view class="mcard">
                 <view class="msrv">
-                    <text>商家服务</text>
-                    <text class="tag">拾光达配送</text>
-                    <text class="tag">拾光传信者接力送达</text>
+                    <text>{{ $t('menu.service') }}</text>
+                    <text class="tag">{{ $t('menu.serviceDelivery') }}</text>
+                    <text class="tag">{{ $t('menu.serviceRelay') }}</text>
                 </view>
             </view>
         </scroll-view>
@@ -142,12 +142,12 @@
                 <view class="cart-count" v-if="cartCount">{{ cartCount }}</view>
             </view>
             <view class="cart-total">
-                <text class="empty-hint" v-if="!cartCount">购物车空空如也~</text>
+                <text class="empty-hint" v-if="!cartCount">{{ $t('menu.cartEmpty') }}</text>
                 <block v-else>
-                    <text class="sum">合计 ¥{{ cart.formatPrice(cartTotal) }}</text>
+                    <text class="sum">{{ $t('menu.total').replace('{v}', cart.formatPrice(cartTotal)) }}</text>
                 </block>
             </view>
-            <view class="checkout-btn" :class="{ disabled: !cartCount }">去结算</view>
+            <view class="checkout-btn" :class="{ disabled: !cartCount }">{{ $t('menu.checkout') }}</view>
         </view>
         <SkuSheet v-model:visible="skuOpen" :product="skuProduct" @action="onSkuAction" />
     </view>
@@ -159,6 +159,7 @@ import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
+import { useLocaleStore } from '../../stores/locale';
 import { fetchProductList, fetchStoreList } from '../../api/queries/waimai';
 import { getProductCoupons } from '../../api/queries/coupon';
 import { getChannelReviews, getChannelReviewStats } from '../../api/queries/review';
@@ -175,10 +176,11 @@ import SkuSheet from '../../components/SkuSheet.vue';
 const tenant = useTenantStore();
 const cart = useCartStore();
 const authStore = useAuthStore();
+const locale = useLocaleStore();
 const shopToken = ref('');
 const shopRoutes = ref('');
-const shopName = ref('校内店铺');
-const routesText = ref('拾光传信者配送');
+const shopName = ref(locale.t('menu.defaultShop'));
+const routesText = ref(locale.t('menu.defaultDelivery'));
 const promoText = ref('');
 const storeInfo = ref<any>(null);
 const tab = ref<'goods' | 'reviews' | 'merchant'>('goods');
@@ -191,17 +193,17 @@ const skuProduct = ref<any>(null);
 const cartCount = computed(() => cart.totalQuantity);
 const cartTotal = computed(() => cart.totalPrice);
 const routeDetailText = computed(() =>
-    routeDetail(shopRoutes.value.split(',').filter(Boolean)).join('、') || '暂未开通配送'
+    routeDetail(shopRoutes.value.split(',').filter(Boolean)).join('、') || locale.t('menu.noDelivery')
 );
 
 // ── 评论 tab（A 版式：摘要卡 + chips + 列表，首切 tab 才拉取） ──
 type ReviewFilterKey = 'all' | 'images' | 'good' | 'bad';
 const REVIEW_PAGE_SIZE = 10;
 const reviewFilters: { key: ReviewFilterKey; label: string }[] = [
-    { key: 'all', label: '全部' },
-    { key: 'images', label: '有图' },
-    { key: 'good', label: '好评' },
-    { key: 'bad', label: '差评' },
+    { key: 'all', label: 'menu.filterAll' },
+    { key: 'images', label: 'menu.filterImages' },
+    { key: 'good', label: 'menu.filterGood' },
+    { key: 'bad', label: 'menu.filterBad' },
 ];
 const reviewFilter = ref<ReviewFilterKey>('all');
 const reviewList = ref<any[]>([]);
@@ -268,8 +270,8 @@ function loadMoreReviews() {
 }
 
 function displayName(r: any, nameOnly = false) {
-    if (r.isAnonymous) return nameOnly ? '匿名用户' : '匿';
-    return r.customerName?.slice(0, 1) || '评';
+    if (r.isAnonymous) return nameOnly ? locale.t('menu.anon') : locale.t('menu.anonShort');
+    return r.customerName?.slice(0, 1) || locale.t('menu.anonAvatar');
 }
 
 function formatDate(d: string) {
@@ -291,7 +293,7 @@ onLoad(async (q: any) => {
     initTheme();
     shopToken.value = q?.token ?? '';
     shopRoutes.value = decodeURIComponent(q?.routes ?? '');
-    shopName.value = decodeURIComponent(q?.name ?? '') || '校内店铺';
+    shopName.value = decodeURIComponent(q?.name ?? '') || locale.t('menu.defaultShop');
     routesText.value = routeText(shopRoutes.value.split(',').filter(Boolean));
     promoText.value = decodeURIComponent(q?.promo ?? '');
     // 店铺配置（地址/电话/公告/时长）：waimaiStoreList 按渠道 token 找本店；无配置行 → null 走页面兜底
@@ -310,7 +312,7 @@ onLoad(async (q: any) => {
         loadProductCoupons(goodsOf(activeCat.value));
     } catch (e: any) {
         // 切渠道失败（token 无效）→ 提示并返回首页
-        uni.showToast({ title: '店铺不存在', icon: 'none' });
+        uni.showToast({ title: locale.t('menu.shopNotFound'), icon: 'none' });
         setTimeout(() => uni.redirectTo({ url: '/pages/home/index' }), 800);
     }
 });
@@ -350,10 +352,10 @@ function couponChipText(b: any): string {
     if (t.type === 'FIXED' || t.type === 'FULL') {
         const yuan = t.discountValue / 100;
         const y = Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
-        return `¥${y} 券`;
+        return locale.t('menu.couponFixed').replace('{v}', y);
     }
-    if (t.type === 'PERCENT') return `${(t.discountValue / 10).toFixed(1).replace(/\.0$/, '')}折券`;
-    return '免配送费券';
+    if (t.type === 'PERCENT') return locale.t('menu.couponPercent').replace('{v}', (t.discountValue / 10).toFixed(1).replace(/\.0$/, ''));
+    return locale.t('menu.couponFreeShip');
 }
 
 function couponClaimed(productId: string): boolean {
@@ -380,9 +382,9 @@ async function claimProduct(binding: any) {
     try {
         await claimProductCoupon(binding.id);
         claimedProductIds.value.add(String(binding.productId));
-        uni.showToast({ title: '领取成功', icon: 'none' });
+        uni.showToast({ title: locale.t('menu.claimOk'), icon: 'none' });
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || '领取失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('menu.claimFail'), icon: 'none' });
     } finally {
         claimingProductId.value = '';
     }
@@ -398,7 +400,7 @@ function pickSku(g: any) {
 async function doAddItem(variantId: string, quantity: number) {
     const res: any = await addItemToOrder(variantId, quantity);
     if (res?.addItemToOrder?.errorCode) {
-        uni.showToast({ title: res.addItemToOrder.message || '加购失败', icon: 'none' });
+        uni.showToast({ title: res.addItemToOrder.message || locale.t('menu.addFail'), icon: 'none' });
         return false;
     }
     cart.setOrder(res.addItemToOrder);
@@ -407,7 +409,7 @@ async function doAddItem(variantId: string, quantity: number) {
 
 async function addToCart(g: any) {
     const ok = await doAddItem(g.variants[0].id, 1);
-    if (ok) uni.showToast({ title: '已加购', icon: 'none' });
+    if (ok) uni.showToast({ title: locale.t('menu.added'), icon: 'none' });
 }
 
 async function onSkuAction(v: { action: 'cart' | 'buy'; variantId: string; quantity: number }) {

@@ -3,14 +3,14 @@
     <view class="region-sheet">
       <!-- 顶部：标题 + 确定按钮 -->
       <view class="region-sheet__head">
-        <text class="region-sheet__title">选择省/市/区</text>
+        <text class="region-sheet__title">{{ $t('comp.regionTitle') }}</text>
         <view class="region-sheet__actions">
-          <text class="region-sheet__cancel" @click="close">取消</text>
+          <text class="region-sheet__cancel" @click="close">{{ $t('comp.cancel') }}</text>
           <text
             class="region-sheet__confirm"
             :class="{ disabled: !tempSelected.province }"
             @click="confirm"
-          >确定</text>
+          >{{ $t('comp.confirm') }}</text>
         </view>
       </view>
 
@@ -21,7 +21,7 @@
           :class="{ active: activeColumn === 'province' }"
           @click="switchColumn('province')"
         >
-          <text>{{ tempSelected.province?.name || '请选择' }}</text>
+          <text>{{ tempSelected.province?.name || $t('comp.pleaseSelect') }}</text>
         </view>
         <text v-if="tempSelected.province" class="region-tab__sep">/</text>
         <view
@@ -30,7 +30,7 @@
           :class="{ active: activeColumn === 'city' }"
           @click="switchColumn('city')"
         >
-          <text>{{ tempSelected.city?.name || '请选择' }}</text>
+          <text>{{ tempSelected.city?.name || $t('comp.pleaseSelect') }}</text>
         </view>
         <text v-if="tempSelected.city" class="region-tab__sep">/</text>
         <view
@@ -39,14 +39,14 @@
           :class="{ active: activeColumn === 'district' }"
           @click="switchColumn('district')"
         >
-          <text>{{ tempSelected.district?.name || '请选择' }}</text>
+          <text>{{ tempSelected.district?.name || $t('comp.pleaseSelect') }}</text>
         </view>
       </view>
 
       <!-- 列表 -->
       <scroll-view class="region-sheet__list" scroll-y>
         <view v-if="loading" class="region-sheet__loading">
-          <text>加载中...</text>
+          <text>{{ $t('comp.loading') }}</text>
         </view>
         <view v-else>
           <view
@@ -60,7 +60,7 @@
             <text v-if="isItemSelected(item)" class="region-item__check">✓</text>
           </view>
           <view v-if="!loading && currentList.length === 0" class="region-sheet__empty">
-            <text>暂无数据</text>
+            <text>{{ $t('comp.noData') }}</text>
           </view>
         </view>
       </scroll-view>

@@ -1,41 +1,41 @@
 <template>
     <view class="page" :class="{ dark: theme === 'dark' }">
         <view class="nav-row">
-            <text class="nav-link" @tap="goList">我的跑腿单 ›</text>
+            <text class="nav-link" @tap="goList">{{ $t('errandCreate.myOrders') }} ›</text>
         </view>
         <view class="section">
-            <text class="section__title">服务类型</text>
+            <text class="section__title">{{ $t('errandCreate.sectionKind') }}</text>
             <view class="kind-row">
                 <view v-for="k in ERRAND_KINDS" :key="k.value" class="kind-chip"
                     :class="{ on: form.kind === k.value }" @tap="form.kind = k.value">
-                    <text>{{ k.label }}</text>
+                    <text>{{ $t(KIND_KEYS[k.value] || 'errandCreate.kindOther') }}</text>
                 </view>
             </view>
         </view>
         <view class="section">
-            <text class="section__title">取货点（A）</text>
-            <input class="ipt" v-model="form.fromText" placeholder="如：菜鸟驿站 / 校内代收点" />
-            <text class="section__title">送达点（B）</text>
-            <input class="ipt" v-model="form.toText" placeholder="如：9 栋 501" />
-            <text class="section__title">物品描述（可选）</text>
-            <input class="ipt" v-model="form.note" placeholder="如：两杯冰奶茶 / 两个小包裹" />
+            <text class="section__title">{{ $t('errandCreate.labelFrom') }}</text>
+            <input class="ipt" v-model="form.fromText" :placeholder="$t('errandCreate.phFrom')" />
+            <text class="section__title">{{ $t('errandCreate.labelTo') }}</text>
+            <input class="ipt" v-model="form.toText" :placeholder="$t('errandCreate.phTo')" />
+            <text class="section__title">{{ $t('errandCreate.labelNote') }}</text>
+            <input class="ipt" v-model="form.note" :placeholder="$t('errandCreate.phNote')" />
         </view>
         <view class="section" v-if="prefill.relayFrom">
-            <text class="relay-badge">接力单：关联快递单 {{ prefill.relayFrom }}</text>
+            <text class="relay-badge">{{ $t('errandCreate.relayBadge').replace('{code}', prefill.relayFrom) }}</text>
         </view>
         <view class="section">
             <view class="fee-row">
-                <text>跑腿费（起步价）</text><text class="fee">¥{{ (baseFee / 100).toFixed(2) }}</text>
+                <text>{{ $t('errandCreate.feeBase') }}</text><text class="fee">¥{{ (baseFee / 100).toFixed(2) }}</text>
             </view>
             <view class="fee-row">
-                <text>小费</text><text class="fee">¥{{ (form.tip / 100).toFixed(2) }}</text>
+                <text>{{ $t('errandCreate.feeTip') }}</text><text class="fee">¥{{ (form.tip / 100).toFixed(2) }}</text>
             </view>
             <slider :min="0" :max="TIP_STEPS.length - 1" :step="1" :value="tipIdx"
                 @change="(e: any) => (tipIdx = Number(e.detail.value))" show-value />
-            <text class="tip-hint">运力紧张时小费优先派单</text>
+            <text class="tip-hint">{{ $t('errandCreate.tipHint') }}</text>
         </view>
         <button class="submit-btn" :disabled="submitting || !payloadOk" @tap="submit">
-            {{ submitting ? '发单中…' : `¥${((baseFee + form.tip) / 100).toFixed(2)} 立即发单` }}
+            {{ submitting ? $t('errandCreate.submitting') : `¥${((baseFee + form.tip) / 100).toFixed(2)} ${$t('errandCreate.submitNow')}` }}
         </button>
     </view>
 </template>
@@ -49,6 +49,17 @@ import { addPaymentToOrder, setOrderShippingMethod, transitionOrderToState, canc
 import { handlePayment, type PaymentMethod } from '../../composables/usePayment';
 import { theme, initTheme } from '../../utils/theme';
 import { buildErrandPayload, ERRAND_KINDS, parseRelayPrefill, TIP_STEPS } from '../../utils/errand';
+import { useLocaleStore } from '../../stores/locale';
+
+const locale = useLocaleStore();
+
+// 服务类型值 → i18n 键（label 展示在渲染处走 $t）
+const KIND_KEYS: Record<string, string> = {
+    pickup_express: 'errandCreate.kindPickupExpress',
+    bring_food: 'errandCreate.kindBringFood',
+    buy: 'errandCreate.kindBuy',
+    other: 'errandCreate.kindOther',
+};
 
 const form = ref({ kind: 'pickup_express', fromText: '', toText: '', note: '', tip: 0 });
 const tipIdx = ref(0);
@@ -70,7 +81,7 @@ onMounted(async () => {
         const res: any = await fetchErrandVariant();
         variantId.value = String(res.variantId);
         baseFee.value = res.errandBaseFee ?? 200;
-    } catch (e) { uni.showToast({ title: '服务初始化失败', icon: 'none' }); }
+    } catch (e) { uni.showToast({ title: locale.t('errandCreate.initFail'), icon: 'none' }); }
 });
 
 // 小费档位联动（滑杆索引 → 分）
@@ -82,15 +93,15 @@ const payloadOk = computed(() =>
 async function submit() {
     if (submitting.value) return;
     const payload = buildErrandPayload({ ...form.value, errandFrom: prefill.value.relayFrom, buildingId: prefill.value.buildingId });
-    if (!payload) { uni.showToast({ title: '请补全取货/送达点', icon: 'none' }); return; }
+    if (!payload) { uni.showToast({ title: locale.t('errandCreate.incomplete'), icon: 'none' }); return; }
     submitting.value = true;
     try {
         // T0 预检：紧张提示但不阻断
         try {
             const c: any = await capacityCheck();
-            if (c?.ridersOnline === 0) uni.showToast({ title: '当前运力紧张，接单可能延迟', icon: 'none' });
+            if (c?.ridersOnline === 0) uni.showToast({ title: locale.t('errandCreate.capacityTight'), icon: 'none' });
         } catch (e) { /* 预检失败不阻断 */ }
-        if (!variantId.value) throw new Error('载体未就绪');
+        if (!variantId.value) throw new Error(locale.t('errandCreate.variantNotReady'));
         await addItemToOrder(variantId.value, 1);
         await setErrandInfo(payload);
         // 选运费：setErrandInfo 写 fulfillmentRoute=R5 后，campus-errand calculator 按 errandBaseFee 出价
@@ -112,7 +123,7 @@ async function submit() {
         // #ifndef H5
         const method = pms.find((p: any) => p.code === 'wechatpay')?.code || pms[0]?.code;
         // #endif
-        if (!method) throw new Error('无可用支付方式');
+        if (!method) throw new Error(locale.t('errandCreate.noPaymentMethod'));
         const metadata: Record<string, any> = {};
         if (method === 'wechatpay') {
             const openid = uni.getStorageSync('auth_openid');
@@ -121,7 +132,7 @@ async function submit() {
         const payRes: any = await addPaymentToOrder(method, metadata);
         const po = payRes?.addPaymentToOrder;
         // PM 拒单返回 ErrorResult——透出后端错误信息
-        if (po?.errorCode) throw new Error(po.message || '支付失败');
+        if (po?.errorCode) throw new Error(po.message || locale.t('errandCreate.payFail'));
         const lastPayment = po?.payments?.[po.payments.length - 1];
         const pub = lastPayment?.metadata?.public || lastPayment?.metadata || {};
         // JSAPI：PaymentAuthorized ≠ 已支付，须调起收银台由微信回调结算，不能提前跳 success
@@ -129,7 +140,7 @@ async function submit() {
             const result = await handlePayment(method as PaymentMethod, { ...lastPayment, orderCode: po?.code, orderState: po?.state });
             if (!result.success) {
                 try { await cancelPayment(lastPayment.id); } catch (e) { console.warn('[errand] cancelPayment failed', e); }
-                uni.showToast({ title: result.message || '支付未完成，请重试或更换支付方式', icon: 'none' });
+                uni.showToast({ title: result.message || locale.t('errandCreate.payIncomplete'), icon: 'none' });
                 return;
             }
             // 轻量轮询回调结果（2 次 × 1.5s）：未确认 → pending 页提示等待，不伪装成功
@@ -149,10 +160,10 @@ async function submit() {
             return;
         }
         const result = await handlePayment(method as PaymentMethod, { ...lastPayment, orderCode: po?.code, orderState: po?.state });
-        if (!result.success) { uni.showToast({ title: result.message || '支付未完成，请重试或更换支付方式', icon: 'none' }); return; }
+        if (!result.success) { uni.showToast({ title: result.message || locale.t('errandCreate.payIncomplete'), icon: 'none' }); return; }
         uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(po.code)}&status=success` });
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '发单失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || locale.t('errandCreate.submitFail'), icon: 'none' });
     } finally {
         submitting.value = false;
     }

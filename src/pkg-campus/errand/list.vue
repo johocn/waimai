@@ -3,23 +3,23 @@
     <view v-for="o in items" :key="o.id" class="order-card" @click="goDetail(o.code)">
       <view class="order-card__header">
         <view class="order-card__store-col">
-          <text class="order-card__store">{{ kindLabel(o) }}</text>
+          <text class="order-card__store">{{ $t(kindKey(o)) }}</text>
           <text class="order-card__code">{{ o.code }}</text>
         </view>
-        <text class="order-card__state">{{ statusLabel(o) }}</text>
+        <text class="order-card__state">{{ $t(statusKey(o)) }}</text>
       </view>
       <view class="order-card__route">
         <text>{{ o.customFields?.errandFrom || '—' }} → {{ o.customFields?.errandTo || '—' }}</text>
         <text v-if="o.customFields?.errandNote" class="order-card__note">{{ o.customFields.errandNote }}</text>
       </view>
       <view class="order-card__footer">
-        <text>跑腿费+小费</text>
+        <text>{{ $t('errandList.feeAndTip') }}</text>
         <PriceTag :price="o.totalWithTax" />
       </view>
     </view>
     <view v-if="!loading && !items.length" class="empty-wrap">
-      <EmptyState text="还没有跑腿单，去发一单" />
-      <button class="go-create" @click="goCreate">去发一单</button>
+      <EmptyState :text="$t('errandList.empty')" />
+      <button class="go-create" @click="goCreate">{{ $t('errandList.goCreate') }}</button>
     </view>
   </view>
 </template>
@@ -28,7 +28,6 @@ import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getOrdersForChannel } from '../../api/queries/order';
 import { fetchStoreList } from '../../api/queries/waimai';
-import { ERRAND_KINDS } from '../../utils/errand';
 import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
 
@@ -65,18 +64,25 @@ async function loadData() {
 }
 onShow(() => { loadData(); });
 
-function kindLabel(o: any): string {
-    return ERRAND_KINDS.find((k) => k.value === o.customFields?.errandKind)?.label || '跑腿单';
+// 服务类型值 → i18n 键（渲染处走 $t，与 ERRAND_KINDS 值约定一致）
+const KIND_KEYS: Record<string, string> = {
+    pickup_express: 'errandList.kindPickupExpress',
+    bring_food: 'errandList.kindBringFood',
+    buy: 'errandList.kindBuy',
+    other: 'errandList.kindOther',
+};
+function kindKey(o: any): string {
+    return KIND_KEYS[o.customFields?.errandKind as string] || 'errandList.kindErrand';
 }
-function statusLabel(o: any) {
-    if (o.state === 'Cancelled') return '已退款/取消';
+function statusKey(o: any): string {
+    if (o.state === 'Cancelled') return 'errandList.statusCancelled';
     const cf = o.customFields ?? {};
-    if (cf.deliveryStatus === 'delivered') return '已送达';
-    if (cf.deliveryStatus === 'in_progress') return '配送中';
-    if (cf.deliveryStatus || cf.hallStatus === 'grabbed') return '传信者已接单';
-    if (cf.hallStatus === 'open') return '平台调度中';
-    if (cf.hallStatus === 'no_rider_final') return '无骑手，人工介入中';
-    return ['Created', 'AddingItems', 'ArrangingPayment'].includes(o.state) ? '待支付' : '待接单';
+    if (cf.deliveryStatus === 'delivered') return 'errandList.statusDelivered';
+    if (cf.deliveryStatus === 'in_progress') return 'errandList.statusInProgress';
+    if (cf.deliveryStatus || cf.hallStatus === 'grabbed') return 'errandList.statusTaken';
+    if (cf.hallStatus === 'open') return 'errandList.statusDispatching';
+    if (cf.hallStatus === 'no_rider_final') return 'errandList.statusNoRider';
+    return ['Created', 'AddingItems', 'ArrangingPayment'].includes(o.state) ? 'errandList.statusUnpaid' : 'errandList.statusWaiting';
 }
 function goDetail(code: string) { uni.navigateTo({ url: '/pkg-order/pages/order-detail?code=' + code }); }
 function goCreate() { uni.navigateTo({ url: '/pkg-campus/errand/create' }); }

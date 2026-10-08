@@ -2,31 +2,31 @@
     <view class="page" :class="{ dark: theme === 'dark' }">
         <view class="head">
             <view class="loc-row">
-                <text class="loc">📍 东门校内站</text>
+                <text class="loc">{{ $t('home.locText') }}</text>
                 <view class="head-right">
                     <view class="theme-btn" @tap="toggleTheme">{{ theme === 'dark' ? '☀️' : '🌙' }}</view>
-                    <text class="hlink" @tap="goOrders">我的订单</text>
+                    <text class="hlink" @tap="goOrders">{{ $t('home.myOrders') }}</text>
                 </view>
             </view>
-            <input class="search" v-model="keyword" placeholder="搜索店铺：麻辣香锅 / 奶茶" confirm-type="search" />
+            <input class="search" v-model="keyword" :placeholder="$t('home.searchPh')" confirm-type="search" />
         </view>
         <view class="body">
             <view class="quick">
                 <view class="qk" @tap="goOrders">
                     <view class="qico">🧾</view>
-                    <text class="qtxt">我的订单</text>
+                    <text class="qtxt">{{ $t('home.myOrders') }}</text>
                 </view>
                 <view class="qk" @tap="goRider">
                     <view class="qico">🛵</view>
-                    <text class="qtxt">传信者加入</text>
+                    <text class="qtxt">{{ $t('home.becomeRider') }}</text>
                 </view>
                 <view class="qk" @tap="goErrand">
                     <view class="qico">🏃</view>
-                    <text class="qtxt">校内拾光达</text>
+                    <text class="qtxt">{{ $t('home.errand') }}</text>
                 </view>
                 <view class="qk" @tap="showNotice">
                     <view class="qico">📣</view>
-                    <text class="qtxt">校园公告</text>
+                    <text class="qtxt">{{ $t('home.notice') }}</text>
                 </view>
             </view>
             <scroll-view scroll-x class="pills" v-if="!keyword">
@@ -34,7 +34,7 @@
                     v-for="t in tagList" :key="t"
                     class="pill" :class="{ on: t === activeTag }"
                     @tap="activeTag = t"
-                ><text class="pico">{{ tagIcon(t) }}</text>{{ t }}</view>
+                ><text class="pico">{{ tagIcon(t) }}</text>{{ tagLabel(t) }}</view>
             </scroll-view>
             <view v-if="promoStore" class="notice" @tap="enterStore(promoStore)">
                 <text class="ntext">🔥 {{ promoStore.name }} · {{ promoStore.promoText }}</text>
@@ -44,9 +44,9 @@
             <template v-else>
                 <view class="sec" v-if="shown.length">
                     <text class="sec-t">{{ secTitle }}</text>
-                    <text class="sec-n">附近 {{ shown.length }} 家</text>
+                    <text class="sec-n">{{ $t('home.nearbyCount').replace('{n}', String(shown.length)) }}</text>
                 </view>
-                <EmptyState v-if="!shown.length" text="没有找到相关店铺" />
+                <EmptyState v-if="!shown.length" :text="$t('home.emptySearch')" />
                 <view v-else class="cards">
                     <view v-for="s in shown" :key="s.channelId" class="card" @tap="enterStore(s)">
                         <image v-if="s.logo" class="logo" :src="s.logo" mode="aspectFill" />
@@ -54,9 +54,9 @@
                         <view class="info">
                             <view class="name-row">
                                 <text class="name">{{ s.name }}</text>
-                                <text v-if="s.paused" class="paused">休息中</text>
+                                <text v-if="s.paused" class="paused">{{ $t('home.paused') }}</text>
                             </view>
-                            <text class="meta">月售 {{ s.monthlySales }}</text>
+                            <text class="meta">{{ $t('home.monthlySales').replace('{n}', String(s.monthlySales)) }}</text>
                             <view class="tags">
                                 <text class="tag tag-route">{{ deliveryTag(s) || routeText(s.routesEnabled) }}</text>
                                 <text v-if="s.promoText" class="tag tag-promo">{{ s.promoText }}</text>
@@ -77,12 +77,13 @@ import { fetchStoreList } from '../../api/queries/waimai';
 import { filterStores } from '../../utils/store-filter';
 import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
+import { useLocaleStore } from '../../stores/locale';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 import EmptyState from '../../components/EmptyState.vue';
 
 const TAGS = ['全部', '米饭快餐', '奶茶甜品', '面食', '夜宵'];
 const TAG_ICONS: Record<string, string> = { 全部: '🍽️', 米饭快餐: '🍚', 奶茶甜品: '🧋', 面食: '🍜', 夜宵: '🌙' };
-const NOTICE_TEXT = '本平台为拾光达校内配送：范围覆盖校内宿舍楼与教学楼，营业时间 10:00–22:00，由商家与拾光传信者接力送达。';
+const locale = useLocaleStore();
 const keyword = ref('');
 const activeTag = ref('全部');
 const loading = ref(true);
@@ -95,13 +96,23 @@ const tagList = computed(() => {
 });
 const shown = computed(() => filterStores(stores.value, keyword.value, activeTag.value));
 const secTitle = computed(() => {
-    if (keyword.value) return `搜索“${keyword.value}”`;
-    return activeTag.value === '全部' ? '全部店铺' : activeTag.value;
+    if (keyword.value) return locale.t('home.searchResult').replace('{kw}', keyword.value);
+    return activeTag.value === '全部' ? locale.t('home.allStores') : tagLabel(activeTag.value);
 });
 const promoStore = computed(() => stores.value.find((s: any) => s.promoText && !s.paused));
 
 function tagIcon(t: string): string {
     return TAG_ICONS[t] ?? '🍴';
+}
+
+// 类目值为业务值（匹配店铺 tags），仅展示层翻译
+function tagLabel(t: string): string {
+    if (t === '全部') return locale.t('home.tagAll');
+    if (t === '米饭快餐') return locale.t('home.tagRice');
+    if (t === '奶茶甜品') return locale.t('home.tagTea');
+    if (t === '面食') return locale.t('home.tagNoodle');
+    if (t === '夜宵') return locale.t('home.tagNight');
+    return t;
 }
 
 function goOrders() {
@@ -112,7 +123,7 @@ function goRider() {
 }
 function goErrand() { uni.navigateTo({ url: '/pkg-campus/errand/create' }); }
 function showNotice() {
-    uni.showModal({ title: '校园公告', content: NOTICE_TEXT, showCancel: false, confirmText: '知道了' });
+    uni.showModal({ title: locale.t('home.notice'), content: locale.t('home.noticeText'), showCancel: false, confirmText: locale.t('home.noticeOk') });
 }
 
 async function load() {
@@ -124,7 +135,7 @@ async function load() {
 }
 
 function enterStore(s: any) {
-    if (s.paused) return uni.showToast({ title: '店铺休息中', icon: 'none' });
+    if (s.paused) return uni.showToast({ title: locale.t('home.shopPaused'), icon: 'none' });
     const routes = (s.routesEnabled || []).join(',');
     uni.navigateTo({ url: `/pages/shop/menu?token=${s.channelToken}&name=${encodeURIComponent(s.name)}&routes=${encodeURIComponent(routes)}` });
 }

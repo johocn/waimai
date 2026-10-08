@@ -2,13 +2,13 @@
   <view class="as-create" v-if="order">
     <!-- 退款方式切换 -->
     <view class="mode-tabs">
-      <view class="mode-tab" :class="{ on: mode === 'order' }" @tap="mode = 'order'">整单退款</view>
-      <view class="mode-tab" :class="{ on: mode === 'lines' }" @tap="mode = 'lines'">部分退款</view>
+      <view class="mode-tab" :class="{ on: mode === 'order' }" @tap="mode = 'order'">{{ $t('afterSaleCreate.modeOrder') }}</view>
+      <view class="mode-tab" :class="{ on: mode === 'lines' }" @tap="mode = 'lines'">{{ $t('afterSaleCreate.modeLines') }}</view>
     </view>
 
     <!-- 商品清单（部分退款：勾选 + 数量步进） -->
     <view class="section" v-if="mode === 'lines'">
-      <text class="section__title">选择退款商品</text>
+      <text class="section__title">{{ $t('afterSaleCreate.selectLines') }}</text>
       <view v-for="line in order.lines" :key="line.id" class="line">
         <view class="line__check" :class="{ on: checked[line.id] > 0 }" @tap="toggleLine(line)">
           <text v-if="checked[line.id] > 0">✓</text>
@@ -28,27 +28,27 @@
 
     <!-- 金额 -->
     <view class="section amount">
-      <text class="section__title">预计退款金额</text>
+      <text class="section__title">{{ $t('afterSaleCreate.refundAmountTitle') }}</text>
       <text class="amount__num">¥{{ (refundAmount / 100).toFixed(2) }}</text>
-      <text class="amount__tip">{{ mode === 'order' ? '整单退款（含配送费），提交后不可修改' : '按所选商品行自动计算，不可手填' }}</text>
+      <text class="amount__tip">{{ mode === 'order' ? $t('afterSaleCreate.tipOrder') : $t('afterSaleCreate.tipLines') }}</text>
     </view>
 
     <!-- 原因 -->
     <view class="section">
-      <text class="section__title">售后原因</text>
+      <text class="section__title">{{ $t('afterSaleCreate.reasonTitle') }}</text>
       <view class="chips">
         <text
           v-for="r in REASONS" :key="r"
           class="chip" :class="{ on: reason === r }"
           @tap="reason = r"
-        >{{ r }}</text>
+        >{{ reasonLabel(r) }}</text>
       </view>
-      <textarea class="desc" v-model="userDesc" placeholder="补充说明（选填）：如缺少的商品、损坏情况" maxlength="200" />
+      <textarea class="desc" v-model="userDesc" :placeholder="$t('afterSaleCreate.descPh')" maxlength="200" />
     </view>
 
     <!-- 凭证（部分退款必传 1-3 张；整单可选） -->
     <view class="section">
-      <text class="section__title">凭证照片{{ mode === 'lines' ? '（必传 1-3 张）' : '（选填）' }}</text>
+      <text class="section__title">{{ $t('afterSaleCreate.evidenceTitle') }}{{ mode === 'lines' ? $t('afterSaleCreate.evidenceRequired') : $t('afterSaleCreate.evidenceOptional') }}</text>
       <view class="evidence">
         <view v-for="(img, i) in evidence" :key="img" class="evidence__item">
           <image :src="img" mode="aspectFill" class="evidence__img" />
@@ -58,9 +58,9 @@
       </view>
     </view>
 
-    <view class="notice">提交后商家将在 48 小时内处理；超时未处理将自动原路退回</view>
+    <view class="notice">{{ $t('afterSaleCreate.notice') }}</view>
     <view class="footbar">
-      <button class="submit" :disabled="submitting" @tap="submit">{{ submitting ? '提交中…' : '提交申请' }}</button>
+      <button class="submit" :disabled="submitting" @tap="submit">{{ submitting ? $t('afterSaleCreate.submitting') : $t('afterSaleCreate.submit') }}</button>
     </view>
   </view>
   <LoadingSkeleton v-else type="card" :count="2" />
@@ -71,10 +71,15 @@ import { onLoad } from '@dcloudio/uni-app';
 import { getOrderByCode } from '../../api/queries/order';
 import { createAfterSale } from '../../api/queries/afterSale';
 import { uploadCustomerAsset } from '../../api/mutations/upload';
+import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 
+const locale = useLocaleStore();
+// REASONS 值为提交后端的业务 reason，保持中文；展示时经 labelKey 映射转 i18n
 const REASONS = ['漏送', '错送', '少送', '餐损洒漏', '其他'];
+const REASON_LABELS: Record<string, string> = { '漏送': 'reasonLost', '错送': 'reasonWrong', '少送': 'reasonMissing', '餐损洒漏': 'reasonDamaged', '其他': 'reasonOther' };
+function reasonLabel(r: string): string { return locale.t(`afterSaleCreate.${REASON_LABELS[r]}`); }
 const order = ref<any>(null);
 const mode = ref<'order' | 'lines'>('order');
 const checked = reactive<Record<string, number>>({});
@@ -100,7 +105,7 @@ onLoad(async (options: any) => {
         const res: any = await getOrderByCode(options.code);
         order.value = res.orderByCode;
     } catch (e) {
-        uni.showToast({ title: '订单加载失败', icon: 'none' });
+        uni.showToast({ title: locale.t('afterSaleCreate.loadFail'), icon: 'none' });
     }
 });
 
@@ -121,17 +126,17 @@ async function chooseEvidence() {
             const asset = await uploadCustomerAsset(p);
             evidence.value.push(asset.preview);
         } catch (e: any) {
-            uni.showToast({ title: e?.message || '上传失败', icon: 'none' });
+            uni.showToast({ title: e?.message || locale.t('afterSaleCreate.uploadFail'), icon: 'none' });
         }
     }
 }
 
 async function submit() {
     if (!order.value) return;
-    if (!reason.value) return uni.showToast({ title: '请选择售后原因', icon: 'none' });
-    if (refundAmount.value <= 0) return uni.showToast({ title: '请先选择退款商品', icon: 'none' });
+    if (!reason.value) return uni.showToast({ title: locale.t('afterSaleCreate.reasonRequired'), icon: 'none' });
+    if (refundAmount.value <= 0) return uni.showToast({ title: locale.t('afterSaleCreate.linesRequired'), icon: 'none' });
     if (mode.value === 'lines' && evidence.value.length === 0) {
-        return uni.showToast({ title: '部分退款需上传 1-3 张凭证', icon: 'none' });
+        return uni.showToast({ title: locale.t('afterSaleCreate.evidenceRequiredToast'), icon: 'none' });
     }
     const linesDesc = mode.value === 'lines'
         ? '部分退款：' + order.value.lines
@@ -151,7 +156,7 @@ async function submit() {
         });
         uni.redirectTo({ url: `/pkg-order/pages/after-sale-detail?id=${req.id}` });
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || '提交失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || locale.t('afterSaleCreate.submitFail'), icon: 'none' });
     } finally {
         submitting.value = false;
     }

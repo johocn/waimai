@@ -1,8 +1,8 @@
 <template>
   <view class="cc-page">
     <view class="cc-tabs">
-      <text class="cc-tab" :class="{ on: tab === 'claimable' }" @tap="switchTab('claimable')">可领取</text>
-      <text class="cc-tab" :class="{ on: tab === 'upcoming' }" @tap="switchTab('upcoming')">即将开始</text>
+      <text class="cc-tab" :class="{ on: tab === 'claimable' }" @tap="switchTab('claimable')">{{ $t('couponCentre.tabClaimable') }}</text>
+      <text class="cc-tab" :class="{ on: tab === 'upcoming' }" @tap="switchTab('upcoming')">{{ $t('couponCentre.tabUpcoming') }}</text>
     </view>
 
     <scroll-view scroll-y class="cc-list">
@@ -11,7 +11,7 @@
           <view class="ticket__amount">
             <text class="ticket__symbol" v-if="t.type === 'FIXED' || t.type === 'FULL'">¥</text>
             <text class="ticket__num">{{ amountText(t) }}</text>
-            <text class="ticket__unit" v-if="t.type === 'PERCENT'">折</text>
+            <text class="ticket__unit" v-if="t.type === 'PERCENT'">{{ $t('couponCentre.unitPercent') }}</text>
           </view>
           <text class="ticket__cond">{{ condText(t) }}</text>
         </view>
@@ -25,7 +25,7 @@
         </view>
       </view>
       <view class="empty-wrap" v-if="!loading && list.length === 0">
-        <EmptyState text="暂无可领取的优惠券" />
+        <EmptyState :text="$t('couponCentre.empty')" />
       </view>
       <view class="scroll-pad"></view>
     </scroll-view>
@@ -39,10 +39,12 @@ import { useAuthStore } from '../../stores/auth';
 import { getCouponCentre, getCouponCentreUpcoming } from '../../api/queries/coupon';
 import { claimCoupon } from '../../api/mutations/coupon';
 import { couponUnavailableReason } from '../../utils/coupon-estimate';
+import { useLocaleStore } from '../../stores/locale';
 
 type TabKey = 'claimable' | 'upcoming';
 
 const auth = useAuthStore();
+const locale = useLocaleStore();
 const tab = ref<TabKey>('claimable');
 const claimableList = ref<any[]>([]);
 const upcomingList = ref<any[]>([]);
@@ -59,7 +61,7 @@ function claimableNow(t: any): boolean {
 
 function amountText(t: any): string {
     if (t.type === 'PERCENT') return (t.discountValue / 10).toFixed(1).replace(/\.0$/, '');
-    if (t.type === 'FREE_SHIPPING') return '免';
+    if (t.type === 'FREE_SHIPPING') return locale.t('couponCentre.freeShort');
     const yuan = t.discountValue / 100;
     return Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
 }
@@ -68,16 +70,16 @@ function condText(t: any): string {
     if (t.type === 'FULL') {
         const yuan = t.minSpend / 100;
         const y = Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
-        return `满 ${y} 可用`;
+        return locale.t('couponCentre.condFull').replace('{n}', y);
     }
-    if (t.type === 'PERCENT') return '折扣券';
-    if (t.type === 'FREE_SHIPPING') return '免配送费';
-    return '无门槛';
+    if (t.type === 'PERCENT') return locale.t('couponCentre.condPercent');
+    if (t.type === 'FREE_SHIPPING') return locale.t('couponCentre.condFreeShip');
+    return locale.t('couponCentre.condNone');
 }
 
 function windowText(t: any): string {
-    if (!t.endsAt) return '长期有效';
-    return `${fmtDate(t.startsAt)} 至 ${fmtDate(t.endsAt)}`;
+    if (!t.endsAt) return locale.t('couponCentre.validForever');
+    return locale.t('couponCentre.windowRange').replace('{a}', fmtDate(t.startsAt)).replace('{b}', fmtDate(t.endsAt));
 }
 
 function fmtDate(s: string | null): string {
@@ -86,11 +88,16 @@ function fmtDate(s: string | null): string {
     return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function canClaim(t: any): boolean {
+    return !claimedIds.value.has(t.id) && tab.value !== 'upcoming'
+        && !((t.totalCount ?? 0) > 0 && t.claimedCount >= t.totalCount);
+}
+
 function claimBtnText(t: any): string {
-    if (claimedIds.value.has(t.id)) return '已领取';
-    if (tab.value === 'upcoming') return '未开始';
-    if ((t.totalCount ?? 0) > 0 && t.claimedCount >= t.totalCount) return '已领完';
-    return '立即领取';
+    if (claimedIds.value.has(t.id)) return locale.t('couponCentre.claimed');
+    if (tab.value === 'upcoming') return locale.t('couponCentre.notStarted');
+    if ((t.totalCount ?? 0) > 0 && t.claimedCount >= t.totalCount) return locale.t('couponCentre.soldOut');
+    return locale.t('couponCentre.claimNow');
 }
 
 function switchTab(k: TabKey) {
@@ -98,16 +105,16 @@ function switchTab(k: TabKey) {
 }
 
 async function claim(t: any) {
-    if (claimBtnText(t) !== '立即领取') return;
+    if (!canClaim(t)) return;
     if (!auth.requireLogin('/pkg-promotion/pages/coupon-centre')) return;
     claimingId.value = t.id;
     try {
         await claimCoupon(t.id);
         claimedIds.value.add(t.id);
-        uni.showToast({ title: '领取成功', icon: 'none' });
+        uni.showToast({ title: locale.t('couponCentre.claimSuccess'), icon: 'none' });
     } catch (e: any) {
         // 后端报错原样 toast（已领完/超出限领/未开始/仅限新客）
-        const msg = e?.response?.errors?.[0]?.message || '领取失败';
+        const msg = e?.response?.errors?.[0]?.message || locale.t('couponCentre.claimFail');
         uni.showToast({ title: msg, icon: 'none' });
         load(); // 刷新券列表状态
     } finally {

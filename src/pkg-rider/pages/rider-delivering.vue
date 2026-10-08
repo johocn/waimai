@@ -1,18 +1,18 @@
 <template>
     <view class="delivering">
-        <EmptyState v-if="!tasks.length" text="暂无进行中的任务，去大厅接一单吧" />
+        <EmptyState v-if="!tasks.length" :text="$t('riderDelivering.empty')" />
 
         <!-- plan 3.3 路线任务组卡（方案 A）：同 routeGroupId ≥2 单聚合为一张组卡 -->
         <view v-for="g in groups" :key="g.gid" class="task-card group">
             <view class="ghead">
                 <text class="gname">📍 {{ g.orders[0].customFields?.campusZone || '' }} {{ buildingName(g.orders[0]) }}</text>
-                <text class="gbadge">路线任务 · {{ g.orders.length }} 单</text>
+                <text class="gbadge">{{ $t('riderDelivering.groupBadge').replace('{n}', String(g.orders.length)) }}</text>
             </view>
             <text class="gmeta">
-                期望 {{ g.orders[0].customFields?.deliverySlotText || '尽快' }}
-                <template v-if="deliveredCount(g)"> · 已送达 {{ deliveredCount(g) }}/{{ g.orders.length }}</template>
+                {{ $t('riderDelivering.expect').replace('{t}', g.orders[0].customFields?.deliverySlotText || $t('riderDelivering.asap')) }}
+                <template v-if="deliveredCount(g)"> · {{ $t('riderDelivering.deliveredProgress').replace('{a}', String(deliveredCount(g))).replace('{b}', String(g.orders.length)) }}</template>
             </text>
-            <text class="gmeta warn" v-if="groupUrged(g)">⚠ 有用户已催单，请尽快送达</text>
+            <text class="gmeta warn" v-if="groupUrged(g)">{{ $t('riderDelivering.urgedGroup') }}</text>
 
             <!-- 子单行：点行展开单子单操作，点圆圈勾选（仅配送中） -->
             <view v-for="o in g.orders" :key="o.id" class="subwrap">
@@ -24,7 +24,7 @@
                     >✓</view>
                     <view class="sub-info">
                         <view class="sub-top">
-                            <text class="code">#{{ o.code }} · {{ o.customFields?.fulfillmentRoute === 'R1' ? '接力单' : '直送单' }}</text>
+                            <text class="code">#{{ o.code }} · {{ o.customFields?.fulfillmentRoute === 'R1' ? $t('riderDelivering.relay') : $t('riderDelivering.direct') }}</text>
                             <text class="amt" v-if="o.customFields?.deliveryStatus === 'delivered'">¥{{ fmt(o.customFields?.riderEarning ?? 0) }}</text>
                         </view>
                         <text class="sub-st">{{ statusLabel(o) }}</text>
@@ -33,55 +33,55 @@
                 <!-- 单子单操作行 -->
                 <view class="rowops" v-if="expanded === String(o.id)">
                     <block v-if="o.customFields?.deliveryStatus === 'assigned'">
-                        <button class="act ghost small" @tap="begin(o)">开始取货</button>
-                        <button class="act ghost small" @tap="transfer(o, false)">转单</button>
+                        <button class="act ghost small" @tap="begin(o)">{{ $t('riderDelivering.startPick') }}</button>
+                        <button class="act ghost small" @tap="transfer(o, false)">{{ $t('riderDelivering.transfer') }}</button>
                     </block>
                     <block v-else-if="o.customFields?.deliveryStatus === 'in_progress'">
-                        <button class="act ghost small" @tap="deliverOne(o)">单独送达</button>
-                        <button class="act ghost small" @tap="transfer(o, true)">转单（拍照交接）</button>
+                        <button class="act ghost small" @tap="deliverOne(o)">{{ $t('riderDelivering.deliverOne') }}</button>
+                        <button class="act ghost small" @tap="transfer(o, true)">{{ $t('riderDelivering.transferPicked') }}</button>
                     </block>
-                    <button class="act ghost small" @tap="openExcPanel(o)">异常上报</button>
+                    <button class="act ghost small" @tap="openExcPanel(o)">{{ $t('riderDelivering.excReport') }}</button>
                 </view>
             </view>
 
             <!-- 组级主操作：整组待取货 → 批量开始；配送中 → 勾选批量送达 -->
             <button v-if="allAssigned(g)" class="act" :disabled="busy" @tap="startGroup(g)">
-                我已到店 · 开始取货（{{ g.orders.length }} 单）
+                {{ $t('riderDelivering.startGroup').replace('{n}', String(g.orders.length)) }}
             </button>
             <button
                 v-else-if="anyInProgress(g)" class="act" :disabled="busy || !checkedCount(g)"
                 @tap="deliverGroup(g)"
-            >{{ checkedCount(g) ? `送达勾选的 ${checkedCount(g)} 单 · 拍照存证` : '先勾选要送达的子单' }}</button>
+            >{{ checkedCount(g) ? $t('riderDelivering.deliverChecked').replace('{n}', String(checkedCount(g))) : $t('riderDelivering.deliverPickFirst') }}</button>
         </view>
 
         <!-- 独立任务卡（无组 / 组内剩余单）：保持原单任务交互 -->
         <view v-for="o in singles" :key="o.id" class="task-card">
-            <text class="code">#{{ o.code }} · {{ o.customFields?.fulfillmentRoute === 'R1' ? '接力单' : '直送单' }}</text>
+            <text class="code">#{{ o.code }} · {{ o.customFields?.fulfillmentRoute === 'R1' ? $t('riderDelivering.relay') : $t('riderDelivering.direct') }}</text>
             <text class="addr">📍 {{ o.customFields?.campusZone || '' }} {{ buildingName(o) }}</text>
-            <text class="slot" v-if="o.customFields?.deliverySlotText">期望送达 {{ o.customFields.deliverySlotText }}</text>
-            <text class="sla">建议 45 分钟内送达</text>
-            <text class="urged" v-if="o.customFields?.urged">⚠ 用户已催单，请尽快送达</text>
+            <text class="slot" v-if="o.customFields?.deliverySlotText">{{ $t('riderDelivering.expectSlot').replace('{t}', o.customFields.deliverySlotText) }}</text>
+            <text class="sla">{{ $t('riderDelivering.sla') }}</text>
+            <text class="urged" v-if="o.customFields?.urged">{{ $t('riderDelivering.urged') }}</text>
 
             <view class="actions">
                 <block v-if="o.customFields?.deliveryStatus === 'assigned'">
-                    <button class="act" :disabled="busy" @tap="begin(o)">我已到店 · 开始取货</button>
-                    <button class="act ghost" :disabled="busy" @tap="transfer(o, false)">转单（未取货）</button>
+                    <button class="act" :disabled="busy" @tap="begin(o)">{{ $t('riderDelivering.startSingle') }}</button>
+                    <button class="act ghost" :disabled="busy" @tap="transfer(o, false)">{{ $t('riderDelivering.transferNoPick') }}</button>
                 </block>
                 <block v-else-if="o.customFields?.deliveryStatus === 'in_progress'">
-                    <text class="picked">已取货，配送中</text>
-                    <button class="act" :disabled="busy" @tap="deliverOne(o)">我已送达（拍照存证）</button>
-                    <button class="act ghost" :disabled="busy" @tap="transfer(o, true)">转单（已取货 · 拍照交接）</button>
+                    <text class="picked">{{ $t('riderDelivering.picked') }}</text>
+                    <button class="act" :disabled="busy" @tap="deliverOne(o)">{{ $t('riderDelivering.deliverPhoto') }}</button>
+                    <button class="act ghost" :disabled="busy" @tap="transfer(o, true)">{{ $t('riderDelivering.transferPickedPhoto') }}</button>
                 </block>
                 <block v-else-if="o.customFields?.deliveryStatus === 'delivered'">
-                    <text class="done">已送达 ✓ 分成 ¥{{ fmt(o.customFields?.riderEarning ?? 0) }} 已入账</text>
+                    <text class="done">{{ $t('riderDelivering.doneEarn').replace('{n}', fmt(o.customFields?.riderEarning ?? 0)) }}</text>
                 </block>
                 <block v-else-if="o.customFields?.deliveryStatus === 'exception'">
-                    <text class="exc">异常处理中，平台将介入协调</text>
+                    <text class="exc">{{ $t('riderDelivering.excHandling') }}</text>
                 </block>
             </view>
 
             <view class="extra" v-if="['assigned', 'in_progress'].includes(o.customFields?.deliveryStatus)">
-                <button class="act ghost small" @tap="openExcPanel(o)">异常上报</button>
+                <button class="act ghost small" @tap="openExcPanel(o)">{{ $t('riderDelivering.excReport') }}</button>
             </view>
         </view>
 
@@ -94,15 +94,15 @@
                     @tap="excType = t.key"
                 >{{ t.label }}</view>
             </view>
-            <textarea class="exc-note" v-model="excNote" placeholder="补充说明（选「其他」必填）" />
+            <textarea class="exc-note" v-model="excNote" :placeholder="$t('riderDelivering.excNotePh')" />
             <view class="exc-photos">
                 <view class="shot" v-for="(p, i) in excPhotos" :key="i">
                     <image :src="p" mode="aspectFill" @tap="previewExcPhoto(i)" />
                     <text class="del" @tap="excPhotos.splice(i, 1)">×</text>
                 </view>
-                <view class="shot add" v-if="excPhotos.length < 3" @tap="addExcPhoto">＋ 拍照存证</view>
+                <view class="shot add" v-if="excPhotos.length < 3" @tap="addExcPhoto">{{ $t('riderDelivering.excAddPhoto') }}</view>
             </view>
-            <button class="act" :disabled="excSubmitting" @tap="submitException">提交上报</button>
+            <button class="act" :disabled="excSubmitting" @tap="submitException">{{ $t('riderDelivering.excSubmit') }}</button>
         </view>
     </view>
 </template>
@@ -115,9 +115,11 @@ import { startTask, deliverTask, reportException, transferTask } from '../../api
 import { riderReportLocation } from '../../api/mutations/campus';
 import { uploadCustomerAsset } from '../../api/mutations/upload';
 import { useAuthStore } from '../../stores/auth';
+import { useLocaleStore } from '../../stores/locale';
 import EmptyState from '../../components/EmptyState.vue';
 
 const auth = useAuthStore();
+const locale = useLocaleStore();
 const tasks = ref<any[]>([]);   // plan 3.3：多任务列表（原单任务 ref task 改为列表）
 const buildingMap = ref<Record<string, string>>({});
 const checked = ref(new Set<string>());   // 组内勾选待送达子单（order id）
@@ -157,10 +159,10 @@ const singles = computed(() => activeOrders.value.filter(o => !groupedIds.value.
 
 // 异常上报面板（plan 3.4 补全，plan 3.3 增加目标单 excTarget 支持组内子单上报）
 const EXC_TYPES = [
-    { key: 'merchant_issue', label: '商家无法出餐', statuses: ['assigned'] },
-    { key: 'no_recipient', label: '联系不上收件人', statuses: ['in_progress'] },
-    { key: 'food_spilled', label: '餐品洒漏损坏', statuses: ['in_progress'] },
-    { key: 'other', label: '其他', statuses: ['assigned', 'in_progress'] },
+    { key: 'merchant_issue', labelKey: 'excMerchantIssue', statuses: ['assigned'] },
+    { key: 'no_recipient', labelKey: 'excNoRecipient', statuses: ['in_progress'] },
+    { key: 'food_spilled', labelKey: 'excFoodSpilled', statuses: ['in_progress'] },
+    { key: 'other', labelKey: 'excOther', statuses: ['assigned', 'in_progress'] },
 ];
 const excPanelOpen = ref(false);
 const excTarget = ref<any>(null);
@@ -168,7 +170,9 @@ const excType = ref('');
 const excNote = ref('');
 const excPhotos = ref<string[]>([]);
 const excSubmitting = ref(false);
-const excTypes = computed(() => EXC_TYPES.filter(t => t.statuses.includes(status(excTarget.value))));
+const excTypes = computed(() => EXC_TYPES
+    .filter(t => t.statuses.includes(status(excTarget.value)))
+    .map(t => ({ ...t, label: locale.t(`riderDelivering.${t.labelKey}`) })));
 
 onShow(async () => {
     if (!auth.token) {
@@ -222,10 +226,10 @@ function buildingName(o: any) {
 
 function statusLabel(o: any) {
     switch (status(o)) {
-        case 'assigned': return '待取货 · 已指派给您';
-        case 'in_progress': return '已取货 · 配送中（点圆圈勾选送达）';
-        case 'delivered': return `已送达 ✓ 分成 ¥${fmt(o.customFields?.riderEarning ?? 0)} 入账`;
-        case 'exception': return '异常处理中，平台将介入';
+        case 'assigned': return locale.t('riderDelivering.stAssigned');
+        case 'in_progress': return locale.t('riderDelivering.stInProgress');
+        case 'delivered': return locale.t('riderDelivering.stDelivered').replace('{n}', fmt(o.customFields?.riderEarning ?? 0));
+        case 'exception': return locale.t('riderDelivering.stException');
         default: return '';
     }
 }
@@ -266,9 +270,9 @@ async function startGroup(g: any) {
         for (const o of g.orders.filter((x: any) => status(x) === 'assigned')) {
             await startTask(o.id, o.channelToken);
         }
-        uni.showToast({ title: '已开始取货', icon: 'none' });
+        uni.showToast({ title: locale.t('riderDelivering.started'), icon: 'none' });
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || '操作失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.opFail'), icon: 'none' });
     } finally {
         busy.value = false;
         await refresh();
@@ -279,9 +283,9 @@ async function begin(o: any) {
     busy.value = true;
     try {
         await startTask(o.id, o.channelToken);
-        uni.showToast({ title: '已开始取货', icon: 'none' });
+        uni.showToast({ title: locale.t('riderDelivering.started'), icon: 'none' });
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || '操作失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.opFail'), icon: 'none' });
     } finally {
         busy.value = false;
         await refresh();
@@ -304,10 +308,10 @@ async function deliverGroup(g: any) {
             } catch { /* 单单失败不阻断其余子单，refresh 后状态如实 */ }
         }
         checked.value = new Set(checked.value);
-        uni.showToast({ title: `已送达 ${ok} 单，分成入账`, icon: 'success' });
+        uni.showToast({ title: locale.t('riderDelivering.deliveredN').replace('{n}', String(ok)), icon: 'success' });
     } catch (e: any) {
         if (e?.message !== 'cancel') {
-            uni.showToast({ title: e?.response?.errors?.[0]?.message || '送达失败', icon: 'none' });
+            uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.deliverFail'), icon: 'none' });
         }
     } finally {
         busy.value = false;
@@ -320,10 +324,10 @@ async function deliverOne(o: any) {
         const photo = await takePhoto();
         busy.value = true;
         await deliverTask(o.id, [photo], undefined, o.channelToken);
-        uni.showToast({ title: '已送达，分成入账', icon: 'success' });
+        uni.showToast({ title: locale.t('riderDelivering.deliveredOne'), icon: 'success' });
     } catch (e: any) {
         if (e?.message !== 'cancel') {
-            uni.showToast({ title: e?.response?.errors?.[0]?.message || '送达失败', icon: 'none' });
+            uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.deliverFail'), icon: 'none' });
         }
     } finally {
         busy.value = false;
@@ -337,10 +341,10 @@ async function transfer(o: any, picked: boolean) {
         if (picked) photos = [await takePhoto()]; // 已取货转单强制拍照交接（spec §6.2.4）
         busy.value = true;
         await transferTask(o.id, photos, undefined, o.channelToken);
-        uni.showToast({ title: '已转回大厅', icon: 'none' });
+        uni.showToast({ title: locale.t('riderDelivering.toHall'), icon: 'none' });
     } catch (e: any) {
         if (e?.message !== 'cancel') {
-            uni.showToast({ title: e?.response?.errors?.[0]?.message || '转单失败', icon: 'none' });
+            uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.transferFail'), icon: 'none' });
         }
     } finally {
         busy.value = false;
@@ -365,7 +369,7 @@ async function addExcPhoto() {
         if (excPhotos.value.length < 3) excPhotos.value.push(photo);
     } catch (e: any) {
         if (e?.message !== 'cancel') {
-            uni.showToast({ title: '拍照失败，请重试', icon: 'none' });
+            uni.showToast({ title: locale.t('riderDelivering.photoFail'), icon: 'none' });
         }
     }
 }
@@ -373,15 +377,15 @@ async function addExcPhoto() {
 async function submitException() {
     if (!excTarget.value) return;
     if (!excType.value) {
-        uni.showToast({ title: '请选择异常类型', icon: 'none' });
+        uni.showToast({ title: locale.t('riderDelivering.excPickType'), icon: 'none' });
         return;
     }
     if (excType.value === 'other' && !excNote.value.trim()) {
-        uni.showToast({ title: '请填写备注说明', icon: 'none' });
+        uni.showToast({ title: locale.t('riderDelivering.excNoteRequired'), icon: 'none' });
         return;
     }
     if (excType.value === 'food_spilled' && !excPhotos.value.length) {
-        uni.showToast({ title: '请拍照存证后提交', icon: 'none' });
+        uni.showToast({ title: locale.t('riderDelivering.excPhotoRequired'), icon: 'none' });
         return;
     }
     excSubmitting.value = true;
@@ -390,14 +394,14 @@ async function submitException() {
             excTarget.value.id, excType.value, excPhotos.value,
             excNote.value.trim() || undefined, excTarget.value.channelToken,
         );
-        uni.showToast({ title: '已上报，平台将介入', icon: 'none' });
+        uni.showToast({ title: locale.t('riderDelivering.excSubmitted'), icon: 'none' });
         excPanelOpen.value = false;
         excType.value = '';
         excNote.value = '';
         excPhotos.value = [];
         await refresh();
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || '上报失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.excSubmitFail'), icon: 'none' });
     } finally {
         excSubmitting.value = false;
     }

@@ -2,7 +2,7 @@ import { GraphQLClient } from 'graphql-request';
 import { useTenantStore } from '../stores/tenant';
 import { useAuthStore } from '../stores/auth';
 
-// 生产 VITE_API_URL 留空 = 同源 /shop-api（部署在 www.yourbao.cn 同源反代下）；dev 由 .env.development 提供完整 origin
+// 生产 VITE_API_URL 留空 = 同源 /shop-api（部署在同源反代下）；dev 由 .env.development 提供完整 origin
 // 注意：graphql-request v7 内部 new URL(url) 要求绝对地址，相对路径会抛 Invalid URL ——
 // H5 下用动态 origin 兜底（勿硬编码域名），非 H5 保持相对路径由各端网络层自行解析。
 let API_URL = (import.meta.env?.VITE_API_URL || '') + '/shop-api';

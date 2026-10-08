@@ -2,30 +2,30 @@
     <view class="hall">
         <view class="topbar">
             <view class="online" :class="{ on }" @tap="toggleOnline">
-                <view class="dot"></view><text>{{ on ? '接单中' : '已下线' }}</text>
+                <view class="dot"></view><text>{{ on ? $t('riderHome.online') : $t('riderHome.offline') }}</text>
             </view>
-            <text class="credit">信用分 {{ profile?.riderCredit ?? '--' }}</text>
+            <text class="credit">{{ $t('riderHome.credit').replace('{n}', String(profile?.riderCredit ?? '--')) }}</text>
         </view>
         <navigator class="jh-entry" url="/pkg-jianghu/pages/jh-hall" hover-class="none">
             <view class="jh-ic">江</view>
             <view class="jh-b">
-                <text class="jh-h">江湖 · 拾光传信者</text>
-                <text class="jh-p">送单之外，接密信、收传闻、升段位。声望只换称号，不换现金</text>
+                <text class="jh-h">{{ $t('riderHome.jhTitle') }}</text>
+                <text class="jh-p">{{ $t('riderHome.jhDesc') }}</text>
             </view>
-            <text class="jh-go">进入</text>
+            <text class="jh-go">{{ $t('riderHome.jhGo') }}</text>
         </navigator>
-        <view class="hint" v-if="!on">打开「接单中」开关开始接收新任务</view>
-        <EmptyState v-else-if="!tasks.length" text="暂无待抢任务，新单会实时出现在这里" />
+        <view class="hint" v-if="!on">{{ $t('riderHome.offlineHint') }}</view>
+        <EmptyState v-else-if="!tasks.length" :text="$t('riderHome.empty')" />
         <view v-else class="tasks">
             <view v-for="t in tasks" :key="t.id" class="task" :class="{ taken: takenIds.has(t.id) }">
                 <view class="task-head">
-                    <text class="order-code">#{{ t.code }}<text v-if="isUrgent(t)" class="urgent">加急</text><text v-if="routeCount(t) > 1" class="route-tag">顺路 {{ routeCount(t) }} 单</text></text>
+                    <text class="order-code">#{{ t.code }}<text v-if="isUrgent(t)" class="urgent">{{ $t('riderHome.urgent') }}</text><text v-if="routeCount(t) > 1" class="route-tag">{{ $t('riderHome.routeTag').replace('{n}', String(routeCount(t))) }}</text></text>
                     <text class="fee">¥{{ fmt(runnerFee(t)) }}</text>
                 </view>
                 <text class="task-addr">{{ t.channelName || '' }} · {{ t.customFields?.campusZone || '' }} {{ buildingName(t) }}</text>
-                <text class="task-route">{{ t.customFields?.fulfillmentRoute === 'R1' ? '接力单（到校门口交接点取货）' : '直送单（档口取货）' }}</text>
+                <text class="task-route">{{ t.customFields?.fulfillmentRoute === 'R1' ? $t('riderHome.routeR1') : $t('riderHome.routeDirect') }}</text>
                 <button class="grab" :disabled="grabbing || takenIds.has(t.id)" @tap="grab(t)">
-                    {{ takenIds.has(t.id) ? '已被抢' : grabbing ? '锁定中…' : '一键接单' }}
+                    {{ takenIds.has(t.id) ? $t('riderHome.taken') : grabbing ? $t('riderHome.locking') : $t('riderHome.grab') }}
                 </button>
             </view>
         </view>
@@ -38,9 +38,11 @@ import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchHall, grabOrder, fetchBuildingMap } from '../../api/queries/hall';
 import { myRiderProfile, riderOnline, riderHeartbeat } from '../../api/queries/rider';
 import { useAuthStore } from '../../stores/auth';
+import { useLocaleStore } from '../../stores/locale';
 import EmptyState from '../../components/EmptyState.vue';
 
 const auth = useAuthStore();
+const locale = useLocaleStore();
 const on = ref(false);
 const profile = ref<any>(null);
 const tasks = ref<any[]>([]);
@@ -105,7 +107,7 @@ async function toggleOnline() {
         if (on.value) await refresh();
     } catch {
         on.value = !on.value;
-        uni.showToast({ title: '操作失败，请重试', icon: 'none' });
+        uni.showToast({ title: locale.t('riderHome.opFail'), icon: 'none' });
     }
 }
 
@@ -115,12 +117,13 @@ async function grab(t: any) {
         await grabOrder(t.id, t.channelToken);   // 成功返回订单（带来源渠道 token 抢单）
         uni.redirectTo({ url: '/pkg-rider/pages/rider-delivering' });
     } catch (e: any) {
-        const msg: string = e?.response?.errors?.[0]?.message || e?.message || '抢单失败';
+        const msg: string = e?.response?.errors?.[0]?.message || e?.message || locale.t('riderHome.grabFail');
+        // includes 匹配的是后端中文错误消息原文，不随语言切换
         if (msg.includes('已被抢')) {
             takenIds.value.add(t.id);
-            uni.showToast({ title: '手慢了，已被抢', icon: 'none' });
+            uni.showToast({ title: locale.t('riderHome.grabTaken'), icon: 'none' });
         } else if (msg.includes('不能抢自己')) {
-            uni.showToast({ title: '不能抢自己的订单', icon: 'none' });
+            uni.showToast({ title: locale.t('riderHome.grabSelf'), icon: 'none' });
         } else {
             uni.showToast({ title: msg.slice(0, 40), icon: 'none' });
         }

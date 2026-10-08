@@ -3,35 +3,35 @@
         <view class="kpi">
             <view class="kpi-item">
                 <text class="kpi-num">¥{{ fmt(todayTotal) }}</text>
-                <text class="kpi-label">今日</text>
+                <text class="kpi-label">{{ $t('riderEarning.today') }}</text>
             </view>
             <view class="kpi-item">
                 <text class="kpi-num">¥{{ fmt(weekTotal) }}</text>
-                <text class="kpi-label">本周</text>
+                <text class="kpi-label">{{ $t('riderEarning.week') }}</text>
             </view>
             <view class="kpi-item">
                 <text class="kpi-num">{{ profile?.riderCredit ?? '--' }}</text>
-                <text class="kpi-label">信用分</text>
+                <text class="kpi-label">{{ $t('riderEarning.credit') }}</text>
             </view>
         </view>
         <view class="wallet-entry" @tap="goWallet">
             <view class="we-left">
-                <text class="we-title">骑手钱包</text>
-                <text class="we-sub">余额 · 提现 · 流水</text>
+                <text class="we-title">{{ $t('riderEarning.walletTitle') }}</text>
+                <text class="we-sub">{{ $t('riderEarning.walletSub') }}</text>
             </view>
-            <text class="we-btn">去提现</text>
+            <text class="we-btn">{{ $t('riderEarning.goWithdraw') }}</text>
         </view>
-        <EmptyState v-if="!rows.length" text="暂无分成流水" />
+        <EmptyState v-if="!rows.length" :text="$t('riderEarning.empty')" />
         <view v-else class="list">
             <view v-for="r in rows" :key="r.id" class="row">
                 <view class="row-main">
-                    <text class="row-title">订单 #{{ r.orderId }}{{ r.tip ? ' · 含小费' : '' }}</text>
+                    <text class="row-title">{{ $t('riderEarning.order').replace('{id}', String(r.orderId)) }}{{ r.tip ? $t('riderEarning.withTip') : '' }}</text>
                     <text class="row-time">{{ fmtTime(r.createdAt) }}</text>
                 </view>
                 <text class="row-amount">+¥{{ fmt((r.amount ?? 0) + (r.tip ?? 0)) }}</text>
             </view>
         </view>
-        <text class="note">分成随送达实时入账；提现请进「骑手钱包」</text>
+        <text class="note">{{ $t('riderEarning.note') }}</text>
     </view>
 </template>
 

@@ -1,29 +1,29 @@
 <template>
     <view class="wallet">
         <view class="balance-card">
-            <text class="bc-label">可提现余额（元）</text>
+            <text class="bc-label">{{ $t('riderWallet.availableLabel') }}</text>
             <text class="bc-amount">¥{{ fmt(wallet?.available ?? 0) }}</text>
             <view class="bc-subs">
                 <view class="bc-sub">
                     <text class="bc-sub-num">¥{{ fmt(wallet?.frozen ?? 0) }}</text>
-                    <text class="bc-sub-label">审核中</text>
+                    <text class="bc-sub-label">{{ $t('riderWallet.frozen') }}</text>
                 </view>
                 <view class="bc-sub">
                     <text class="bc-sub-num">¥{{ fmt(wallet?.totalEarned ?? 0) }}</text>
-                    <text class="bc-sub-label">累计收入</text>
+                    <text class="bc-sub-label">{{ $t('riderWallet.totalEarned') }}</text>
                 </view>
             </view>
-            <button class="bc-btn" :disabled="wallet?.available < 1000" @tap="goWithdraw">申请提现</button>
-            <text class="bc-tip" v-if="(wallet?.available ?? 0) < 1000">满 ¥10 可提现</text>
+            <button class="bc-btn" :disabled="wallet?.available < 1000" @tap="goWithdraw">{{ $t('riderWallet.withdraw') }}</button>
+            <text class="bc-tip" v-if="(wallet?.available ?? 0) < 1000">{{ $t('riderWallet.minTip') }}</text>
         </view>
 
         <view class="tabs">
-            <text class="tab" :class="{ on: tab === 'history' }" @tap="switchTab('history')">收入明细</text>
-            <text class="tab" :class="{ on: tab === 'withdraw' }" @tap="switchTab('withdraw')">提现记录</text>
+            <text class="tab" :class="{ on: tab === 'history' }" @tap="switchTab('history')">{{ $t('riderWallet.tabHistory') }}</text>
+            <text class="tab" :class="{ on: tab === 'withdraw' }" @tap="switchTab('withdraw')">{{ $t('riderWallet.tabWithdraw') }}</text>
         </view>
 
         <template v-if="tab === 'history'">
-            <EmptyState v-if="!history.length" text="暂无余额流水" />
+            <EmptyState v-if="!history.length" :text="$t('riderWallet.emptyHistory')" />
             <view v-else class="list">
                 <view v-for="r in history" :key="r.id" class="row">
                     <view class="row-main">
@@ -32,19 +32,19 @@
                     </view>
                     <view class="row-side">
                         <text class="row-amount" :class="{ neg: r.amount < 0 }">{{ r.amount > 0 ? '+' : '' }}¥{{ fmt(r.amount) }}</text>
-                        <text class="row-after">余额 ¥{{ fmt(r.balanceAfter) }}</text>
+                        <text class="row-after">{{ $t('riderWallet.balance').replace('{n}', fmt(r.balanceAfter)) }}</text>
                     </view>
                 </view>
             </view>
         </template>
 
         <template v-else>
-            <EmptyState v-if="!withdraws.length" text="暂无提现记录" />
+            <EmptyState v-if="!withdraws.length" :text="$t('riderWallet.emptyWithdraw')" />
             <view v-else class="list">
                 <view v-for="r in withdraws" :key="r.id" class="row">
                     <view class="row-main">
-                        <text class="row-title">提现到 {{ r.channel }}</text>
-                        <text class="row-time">{{ fmtTime(r.createdAt) }}<text v-if="r.reviewedAt"> · 审核 {{ fmtTime(r.reviewedAt) }}</text></text>
+                        <text class="row-title">{{ $t('riderWallet.withdrawTo').replace('{c}', r.channel) }}</text>
+                        <text class="row-time">{{ fmtTime(r.createdAt) }}<text v-if="r.reviewedAt"> · {{ $t('riderWallet.reviewed') }} {{ fmtTime(r.reviewedAt) }}</text></text>
                     </view>
                     <view class="row-side">
                         <text class="row-amount neg">-¥{{ fmt(r.amount) }}</text>
@@ -62,9 +62,11 @@ import { ref } from 'vue';
 import { onShow, onReachBottom } from '@dcloudio/uni-app';
 import { myRiderWallet, riderBalanceHistory, riderWithdrawRequests } from '../../api/queries/wallet';
 import { useAuthStore } from '../../stores/auth';
+import { useLocaleStore } from '../../stores/locale';
 import EmptyState from '../../components/EmptyState.vue';
 
 const auth = useAuthStore();
+const locale = useLocaleStore();
 const wallet = ref<any>(null);
 const tab = ref<'history' | 'withdraw'>('history');
 const history = ref<any[]>([]);
@@ -74,17 +76,19 @@ const withdrawDone = ref(false);
 const PAGE = 20;
 
 const TYPE_LABELS: Record<string, string> = {
-    recharge: '余额充值',
-    consume: '提现冻结',
-    refund: '入账',
-    freeze: '冻结',
-    unfreeze: '解冻',
-    adjust: '调整',
+    recharge: 'typeRecharge',
+    consume: 'typeConsume',
+    refund: 'typeRefund',
+    freeze: 'typeFreeze',
+    unfreeze: 'typeUnfreeze',
+    adjust: 'typeAdjust',
 };
 
-function typeLabel(t: string) { return TYPE_LABELS[t] ?? t; }
+function typeLabel(t: string) { return TYPE_LABELS[t] ? locale.t(`riderWallet.${TYPE_LABELS[t]}`) : t; }
 function statusLabel(s: string) {
-    return s === 'PAID' ? '已打款' : s === 'REJECTED' ? '已驳回' : '审核中';
+    return s === 'PAID' ? locale.t('riderWallet.stPaid')
+        : s === 'REJECTED' ? locale.t('riderWallet.stRejected')
+        : locale.t('riderWallet.stPending');
 }
 
 function fmt(fen: number) { return ((fen ?? 0) / 100).toFixed(2); }

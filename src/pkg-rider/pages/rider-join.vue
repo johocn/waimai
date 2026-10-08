@@ -1,25 +1,25 @@
 <template>
     <view class="join">
         <view class="status-card" v-if="profile && profile.riderStatus === 'approved'">
-            <text class="status-title">已通过审核</text>
-            <text class="status-desc">您已是认证传信者，可以开始接单啦</text>
-            <button class="submit" @tap="goHall">进入接单大厅</button>
+            <text class="status-title">{{ $t('riderJoin.approvedTitle') }}</text>
+            <text class="status-desc">{{ $t('riderJoin.approvedDesc') }}</text>
+            <button class="submit" @tap="goHall">{{ $t('riderJoin.goHall') }}</button>
         </view>
         <view class="status-card" v-else-if="profile && profile.riderStatus === 'pending'">
-            <text class="status-title">审核中</text>
-            <text class="status-desc">资质提交成功，等待管理员审核（一般 1 个工作日内）</text>
+            <text class="status-title">{{ $t('riderJoin.pendingTitle') }}</text>
+            <text class="status-desc">{{ $t('riderJoin.pendingDesc') }}</text>
         </view>
         <view v-else class="form">
-            <view class="field"><text class="label">真实姓名</text><input v-model="form.realName" placeholder="与证件一致" /></view>
-            <view class="field"><text class="label">学号</text><input v-model="form.studentNo" placeholder="请输入学号" /></view>
-            <view class="field"><text class="label">校区</text><input v-model="form.campus" placeholder="如：东校区" /></view>
+            <view class="field"><text class="label">{{ $t('riderJoin.labelName') }}</text><input v-model="form.realName" :placeholder="$t('riderJoin.phName')" /></view>
+            <view class="field"><text class="label">{{ $t('riderJoin.labelStudentNo') }}</text><input v-model="form.studentNo" :placeholder="$t('riderJoin.phStudentNo')" /></view>
+            <view class="field"><text class="label">{{ $t('riderJoin.labelCampus') }}</text><input v-model="form.campus" :placeholder="$t('riderJoin.phCampus')" /></view>
             <view class="field">
-                <text class="label">学生证照片（选填）</text>
+                <text class="label">{{ $t('riderJoin.labelIdImg') }}</text>
                 <image v-if="form.idImg" :src="form.idImg" class="id-img" mode="aspectFill" @tap="chooseImg" />
-                <view v-else class="id-upload" @tap="chooseImg">＋ 上传</view>
+                <view v-else class="id-upload" @tap="chooseImg">{{ $t('riderJoin.upload') }}</view>
             </view>
-            <button class="submit" :disabled="submitting" @tap="submit">{{ submitting ? '提交中…' : '提交申请' }}</button>
-            <text class="tips">审核通过后即可在「我的-传信者中心」接单赚跑腿费</text>
+            <button class="submit" :disabled="submitting" @tap="submit">{{ submitting ? $t('riderJoin.submitting') : $t('riderJoin.submit') }}</button>
+            <text class="tips">{{ $t('riderJoin.tips') }}</text>
         </view>
     </view>
 </template>
@@ -30,8 +30,10 @@ import { onLoad } from '@dcloudio/uni-app';
 import { applyRider, myRiderProfile } from '../../api/queries/rider';
 import { uploadCustomerAsset } from '../../api/mutations/upload';
 import { useAuthStore } from '../../stores/auth';
+import { useLocaleStore } from '../../stores/locale';
 
 const auth = useAuthStore();
+const locale = useLocaleStore();
 const profile = ref<any>(null);
 const submitting = ref(false);
 const form = reactive({ realName: '', studentNo: '', campus: '', idImg: '' });
@@ -57,15 +59,15 @@ async function chooseImg() {
 
 async function submit() {
     if (!form.realName || !form.studentNo || !form.campus) {
-        return uni.showToast({ title: '请填写完整资料', icon: 'none' });
+        return uni.showToast({ title: locale.t('riderJoin.formIncomplete'), icon: 'none' });
     }
     submitting.value = true;
     try {
         await applyRider({ ...form, idImg: form.idImg || undefined });
-        uni.showToast({ title: '已提交', icon: 'success' });
+        uni.showToast({ title: locale.t('riderJoin.submitted'), icon: 'success' });
         profile.value = await myRiderProfile();
     } catch (e: any) {
-        uni.showToast({ title: e?.response?.errors?.[0]?.message || '提交失败', icon: 'none' });
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderJoin.submitFail'), icon: 'none' });
     } finally { submitting.value = false; }
 }
 </script>

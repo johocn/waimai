@@ -1,31 +1,31 @@
 <template>
     <view class="withdraw">
         <view class="amount-card">
-            <text class="ac-label">提现金额（元）</text>
+            <text class="ac-label">{{ $t('riderWithdraw.amountLabel') }}</text>
             <view class="ac-input-row">
                 <text class="ac-yen">¥</text>
-                <input class="ac-input" type="digit" v-model="amountYuan" placeholder="最低 10.00" placeholder-class="ac-ph" />
+                <input class="ac-input" type="digit" v-model="amountYuan" :placeholder="$t('riderWithdraw.amountPh')" placeholder-class="ac-ph" />
             </view>
-            <text class="ac-avail">可提现 ¥{{ fmt(wallet?.available ?? 0) }}<text class="ac-all" @tap="fillAll">全部提现</text></text>
+            <text class="ac-avail">{{ $t('riderWithdraw.available').replace('{n}', fmt(wallet?.available ?? 0)) }}<text class="ac-all" @tap="fillAll">{{ $t('riderWithdraw.all') }}</text></text>
         </view>
 
         <view class="section">
-            <text class="sec-title">收款渠道</text>
+            <text class="sec-title">{{ $t('riderWithdraw.channelTitle') }}</text>
             <view class="channels">
                 <view v-for="c in channels" :key="c" class="channel" :class="{ on: channel === c }" @tap="channel = c">
-                    <text>{{ c }}</text>
+                    <text>{{ channelLabel(c) }}</text>
                     <text class="check" v-if="channel === c">✓</text>
                 </view>
             </view>
         </view>
 
         <view class="section">
-            <text class="sec-title">收款账号</text>
-            <input class="account" v-model="account" :placeholder="channel === '支付宝' ? '支付宝账号 / 手机号' : '微信号 / 手机号'" placeholder-class="ac-ph" />
+            <text class="sec-title">{{ $t('riderWithdraw.accountTitle') }}</text>
+            <input class="account" v-model="account" :placeholder="accountPh" placeholder-class="ac-ph" />
         </view>
 
-        <button class="submit" :disabled="!canSubmit || submitting" @tap="submit">{{ submitting ? '提交中…' : '提交申请' }}</button>
-        <text class="note">提交后余额即冻结，审核通过后打款；驳回自动退回余额</text>
+        <button class="submit" :disabled="!canSubmit || submitting" @tap="submit">{{ submitting ? $t('riderWithdraw.submitting') : $t('riderWithdraw.submit') }}</button>
+        <text class="note">{{ $t('riderWithdraw.note') }}</text>
     </view>
 </template>
 
@@ -34,14 +34,20 @@ import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { myRiderWallet, riderWithdraw } from '../../api/queries/wallet';
 import { useAuthStore } from '../../stores/auth';
+import { useLocaleStore } from '../../stores/locale';
 
 const auth = useAuthStore();
+const locale = useLocaleStore();
 const wallet = ref<any>(null);
 const amountYuan = ref('');
 const channel = ref('支付宝');
 const account = ref('');
 const submitting = ref(false);
+// channels 是业务值（提交给后端 riderWithdraw.channel，管理端审核可见），保持中文常量；
+// 展示文案与账号输入提示走 i18n（channelLabel/accountPh）
 const channels = ['支付宝', '微信'];
+const channelLabel = (c: string) => locale.t(c === '支付宝' ? 'riderWithdraw.channelAlipay' : 'riderWithdraw.channelWechat');
+const accountPh = computed(() => locale.t(channel.value === '支付宝' ? 'riderWithdraw.accountAlipayPh' : 'riderWithdraw.accountWechatPh'));
 
 const canSubmit = computed(() => {
     const fen = toFen(amountYuan.value);
@@ -70,14 +76,14 @@ onShow(async () => {
 
 async function submit() {
     const fen = toFen(amountYuan.value);
-    if (fen < 1000) return uni.showToast({ title: '最低提现 ¥10', icon: 'none' });
+    if (fen < 1000) return uni.showToast({ title: locale.t('riderWithdraw.minAmount'), icon: 'none' });
     submitting.value = true;
     try {
         await riderWithdraw({ amount: fen, channel: channel.value, account: account.value.trim() });
-        uni.showToast({ title: '申请已提交，等待审核', icon: 'success' });
+        uni.showToast({ title: locale.t('riderWithdraw.submitted'), icon: 'success' });
         setTimeout(() => uni.navigateBack(), 800);
     } catch (e: any) {
-        const msg: string = e?.response?.errors?.[0]?.message || e?.message || '提交失败，请重试';
+        const msg: string = e?.response?.errors?.[0]?.message || e?.message || locale.t('riderWithdraw.submitFail');
         uni.showToast({ title: msg.slice(0, 40), icon: 'none' });
     } finally {
         submitting.value = false;

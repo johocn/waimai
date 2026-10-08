@@ -24,8 +24,16 @@ export const useLocaleStore = defineStore('locale', () => {
     function apply(localeOrNull?: string | null): void {
         const target = localeOrNull ?? locale.value;
         const next = SUPPORTED.includes(target) ? target : 'zh-Hans';
+        // #ifdef H5
         try {
-            // 同步到 uni 内置 i18n（导航栏文案等）；失败不阻断自研 $t
+            // 预写 uni 框架的 locale 存储键（UNI_STORAGE_LOCALE='UNI_LOCALE'，见 uni-shared）。
+            // uni.setLocale 仅在 app 创建后才写此键，而 createApp 阶段 getApp() 为空直接 return false，
+            // 故必须在此裸写，保证冷加载时 initAppVm→useI18n 初始 locale 与 store 一致。
+            window.localStorage.setItem('UNI_LOCALE', next);
+        } catch (_e) { /* ignore */ }
+        // #endif
+        try {
+            // 运行时切换（app 已创建）时同步 $locale 并响应式联动导航栏/TabBar；失败不阻断自研 $t
             uni.setLocale(next);
         } catch (_e) { /* ignore */ }
         try {
@@ -34,11 +42,11 @@ export const useLocaleStore = defineStore('locale', () => {
         locale.value = next;
     }
 
-    // 校验当前 runtime locale，缺失时回退
+    // 启动时把 uni 框架 locale 对齐到 store 恢复值（无条件 apply，幂等）。
+    // 注意：此处禁止调用 uni.getLocale —— 它会在 app 创建前提前创建 useI18n 实例，
+    // 使 $locale 钉死在旧值（navigator.language），导致 UNI_LOCALE 预写失效。
     function ensure(): void {
-        let cur = '';
-        try { cur = uni.getLocale() as string; } catch (_e) { /* ignore */ }
-        if (!SUPPORTED.includes(cur)) apply();
+        apply();
     }
 
     // 自研 translate：解析嵌套点键，当前 locale → 中文兜底 → 原文 key

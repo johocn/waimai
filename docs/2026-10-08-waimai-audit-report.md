@@ -109,6 +109,42 @@
 观察项处置：
 
 - **dist 退出 git 跟踪（本批执行）**：原「dist/build/h5 入库 + 服务器 git pull」约定已过时——生产 chunk 与本地构建一致、而 master 内 dist 为旧产物，证实部署实为本地构建 + scp 服务器解压。`.gitignore` 改为 `dist/` 全忽略 + `git rm -r --cached`（93 文件退出跟踪），scp 部署不受影响。
-- pages.json 骑手页导航栏标题未 i18n：维持 F11 边界记录（待学生端迁移统一做 uni `%key%` 机制 + 切换 UI）。
+- ~~pages.json 骑手页导航栏标题未 i18n~~ ✅ 已随 i18n 深化完成（见第六章，%key% 机制覆盖全部非 pkg-jianghu 页）。
 - rider-home「江」字水墨图标：装饰字形非文案；英文版上线时可换中性图形（极低优先级）。
 - 早期后台冒烟 job（07:27 启动即 FATAL，HTML 当 JSON）：与交付无关，收口前台重跑全绿（e2e 17 步 + 提现 W1-W6b）为准。
+
+## 六、i18n 深化：用户端全量迁移（2026-10-08，用户确认全量 B1–B5）
+
+F11 只迁移了骑手端；本批把学生端硬编码中文全量迁入字典并补齐导航/TabBar 的 uni `%key%` 机制与语言切换 UI。
+
+### 范围与产出
+
+| 批次 | 范围 | 词条数 |
+|---|---|---|
+| B1 | 主包入口 pages/ 5 页 + components 4 组件 | ~173 |
+| B2 | 交易链路 pkg-order 7 页（checkout/order-detail/pay-result/售后×2/评价×2） | ~328 |
+| B3 | 用户+营销 pkg-user 6 页 + pkg-promotion 2 页 | ~119 |
+| B4 | pages.json `%key%` 机制：非 pkg-jianghu 全部 navigationBarTitleText + tabBar text（30 nav.* + 3 tab.*） | 33 键 |
+| B5 | 「我的」页语言切换入口（ActionSheet 中文/English） | 3 |
+
+- 字典规模：`zh-Hans.json` = `en.json` = 30 命名空间 / 764 键双语对齐；导航键在 `uni-app{,.zh-Hans,.en}.json` 三件套。
+- 迁移模式：状态/枚举映射改「值存 i18n 键」（如 order-detail statusMap、after-sale STATE_MAP `{labelKey,hintKey}`、errand KIND_KEYS），展示层映射；业务值中文保留（店铺 tags、满减文案为后端数据）。
+
+### 关键技术点（uni `%key%` 机制三坑，后续项目直接复用结论）
+
+1. **uni-app.*.json 词条必须包在 `common` 子对象**：`uni:json` vite 插件与 `parseLocaleJson` 对 `uni-app.*.json` 均只取 `jsonObj.common || {}`（构建期剥离）。
+2. **`uni.setLocale` 在 `createApp()` 阶段无效**：其实现开头 `getApp()` 为空即 `return false`（不写 `UNI_LOCALE`、不更新 `$locale`）。而 `ensure()` 里调 `uni.getLocale()` 又会**提前创建 useI18n 单例**，使 `$locale` 钉死在 `navigator.language`。解法：`apply()` 里直接裸写 `localStorage['UNI_LOCALE']`（uni-shared `UNI_STORAGE_LOCALE`，注意键名不是 'uni_locale'），冷加载 `initAppVm → useI18n()` 即读到正确值；`uni.setLocale` 保留给运行时切换（app 已建，响应式联动导航栏/TabBar）。
+3. **Playwright headless 的 `navigator.language` 继承宿主系统**（本机 zh-CN）——测试 en 场景必须注入存储键后 reload，不能指望浏览器默认英文。
+
+### 验证（生产 https://www.yourbao.cn/waimai/）
+
+- vitest 81/81 全绿；build:h5 通过（PickupLocationSheet defineProps 引 setup 变量的编译错误已修）。
+- 冷加载探针：zh TabBar=`首页/订单/我的`、en TabBar=`Home/Orders/Profile`，`UNI_LOCALE`/`wm_locale` 双键同步。
+- 运行时切换探针：我的页 → 语言 → English → TabBar/导航栏即时切换 + 存储双键变 en，PASS；ActionSheet（中文/English/取消）截图正常。
+- 手机视口截图 9 张入库 `docs/screenshots/i18n-deepening/`（zh/en 首页+我的+登录页、ActionSheet、切换后、回切 zh）。
+
+### 遗留（非阻塞）
+
+- 店铺 tags（商家自提+拾光达接力 等4种方式）与「满20减4」为后端业务数据中文，不属静态文案范围。
+- about.vue 协议长文 body 本期保留中文（UI 壳已 i18n）。
+- pkg-jianghu 7 页标题维持中文（WIP 不碰铁律，随江湖版收口统一处理）。

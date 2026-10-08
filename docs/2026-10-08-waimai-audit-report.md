@@ -66,7 +66,10 @@
 
 ## 四、建议实施顺序（待用户确认优先级）
 
-> **实施进度（2026-10-08）**：F1 已修复上线（waimai `8f5de0b`：rider-home/rider-delivering stopTimers 挂 onHide+onUnload + onShow 防叠加；vitest 81/81；生产截图目检合格 `docs/screenshots/audit-f1-fix/`）。学生端 after-sale-detail/order-detail 轮询已用 Vue onUnmounted 且终态自停，无泄漏，无需改。
+> **实施进度（2026-10-08）**：
+> - F1 已修复上线（waimai `8f5de0b`：rider-home/rider-delivering stopTimers 挂 onHide+onUnload + onShow 防叠加；vitest 81/81；生产截图目检合格 `docs/screenshots/audit-f1-fix/`）。学生端 after-sale-detail/order-detail 轮询已用 Vue onUnmounted 且终态自停，无泄漏，无需改。
+> - F2/F3 已修复上线（vendure `61fcfb178` + `9b014c863`：withdraw 用 rawConnection 独立事务 + 裸 SQL 行锁 `SELECT id FROM customer WHERE id=$1 FOR UPDATE` 串行化（实体 findOne+lock 会 LEFT JOIN 触发 PG "nullable side of outer join" 限制，生产实测发现后改裸 SQL）；reject/approve 条件 UPDATE 原子认领 + 退回失败补偿恢复 PENDING；插件单测 181/181；生产提现定向冒烟 9 项全绿 `vshop/docs/verify/waimai-withdraw-smoke.cjs`）。
+> - 新增 F14（P2 测试基建）：全链路冒烟时段敏感——订单落在 30min 进厅窗口（dispatch-job.service.ts:122 scheduledFor 前 30min 放量）之外时 hallStatus 停在 scheduled，S5 必挂；应筛选窗口内时段或 scheduled 时降级跳过 S6-S8。
 
 1. ~~F1 定时器泄漏~~ ✅ 已上线
 2. F2/F3 提现事务化（资金安全）

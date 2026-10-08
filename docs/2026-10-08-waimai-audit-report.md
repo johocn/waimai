@@ -72,11 +72,17 @@
 > - 新增 F14（P2 测试基建）：全链路冒烟时段敏感——订单落在 30min 进厅窗口（dispatch-job.service.ts:122 scheduledFor 前 30min 放量）之外时 hallStatus 停在 scheduled，S5 必挂；应筛选窗口内时段或 scheduled 时降级跳过 S6-S8。
 > - F9/F4 已修复上线（waimai `6dcd5c9` + vendure `06059db3b`，双仓单测 81+181 全绿；F4 生产探针：匿名 campusHall 被拒 `You are not currently authorized`、骑手会话正常返回；提现冒烟部署后重跑全绿）。
 > - F10/F14 已修复（2026-10-08）：F10 nginx `location /admin-api/` 带尾斜杠致裸 `/admin-api` 落 SPA 回退 301 丢 body——改为前缀 `location /admin-api`（1Panel openresty 为 docker 容器 `1Panel-openresty-3I6S`，容器内 `nginx -t`+`-s reload`；备份 `.bak_f10_*`），生产 POST /admin-api 返回 JSON 200，yourbao 基址冒烟 admin 步恢复；F14 冒烟脚本条件断言（vshop `252d94d`），yourbao 基址全链路冒烟 partial PASS（S1-S5，调度流因窗口外跳过）。
+> - F5-F8 已修复上线（2026-10-08，vendure `e85dfa138` + waimai `243bca9` + vshop `3d72a1b`）：
+>   - **F5 聚合大厅**：后端新增 shop 端 `campusHallAll`（hall-grab.service.ts，范围=有履约配置+非默认渠道+未暂停，上限 500 单超限告警，排序同单渠道 hall：滞留>5min 置顶→小费降序→入厅升序），每单附 channelId/channelToken/channelName；前端 hall.ts `fetchHall` 改单请求聚合，N+1 轮询清零。
+>   - **F6 扫描上限**：dispatch scan `SCAN_LIMIT=200` + createdAt 升序 + 超限告警。
+>   - **F7 通知重试**：sendOnce 10s 超时，最多 3 次尝试（2s/8s 退避），全失败告警；dedupe_key 幂等保证重发安全。
+>   - **F8 审核分页**：listApplications 支持 skip/take（默认 0/200），SDL 返回 `RiderApplicationList{items,total}`；web-admin 接入分页传参。
+>   - 验证：插件单测 188/188（新增 hallAll 3 例 / notify 重试 2 例 / listApplications 2 例）+ waimai vitest 81/81；e2e 冒烟 partial PASS（S1-S5）+ 提现冒烟 W1-W6b 全绿；生产探针 6 项全 PASS——匿名 `campusHallAll` 被拒（鉴权生效）、骑手会话返回 200 且 channelToken/channelName/customFields 字段齐全、admin `riderApplications(skip:0,take:5)` 返回 `{total:1}` 分页生效。
 
 1. ~~F1 定时器泄漏~~ ✅ 已上线
 2. ~~F2/F3 提现事务化（资金安全）~~ ✅ 已上线
 3. ~~F9 toFen 精度（一行修）~~ ✅ 已上线
 4. ~~F4 campusHall 鉴权（一行加断言）~~ ✅ 已上线
 5. ~~F10 nginx admin-api location（运维配置）~~ ✅ 已上线 + ~~F14 冒烟时段适配~~ ✅ 已上线
-6. F5/F6/F7/F8 性能与健壮性（涉及新接口/分页，工作量中等）
+6. ~~F5/F6/F7/F8 性能与健壮性~~ ✅ 已上线（2026-10-08）
 7. F11-F13 酌情

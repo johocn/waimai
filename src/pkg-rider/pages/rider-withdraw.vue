@@ -48,7 +48,13 @@ const canSubmit = computed(() => {
     return fen >= 1000 && !!channel.value && !!account.value.trim();
 });
 
-function toFen(v: string) { return Math.floor(parseFloat(v || '0') * 100) || 0; }
+// 金额元→分：字符串按小数位直接解析，避免浮点误差（如 26.9*100=floor 2689 丢 1 分）；
+// 非法输入（非数字/超 2 位小数）返回 0 使 canSubmit 为 false
+function toFen(v: string) {
+    const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec((v || '').trim());
+    if (!m) return 0;
+    return parseInt(m[1], 10) * 100 + (m[2] ? parseInt(m[2].padEnd(2, '0'), 10) : 0);
+}
 function fmt(fen: number) { return ((fen ?? 0) / 100).toFixed(2); }
 
 function fillAll() {

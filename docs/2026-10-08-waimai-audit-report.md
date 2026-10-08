@@ -78,6 +78,10 @@
 >   - **F7 通知重试**：sendOnce 10s 超时，最多 3 次尝试（2s/8s 退避），全失败告警；dedupe_key 幂等保证重发安全。
 >   - **F8 审核分页**：listApplications 支持 skip/take（默认 0/200），SDL 返回 `RiderApplicationList{items,total}`；web-admin 接入分页传参。
 >   - 验证：插件单测 188/188（新增 hallAll 3 例 / notify 重试 2 例 / listApplications 2 例）+ waimai vitest 81/81；e2e 冒烟 partial PASS（S1-S5）+ 提现冒烟 W1-W6b 全绿；生产探针 6 项全 PASS——匿名 `campusHallAll` 被拒（鉴权生效）、骑手会话返回 200 且 channelToken/channelName/customFields 字段齐全、admin `riderApplications(skip:0,take:5)` 返回 `{total:1}` 分页生效。
+> - F11-F13 已修复上线（2026-10-08，waimai `83a3bf7` + vshop `8c17177`）：
+>   - **F11 骑手端 i18n**：从零搭 i18n 基建（移植 vshop web-admin 的 localeStore 模式：自研 t() 嵌套点键解析，当前 locale→zh-Hans 兜底→原 key，无 vue-i18n 依赖）；`src/locale/zh-Hans.json` + `en.json` 双包各约 120 词条；`main.ts` 全局注入 `$t` + 启动 `uni.setLocale` 同步内置文案。pkg-rider 6 页（home/delivering/earning/wallet/join/withdraw）文案全量进字典；业务值与展示分离——提现渠道提交值保持中文常量（后端审核可见），展示走 channelLabel 映射；抢单错误 `includes('已被抢')` 匹配后端中文原文（后端非多语言，不随语言切换）。验证：vitest 81/81、build:h5 通过、生产 5 页手机视口截图目检无 key 残留/无排版错乱（`docs/screenshots/f11-i18n/`）。边界：pages.json 导航栏标题未 i18n 化（需 uni 内置 %key% 机制，后续处理）；语言切换 UI 暂不做（单语产品，学生端迁移 i18n 后统一加）。
+>   - **F12 调度台处置二次确认**：报告原文「枚举映射硬编码 Record<string,string>」已过时——plan 3.4（`dd3e342`）枚举映射即已 i18n 化；实质残留是退差价/补偿券/重派无确认，已补 `confirmHandle()`（uni.showModal 二次确认）+ campusDispatch 双语词条 4 条；vshop build:h5 通过、e2e 冒烟 S6-S8 调度流 PASS。
+>   - **F13 注释债**：`client.ts:5` 注释去生产域名（改为「同源反代下」，1 行）。
 
 1. ~~F1 定时器泄漏~~ ✅ 已上线
 2. ~~F2/F3 提现事务化（资金安全）~~ ✅ 已上线
@@ -85,4 +89,4 @@
 4. ~~F4 campusHall 鉴权（一行加断言）~~ ✅ 已上线
 5. ~~F10 nginx admin-api location（运维配置）~~ ✅ 已上线 + ~~F14 冒烟时段适配~~ ✅ 已上线
 6. ~~F5/F6/F7/F8 性能与健壮性~~ ✅ 已上线（2026-10-08）
-7. F11-F13 酌情
+7. ~~F11-F13 酌情~~ ✅ 已上线（2026-10-08）——至此 F1-F14 全部清零

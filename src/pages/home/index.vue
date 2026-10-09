@@ -28,6 +28,10 @@
                     <view class="qico">📣</view>
                     <text class="qtxt">{{ $t('home.notice') }}</text>
                 </view>
+                <view class="qk" v-if="jianghuEntry" @tap="goJianghu">
+                    <view class="qico">🗡️</view>
+                    <text class="qtxt">江湖</text>
+                </view>
             </view>
             <scroll-view scroll-x class="pills" v-if="!keyword">
                 <view
@@ -100,6 +104,8 @@ const secTitle = computed(() => {
     return activeTag.value === '全部' ? locale.t('home.allStores') : tagLabel(activeTag.value);
 });
 const promoStore = computed(() => stores.value.find((s: any) => s.promoText && !s.paused));
+// 本地测试版入口：仅当 .env 配置 VITE_JIANGHU_ENTRY=true 时显示（prod 默认隐藏，避免产品级入口决策前置）
+const jianghuEntry = String(import.meta.env.VITE_JIANGHU_ENTRY) === 'true';
 
 function tagIcon(t: string): string {
     return TAG_ICONS[t] ?? '🍴';
@@ -122,6 +128,7 @@ function goRider() {
     uni.navigateTo({ url: '/pkg-rider/pages/rider-join' });
 }
 function goErrand() { uni.navigateTo({ url: '/pkg-campus/errand/create' }); }
+function goJianghu() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-hall' }); }
 function showNotice() {
     uni.showModal({ title: locale.t('home.notice'), content: locale.t('home.noticeText'), showCancel: false, confirmText: locale.t('home.noticeOk') });
 }

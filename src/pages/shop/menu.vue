@@ -541,7 +541,8 @@ function goCheckout() {
     const fee = storeInfo.value?.deliveryFee ?? '';
     const cid = favChannelId.value != null ? `&cid=${favChannelId.value}` : '';
     const shop = `&shop=${encodeURIComponent(shopName.value)}`;
-    uni.navigateTo({ url: `/pkg-order/pages/checkout?routes=${routes}&minOrder=${mo}&dfee=${fee}${cid}${shop}` });
+    const token = `&token=${encodeURIComponent(shopToken.value)}`;
+    uni.navigateTo({ url: `/pkg-order/pages/checkout?routes=${routes}&minOrder=${mo}&dfee=${fee}${cid}${shop}${token}` });
 }
 </script>
 

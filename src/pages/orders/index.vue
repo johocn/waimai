@@ -187,12 +187,28 @@ async function loadData() {
                 .catch((e) => { console.error('myOrders@' + (c.name || 'default'), e); return { items: [], total: 0 }; }),
         ));
         const incoming = results.flatMap((r) => r.items);
-        const seen = new Set(orders.value.map((o) => o.id));
-        orders.value = [...orders.value, ...incoming.filter((o: any) => !seen.has(o.id))]
+        // 同一订单可能同时出现在平台渠道与店铺渠道的 myOrders 结果里：按 id 与 code 双重去重（含本批次内重复）
+        const seenIds = new Set(orders.value.map((o) => o.id));
+        const byCode = new Map(orders.value.map((o) => [o.code, o]));
+        const platformName = locale.t('orders.platform');
+        const fresh: any[] = [];
+        for (const o of incoming) {
+            const dup = byCode.get(o.code);
+            if (dup) {
+                // 平台渠道结果无店铺名：用店铺渠道的同单信息补上，展示更可读
+                if (dup.channelName === platformName && o.channelName !== platformName) dup.channelName = o.channelName;
+                continue;
+            }
+            if (seenIds.has(o.id)) continue;
+            seenIds.add(o.id);
+            byCode.set(o.code, o);
+            fresh.push(o);
+        }
+        orders.value = [...orders.value, ...fresh]
             .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        const totalSum = results.reduce((s, r) => s + r.total, 0);
+        // totalItems 会因跨渠道重复计数，不能作为终止条件；任一渠道本页取满即认为可能还有下一页
         page += 1;
-        hasMore.value = orders.value.length < totalSum;
+        hasMore.value = results.some((r) => r.items.length >= take);
     } catch (e) { console.error(e); }
     loading.value = false;
 }

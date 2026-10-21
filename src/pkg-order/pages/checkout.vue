@@ -405,7 +405,8 @@ function toggleRoute() {
 async function loadStoreRoutes() {
     try {
         const stores = await fetchStoreList();
-        const store = stores.find((s: any) => s.channelToken === tenantStore.token);
+        const storeToken = storeMeta.value.channelToken || tenantStore.token;
+        const store = stores.find((s: any) => s.channelToken === storeToken);
         freeShipFen.value = store?.freeShippingThreshold ?? null;
         promoText.value = store?.promoText ?? '';
         // URL 未透传起送价时回填店铺配置（单位：分）
@@ -1166,7 +1167,7 @@ onLoad((q: any) => {
     storeMeta.value = {
         channelId: q?.cid ? String(q.cid) : undefined,
         storeName: q?.shop ? decodeURIComponent(String(q.shop)) : undefined,
-        channelToken: tenantStore.token || '',
+        channelToken: q?.token ? decodeURIComponent(String(q.token)) : (tenantStore.token || ''),
         routes: routes.join(','),
     };
     // 「去使用」预挂券（my-coupons 写入）：购物车就绪后消费（onMounted consumePrefillCoupon）

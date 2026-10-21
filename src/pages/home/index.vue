@@ -156,7 +156,7 @@
                     <text class="sec-t">{{ secTitle }}</text>
                     <text class="sec-n">{{ $t('home.nearbyCount').replace('{n}', String(shown.length)) }}</text>
                 </view>
-                <EmptyState v-if="!shown.length && !(searchKeyword && searching)" :text="emptyText" />
+                <EmptyState v-if="!shown.length && !(searchKeyword && (searching || searchProductHits.length || hotStores.length))" :text="emptyText" />
                 <view v-else class="cards">
                     <view v-for="s in shown" :key="s.channelId" class="card" @tap="enterStore(s)">
                         <image v-if="s.logo" class="logo" :src="s.logo" mode="aspectFill" />

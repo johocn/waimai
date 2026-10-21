@@ -34,6 +34,12 @@
                     </view>
                 </scroll-view>
                 <scroll-view scroll-y class="goods">
+                    <!-- 排序 chips：售罄始终置底，切换不重新请求接口 -->
+                    <view class="good-sort">
+                        <view class="sort-chip" :class="{ on: sortKey === 'default' }" @tap="setSort('default')">{{ $t('menu.sortDefault') }}</view>
+                        <view class="sort-chip" :class="{ on: sortKey === 'sales' }" @tap="setSort('sales')">{{ $t('menu.sortSales') }}</view>
+                        <view class="sort-chip" :class="{ on: sortKey === 'price' }" @tap="setSort('price')">{{ $t('menu.sortPrice') }} {{ priceAsc ? '↑' : '↓' }}</view>
+                    </view>
                     <!-- 首页搜索/收藏/常买商品带 q 进店：只筛当前分类商品，可一键清除 -->
                     <view v-if="productQuery" class="good-search">
                         <text class="good-search__txt">{{ $t('menu.searchChip').replace('{q}', productQuery) }}</text>
@@ -131,7 +137,7 @@
             <view class="mcard">
                 <view class="mrow"><text class="mico">🏪</text><text class="mval">{{ shopName }}</text></view>
                 <view class="mrow"><text class="mico">🛵</text><text class="mlab">{{ $t('menu.deliveryService') }}</text><text class="mval">{{ routeDetailText }}</text></view>
-                <view class="mrow"><text class="mico">🕐</text><text class="mlab">{{ $t('menu.businessHours') }}</text><text class="mval">10:00–22:00</text></view>
+                <view class="mrow"><text class="mico">🕐</text><text class="mlab">{{ $t('menu.businessHours') }}</text><text class="mval">{{ storeInfo?.businessHours || '10:00–22:00' }}</text></view>
                 <view class="mrow"><text class="mico">📍</text><text class="mlab">{{ $t('menu.deliveryArea') }}</text><text class="mval">{{ $t('menu.deliveryAreaVal') }}</text></view>
                 <view class="mrow" v-if="storeInfo?.storeAddress"><text class="mico">🏠</text><text class="mlab">{{ $t('menu.storeAddress') }}</text><text class="mval">{{ storeInfo.storeAddress }}</text></view>
                 <view class="mrow" v-if="storeInfo?.storePhone"><text class="mico">📞</text><text class="mlab" @tap="callStore">{{ $t('menu.storePhone') }}</text><text class="mval" @tap="callStore">{{ storeInfo.storePhone }}</text></view>
@@ -212,6 +218,11 @@ const skuOpen = ref(false);
 const skuProduct = ref<any>(null);
 // 首页搜索/收藏商品带 q 进店：仅筛商品（不改分类），✕ 可清除
 const productQuery = ref('');
+// 商品排序：综合（接口原序）/ 销量 / 价格（再次点击切升/降）；售罄始终置底
+type SortKey = 'default' | 'sales' | 'price';
+const sortKey = ref<SortKey>('default');
+const priceAsc = ref(true);
+const soldOutTipShown = ref(false);
 
 const cartCount = computed(() => cart.totalQuantity);
 const cartTotal = computed(() => cart.totalPrice);
@@ -438,7 +449,48 @@ function buildCats(list: any[]) {
 function goodsOf(catId: string) {
     let list = catId === 'all' ? products.value : products.value.filter(p => p.collections?.some((c: any) => c.name === catId));
     if (productQuery.value) list = list.filter(p => matchesProduct(p, productQuery.value));
-    return list;
+    return sortGoods(list);
+}
+
+/** 销量缺失按 0；价格取可售 variants 最低 priceWithTax（全售罄时退回首个 variant） */
+function goodSales(g: any): number {
+    return Number(g?.customFields?.waimaiMonthlySales) || 0;
+}
+
+function goodMinPrice(g: any): number {
+    const prices = (g?.variants ?? [])
+        .filter((v: any) => variantAvailable(v))
+        .map((v: any) => Number(v?.priceWithTax) || 0);
+    if (prices.length) return Math.min(...prices);
+    return Number(g?.variants?.[0]?.priceWithTax) || 0;
+}
+
+/** 稳定排序（数组 sort 稳定）：售罄恒在组外末尾，组内依当前排序规则 */
+function sortGoods(list: any[]): any[] {
+    const arr = list.slice();
+    const soldRank = (g: any) => (goodSoldOut(g) ? 1 : 0);
+    if (sortKey.value === 'default') return arr.sort((a, b) => soldRank(a) - soldRank(b));
+    arr.sort((a, b) => {
+        const rank = soldRank(a) - soldRank(b);
+        if (rank) return rank;
+        if (sortKey.value === 'sales') return goodSales(b) - goodSales(a);
+        const diff = goodMinPrice(a) - goodMinPrice(b);
+        return priceAsc.value ? diff : -diff;
+    });
+    return arr;
+}
+
+function setSort(key: SortKey) {
+    if (key === 'price') {
+        if (sortKey.value === 'price') priceAsc.value = !priceAsc.value;
+        else sortKey.value = 'price';
+    } else {
+        sortKey.value = key;
+    }
+    if (!soldOutTipShown.value && goodsOf(activeCat.value).some(g => goodSoldOut(g))) {
+        soldOutTipShown.value = true;
+        uni.showToast({ title: locale.t('menu.soldOutLast'), icon: 'none' });
+    }
 }
 
 function clearProductQuery() {
@@ -670,6 +722,9 @@ function goCheckout() {
 /* 商品收藏心标 + 搜索定位 chip（复用 --w-* 主题 token） */
 .good-fav { position: absolute; right: 0; top: 16rpx; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; font-size: 36rpx; color: var(--w-text-muted); }
 .good-fav.on { color: #ff4d6d; }
+.good-sort { display: flex; gap: 12rpx; padding: 16rpx 0 0; flex-wrap: wrap; }
+.sort-chip { font-size: 22rpx; line-height: 1; color: var(--w-text-muted); background: var(--w-surface-muted); border-radius: 999rpx; padding: 12rpx 22rpx; white-space: nowrap; }
+.sort-chip.on { color: var(--w-brand-text); background: var(--w-brand-soft); font-weight: 600; }
 .good-search { display: flex; align-items: center; gap: 12rpx; margin: 16rpx 0 0; padding: 10rpx 20rpx; background: var(--w-brand-soft); border-radius: 999rpx; }
 .good-search__txt { flex: 1; min-width: 0; font-size: 22rpx; color: var(--w-brand-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .good-search__x { font-size: 24rpx; color: var(--w-text-muted); padding: 0 8rpx; }

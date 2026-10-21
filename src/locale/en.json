@@ -202,7 +202,11 @@
         "targetTitle": "Choose delivery building",
         "saveTarget": "Save",
         "noTargetOptions": "No buildings available. Please choose at checkout.",
-        "couponCentre": "Coupon Center"
+        "couponCentre": "Coupon Center",
+        "couponExpiring": "{n} coupon(s) expiring soon",
+        "suggestStores": "Stores",
+        "suggestHistory": "History",
+        "suggestHot": "Trending"
     },
     "menu": {
         "tabGoods": "Goods",
@@ -267,7 +271,11 @@
         "promoReached": "¥{t} reached: ¥{y} off",
         "soldOut": "Sold out",
         "lowStock": "Low stock",
-        "soldOutToast": "This item is sold out"
+        "soldOutToast": "This item is sold out",
+        "sortDefault": "Default",
+        "sortSales": "Sales",
+        "sortPrice": "Price",
+        "soldOutLast": "Sold-out items moved to the end"
     },
     "orders": {
         "tabAll": "All",
@@ -895,7 +903,8 @@
         "stUsed": "Used",
         "stExpired": "Expired",
         "use": "Use",
-        "goCentre": "Browse the coupon centre →",
+        "goCentre": "Browse the coupon center →",
+        "expiringSoon": "Expiring soon",
         "emptyUnused": "No available coupons",
         "emptyUsed": "No used coupons yet",
         "emptyExpired": "No expired coupons"

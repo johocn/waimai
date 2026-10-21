@@ -64,6 +64,38 @@
                 </view>
                 <view v-if="!searchHistory.length && !hotWords.length" class="sp-tip">{{ $t('home.emptySearch') }}</view>
             </view>
+            <!-- 搜索联想：聚焦且有输入时展示（与历史/热搜面板互斥），纯本地推导不发请求 -->
+            <scroll-view v-if="showSuggest" scroll-y class="search-panel suggest-panel">
+                <view v-if="storeSuggestions.length" class="sp-group">
+                    <view class="sp-head"><text class="sp-title">{{ $t('home.suggestStores') }}</text></view>
+                    <view class="sg-list">
+                        <view v-for="it in storeSuggestions" :key="'sg-' + it.store.channelId" class="sg-row" @tap="pickWord(it.store.name)">
+                            <text class="sg-ico">🏪</text>
+                            <text class="sg-name">{{ it.store.name }}</text>
+                            <text v-if="it.meta" class="sg-meta">{{ it.meta }}</text>
+                            <text class="sg-chev">›</text>
+                        </view>
+                    </view>
+                </view>
+                <view v-if="historySuggestions.length" class="sp-group">
+                    <view class="sp-head"><text class="sp-title">{{ $t('home.suggestHistory') }}</text></view>
+                    <view class="sg-list">
+                        <view v-for="h in historySuggestions" :key="'sh-' + h" class="sg-row" @tap="pickWord(h)">
+                            <text class="sg-ico">🕘</text>
+                            <text class="sg-name">{{ h }}</text>
+                        </view>
+                    </view>
+                </view>
+                <view v-if="hotSuggestions.length" class="sp-group">
+                    <view class="sp-head"><text class="sp-title">{{ $t('home.suggestHot') }}</text></view>
+                    <view class="sg-list">
+                        <view v-for="w in hotSuggestions" :key="'sw-' + w" class="sg-row" @tap="pickWord(w)">
+                            <text class="sg-ico">🔥</text>
+                            <text class="sg-name">{{ w }}</text>
+                        </view>
+                    </view>
+                </view>
+            </scroll-view>
             <template v-if="!showSearchPanel">
             <scroll-view scroll-x class="pills" v-if="!keyword">
                 <view
@@ -84,6 +116,12 @@
             <view v-if="promoStore" class="notice" @tap="enterStore(promoStore)">
                 <text class="ntext">🔥 {{ promoStore.name }} · {{ promoStore.promoText }}</text>
                 <text class="nmore">›</text>
+            </view>
+            <!-- 临期券提示：未使用券中 3 天内到期数量（与角标同一份 myCoupons 数据） -->
+            <view v-if="expiringCouponCount > 0" class="coupon-expiring" @tap="goMyCoupons">
+                <text class="ce-ico">⏰</text>
+                <text class="ce-text">{{ $t('home.couponExpiring').replace('{n}', String(expiringCouponCount)) }}</text>
+                <text class="ce-more">›</text>
             </view>
             <!-- 常买店铺：本地最近进店记录（无关键词时展示，失效店铺自动隐藏） -->
             <view v-if="recentStores.length" class="recent">
@@ -268,6 +306,7 @@ const locale = useLocaleStore();
 const favorites = useFavoritesStore();
 const authStore = useAuthStore();
 const unusedCouponCount = ref(0);
+const expiringCouponCount = ref(0);
 const keyword = ref('');
 const activeTag = ref('全部');
 const loading = ref(true);
@@ -284,6 +323,40 @@ const searching = ref(false);
 const searchProductHits = ref<Array<{ store: any; product: any; variant: any }>>([]);
 const showSearchPanel = computed(() => searchFocused.value && !keyword.value.trim());
 const hotWords = computed(() => buildHotWords(stores.value, 6));
+/** 联想关键词（小写）；空则无面板 */
+const suggestKey = computed(() => keyword.value.trim().toLowerCase());
+/** 店铺联想：店名 / tags 包含关键词，最多 4 条 */
+const storeSuggestions = computed(() => {
+    const kw = suggestKey.value;
+    if (!kw) return [] as Array<{ store: any; meta: string }>;
+    return stores.value
+        .filter((s: any) =>
+            String(s.name ?? '').toLowerCase().includes(kw) ||
+            (s.tags ?? []).some((t: any) => String(t).toLowerCase().includes(kw)))
+        .slice(0, 4)
+        .map((s: any) => {
+            const sales = s.monthlySales != null ? locale.t('home.monthlySales').replace('{n}', String(s.monthlySales)) : '';
+            const meta = [sales, deliveryTag(s) || ''].filter(Boolean).join(' · ');
+            return { store: s, meta };
+        });
+});
+/** 历史联想：历史记录包含关键词，最多 3 条 */
+const historySuggestions = computed(() => {
+    const kw = suggestKey.value;
+    if (!kw) return [] as string[];
+    return searchHistory.value.filter(h => String(h).toLowerCase().includes(kw)).slice(0, 3);
+});
+/** 热搜联想：热词包含关键词（去掉已在历史组出现的），最多 3 条 */
+const hotSuggestions = computed(() => {
+    const kw = suggestKey.value;
+    if (!kw) return [] as string[];
+    return hotWords.value
+        .filter(w => String(w).toLowerCase().includes(kw) && !historySuggestions.value.includes(w))
+        .slice(0, 3);
+});
+/** 有任意联想才显示面板，避免空白浮层 */
+const showSuggest = computed(() => searchFocused.value && !!suggestKey.value &&
+    (storeSuggestions.value.length + historySuggestions.value.length + hotSuggestions.value.length > 0));
 /** 无结果兜底：热销店铺（月售降序前 4，含休息中的店，点进去有休息提示） */
 const hotStores = computed(() => [...stores.value].sort((a: any, b: any) => (b.monthlySales || 0) - (a.monthlySales || 0)).slice(0, 4));
 let blurTimer: any = null;
@@ -540,15 +613,24 @@ function goRider() {
 }
 function goErrand() { uni.navigateTo({ url: '/pkg-campus/errand/create' }); }
 function goCouponCentre() { uni.navigateTo({ url: '/pkg-promotion/pages/coupon-centre' }); }
+function goMyCoupons() { uni.navigateTo({ url: '/pkg-promotion/pages/my-coupons' }); }
 function goJianghu() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-hall' }); }
 
-/** 未使用券角标：未登录不请求；失败静默置 0，不阻塞首页店铺加载 */
+/** 未使用券角标 + 临期券提示：同一次 myCoupons 返回计算两项；未登录不请求；失败静默置 0，不阻塞首页店铺加载 */
 async function loadCouponBadge() {
-    if (!authStore.isLoggedIn) { unusedCouponCount.value = 0; return; }
+    if (!authStore.isLoggedIn) { unusedCouponCount.value = 0; expiringCouponCount.value = 0; return; }
     try {
         const res = await getMyCoupons('UNUSED');
-        unusedCouponCount.value = (res?.myCoupons ?? []).length;
-    } catch { unusedCouponCount.value = 0; }
+        const list: any[] = res?.myCoupons ?? [];
+        unusedCouponCount.value = list.length;
+        const now = Date.now();
+        const deadline = now + 3 * 24 * 60 * 60 * 1000;
+        expiringCouponCount.value = list.filter((c: any) => {
+            if (!c?.expiredAt) return false;
+            const t = typeof c.expiredAt === 'number' ? c.expiredAt : new Date(c.expiredAt).getTime();
+            return Number.isFinite(t) && t >= now && t <= deadline;
+        }).length;
+    } catch { unusedCouponCount.value = 0; expiringCouponCount.value = 0; }
 }
 function showNotice() {
     uni.showModal({ title: locale.t('home.notice'), content: locale.t('home.noticeText'), showCancel: false, confirmText: locale.t('home.noticeOk') });
@@ -704,6 +786,18 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .sp-chip--hot { color: var(--w-brand-text); background: var(--w-brand-soft); border-color: transparent; }
 .sp-tip { padding: 28rpx 0 8rpx; font-size: 24rpx; color: var(--w-text-muted); text-align: center; }
 .sp-loading { padding: 20rpx 4rpx; font-size: 24rpx; color: var(--w-text-muted); }
+/* 搜索联想（店铺 / 历史 / 热搜）：沿用搜索面板底色与圆角，最多约 8 行后滚动 */
+.suggest-panel { max-height: 680rpx; }
+.sg-row { display: flex; align-items: center; gap: 12rpx; padding: 16rpx 4rpx; border-bottom: 1rpx solid var(--w-border); }
+.sg-list .sg-row:last-child { border-bottom: none; }
+.sg-ico { flex-shrink: 0; font-size: 24rpx; }
+.sg-name { flex: 1; min-width: 0; font-size: 26rpx; color: var(--w-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-meta { flex-shrink: 0; max-width: 46%; font-size: 22rpx; color: var(--w-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-chev { flex-shrink: 0; font-size: 28rpx; color: var(--w-text-muted); }
+/* 临期券提示条：紧凑橙色描边，位于搜索区与店铺列表之间 */
+.coupon-expiring { margin-top: 16rpx; display: flex; align-items: center; gap: 8rpx; background: var(--w-brand-soft); color: var(--w-brand-text); border: 1rpx solid rgba(255, 102, 0, 0.35); border-radius: 999rpx; padding: 10rpx 24rpx; font-size: 22rpx; }
+.ce-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ce-ico, .ce-more { flex-shrink: 0; }
 /* 商品横排（收藏商品 / 常买商品） */
 .item-card { display: inline-flex; flex-direction: column; width: 168rpx; margin-right: 16rpx; background: var(--w-surface); border-radius: $radius-card; padding: 12rpx; vertical-align: top; }
 .item-img { width: 144rpx; height: 144rpx; border-radius: $radius; }

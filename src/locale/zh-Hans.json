@@ -202,7 +202,11 @@
         "targetTitle": "选择配送楼栋",
         "saveTarget": "保存",
         "noTargetOptions": "暂无可选楼栋，请在结算页选择",
-        "couponCentre": "领券中心"
+        "couponCentre": "领券中心",
+        "couponExpiring": "{n} 张券即将过期",
+        "suggestStores": "店铺",
+        "suggestHistory": "历史",
+        "suggestHot": "热搜"
     },
     "menu": {
         "tabGoods": "商品",
@@ -267,7 +271,11 @@
         "promoReached": "已满 ¥{t} 减 ¥{y}",
         "soldOut": "售罄",
         "lowStock": "仅剩少量",
-        "soldOutToast": "该商品已售罄"
+        "soldOutToast": "该商品已售罄",
+        "sortDefault": "综合",
+        "sortSales": "销量",
+        "sortPrice": "价格",
+        "soldOutLast": "售罄商品已排在末尾"
     },
     "orders": {
         "tabAll": "全部",
@@ -896,6 +904,7 @@
         "stExpired": "已过期",
         "use": "去使用",
         "goCentre": "去领券中心逛逛 →",
+        "expiringSoon": "即将过期",
         "emptyUnused": "暂无可用优惠券",
         "emptyUsed": "暂无已使用记录",
         "emptyExpired": "暂无已过期优惠券"

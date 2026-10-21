@@ -35,7 +35,10 @@
 
     <view class="profile-page__orders" v-if="logged">
       <view class="order-shortcut" v-for="s in orderShortcuts" :key="s.label" @click="goOrdersTab(s.tab)">
-        <text class="order-shortcut__ico">{{ $t(s.ico) }}</text>
+        <view class="order-shortcut__icon">
+          <text class="order-shortcut__ico">{{ $t(s.ico) }}</text>
+          <text class="order-shortcut__badge" v-if="badgeCount(s) > 0">{{ badgeCount(s) > 99 ? '99+' : badgeCount(s) }}</text>
+        </view>
         <text class="order-shortcut__lbl">{{ $t(s.label) }}</text>
       </view>
     </view>
@@ -59,6 +62,9 @@ import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getActiveCustomer } from '../../api/queries/user';
 import { getMyCoupons } from '../../api/queries/coupon';
+import { getOrdersForChannel } from '../../api/queries/order';
+import { getMyReviews } from '../../api/queries/review';
+import { fetchStoreList } from '../../api/queries/waimai';
 import { useAuthStore } from '../../stores/auth';
 import { useCartStore } from '../../stores/cart';
 import { getSessionToken } from '../../api/client';
@@ -73,21 +79,35 @@ const customer = ref<any>(null);
 const unusedCouponCount = ref(0);
 const SERVICE_PHONE = (import.meta.env.VITE_SERVICE_PHONE as string) || '';
 
+type OrderBadgeKey = 'waitPay' | 'waitReceive' | 'waitReview';
+const EMPTY_ORDER_BADGES: Record<OrderBadgeKey, number> = { waitPay: 0, waitReceive: 0, waitReview: 0 };
+const orderBadges = ref<Record<OrderBadgeKey, number>>({ ...EMPTY_ORDER_BADGES });
+
 const logged = computed(() => !!(authStore.token || getSessionToken()));
 const avatarUrl = computed(() => customer.value?.customFields?.avatarUrl || '');
 const langName = computed(() => locale.locale === 'en' ? locale.t('profile.langEn') : locale.t('profile.langZh'));
 
-const orderShortcuts = [
-    { ico: 'profile.icoPay', label: 'profile.stWaitPay', tab: 'ArrangingPayment' },
-    { ico: 'profile.icoShip', label: 'profile.stWaitReceive', tab: 'PaymentAuthorized,PaymentSettled' },
-    { ico: 'profile.icoReview', label: 'profile.stWaitReview', tab: 'Delivered' },
+const orderShortcuts: Array<{ ico: string; label: string; tab: string; badgeKey?: OrderBadgeKey }> = [
+    { ico: 'profile.icoPay', label: 'profile.stWaitPay', tab: 'ArrangingPayment', badgeKey: 'waitPay' },
+    { ico: 'profile.icoShip', label: 'profile.stWaitReceive', tab: 'PaymentAuthorized,PaymentSettled', badgeKey: 'waitReceive' },
+    { ico: 'profile.icoReview', label: 'profile.stWaitReview', tab: 'Delivered', badgeKey: 'waitReview' },
     { ico: 'profile.icoRefund', label: 'profile.stRefund', tab: '' },
 ];
 
+function badgeCount(s: { badgeKey?: OrderBadgeKey }): number {
+    return (s.badgeKey && orderBadges.value[s.badgeKey]) || 0;
+}
+
 onShow(async () => {
-    if (!logged.value) { customer.value = null; unusedCouponCount.value = 0; return; }
-    try { const res: any = await getActiveCustomer(); customer.value = res.activeCustomer; } catch (e) {}
+    if (!logged.value) {
+        customer.value = null; unusedCouponCount.value = 0;
+        orderBadges.value = { ...EMPTY_ORDER_BADGES };
+        return;
+    }
+    // 券角标与订单角标并行拉取，均不阻塞页面渲染
     loadCouponBadge();
+    loadOrderBadges();
+    try { const res: any = await getActiveCustomer(); customer.value = res.activeCustomer; } catch (e) {}
 });
 
 async function loadCouponBadge() {
@@ -96,6 +116,54 @@ async function loadCouponBadge() {
         const res = await getMyCoupons('UNUSED');
         unusedCouponCount.value = (res?.myCoupons ?? []).length;
     } catch { unusedCouponCount.value = 0; }
+}
+
+/**
+ * 订单角标：跨渠道聚合我的订单（会话全局、channel 按 vendure-token 隔离）。
+ * 统计口径：待付款 ArrangingPayment；待送达 PaymentAuthorized/PaymentSettled（与入口 tab 一致）；
+ * 待评价 Delivered 且存在未评价 orderLine（已删评价不计）。失败静默。
+ */
+async function loadOrderBadges() {
+    if (!authStore.isLoggedIn) { orderBadges.value = { ...EMPTY_ORDER_BADGES }; return; }
+    try {
+        const [storesRes, reviewsRes] = await Promise.allSettled([fetchStoreList(), getMyReviews()]);
+        if (storesRes.status !== 'fulfilled') {
+            orderBadges.value = { ...EMPTY_ORDER_BADGES };
+            return;
+        }
+        const tokens = Array.from(new Set(
+            (storesRes.value ?? []).map((s: any) => s?.channelToken).filter(Boolean) as string[]
+        ));
+        const reviewsKnown = reviewsRes.status === 'fulfilled';
+        const reviewedLineIds = new Set<string>();
+        if (reviewsKnown) {
+            for (const r of ((reviewsRes.value as any)?.myReviews ?? [])) {
+                if (r?.status === 'deleted' || !r?.orderLineId) continue;
+                reviewedLineIds.add(String(r.orderLineId));
+            }
+        }
+        const orderResults = await Promise.allSettled(
+            tokens.map((t) => getOrdersForChannel(t, { take: 20 }))
+        );
+        const seen = new Set<string>();
+        let waitPay = 0, waitReceive = 0, waitReview = 0;
+        for (const res of orderResults) {
+            if (res.status !== 'fulfilled') continue;
+            for (const o of ((res.value as any)?.myOrders?.items ?? [])) {
+                if (!o?.id || seen.has(o.id)) continue;
+                seen.add(o.id);
+                if (o.state === 'ArrangingPayment') waitPay++;
+                else if (o.state === 'PaymentAuthorized' || o.state === 'PaymentSettled') waitReceive++;
+                else if (o.state === 'Delivered' && reviewsKnown) {
+                    const lines = o.lines ?? [];
+                    if (lines.some((l: any) => !reviewedLineIds.has(String(l.id)))) waitReview++;
+                }
+            }
+        }
+        orderBadges.value = { waitPay, waitReceive, waitReview };
+    } catch {
+        orderBadges.value = { ...EMPTY_ORDER_BADGES };
+    }
 }
 
 function nav(url: string) {
@@ -177,9 +245,11 @@ function switchLang() {
     &__badge { position: absolute; top: 8rpx; right: 8rpx; min-width: 32rpx; height: 32rpx; line-height: 32rpx; padding: 0 8rpx; border-radius: 16rpx; background: #ff4d4f; color: #fff; font-size: 20rpx; text-align: center; }
 }
 .order-shortcut {
-    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx;
+    flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8rpx; position: relative;
+    &__icon { position: relative; width: 56rpx; height: 56rpx; flex: none; }
     &__ico { width: 56rpx; height: 56rpx; border-radius: $radius-md; background: $brand-soft; color: $brand-color; font-size: 26rpx; display: flex; align-items: center; justify-content: center; }
-    &__lbl { font-size: 24rpx; color: $text-color; }
+    &__badge { position: absolute; top: -12rpx; right: -22rpx; min-width: 30rpx; height: 30rpx; line-height: 30rpx; padding: 0 8rpx; box-sizing: border-box; border-radius: 15rpx; background: #ff4d4f; color: #fff; font-size: 18rpx; text-align: center; white-space: nowrap; }
+    &__lbl { max-width: 100%; font-size: 24rpx; color: $text-color; text-align: center; }
 }
 .menu-item {
     display: flex; justify-content: space-between; align-items: center;

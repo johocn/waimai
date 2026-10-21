@@ -5,7 +5,8 @@
     </view>
 
     <scroll-view scroll-y class="mc-list">
-      <view v-for="c in list" :key="c.id" class="ticket" :class="{ 'ticket--used': c.status !== 'UNUSED' }">
+      <view v-for="c in list" :key="c.id" class="ticket" :class="{ 'ticket--used': c.status !== 'UNUSED', 'ticket--soon': isExpiringSoon(c) }">
+        <text class="ticket__soon" v-if="isExpiringSoon(c)">{{ $t('myCoupons.expiringSoon') }}</text>
         <view class="ticket__left">
           <view class="ticket__amount">
             <text class="ticket__symbol" v-if="c.template.type === 'FIXED' || c.template.type === 'FULL'">¥</text>
@@ -55,7 +56,36 @@ const tab = ref<string>('UNUSED');
 const data = ref<Record<string, any[]>>({ UNUSED: [], USED: [], EXPIRED: [] });
 const loading = ref(false);
 
-const list = computed(() => data.value[tab.value] ?? []);
+const EXPIRING_WINDOW_MS = 3 * 86400000;
+
+function expireTime(c: any): number {
+    if (!c?.expiredAt) return Infinity;
+    const t = new Date(c.expiredAt).getTime();
+    return Number.isNaN(t) ? Infinity : t;
+}
+
+/** 未使用券按 expiredAt 升序（临期在前，无过期时间排最后）；其余 tab 保持服务端顺序 */
+const list = computed(() => {
+    const arr = data.value[tab.value] ?? [];
+    if (tab.value !== 'UNUSED') return arr;
+    return [...arr].sort((a: any, b: any) => {
+        const ta = expireTime(a);
+        const tb = expireTime(b);
+        if (ta === tb) return 0;
+        return ta < tb ? -1 : 1;
+    });
+});
+
+/** 未使用且 expiredAt 在 3 天内（含当天，已过期当天仍标记） */
+function isExpiringSoon(c: any): boolean {
+    if (tab.value !== 'UNUSED' || c?.status !== 'UNUSED') return false;
+    const t = expireTime(c);
+    if (t === Infinity) return false;
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    return t >= startOfToday.getTime() && t - Date.now() <= EXPIRING_WINDOW_MS;
+}
+
 const emptyText = computed(() => (tab.value === 'UNUSED' ? locale.t('myCoupons.emptyUnused') : tab.value === 'USED' ? locale.t('myCoupons.emptyUsed') : locale.t('myCoupons.emptyExpired')));
 
 function amountText(t: any): string {
@@ -126,7 +156,9 @@ onShow(() => { data.value = { UNUSED: [], USED: [], EXPIRED: [] }; load(tab.valu
 .mc-tabs { display: flex; background: #fff; padding: 0 32rpx; }
 .mc-tab { flex: 1; text-align: center; padding: 24rpx 0; font-size: 30rpx; color: #666; &.on { color: #ff6600; font-weight: bold; border-bottom: 4rpx solid #ff6600; } }
 .mc-list { flex: 1; height: 0; padding: 24rpx; box-sizing: border-box; }
-.ticket { display: flex; background: #fff; border-radius: 16rpx; margin-bottom: 24rpx; overflow: hidden; }
+.ticket { position: relative; display: flex; background: #fff; border-radius: 16rpx; margin-bottom: 24rpx; overflow: hidden; }
+.ticket__soon { position: absolute; top: 12rpx; right: 12rpx; height: 32rpx; line-height: 32rpx; padding: 0 12rpx; border-radius: 16rpx; background: #ff9500; color: #fff; font-size: 20rpx; white-space: nowrap; z-index: 1; }
+.ticket--soon .ticket__name { padding-right: 180rpx; }
 .ticket__left { width: 220rpx; background: #ff6600; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28rpx 0; }
 .ticket--used .ticket__left { background: #ccc; }
 .ticket__amount { display: flex; align-items: baseline; }

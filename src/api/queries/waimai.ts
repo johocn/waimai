@@ -7,7 +7,7 @@ import { useAuthStore } from '../../stores/auth';
 export const WAIMAI_STORE_LIST = gql`
     query waimaiStoreList {
         waimaiStoreList {
-            channelId channelToken name logo tags monthlySales promoText paused routesEnabled
+            channelId channelToken name logo tags monthlySales promoText paused routesEnabled businessHours
             deliveryMinutes minOrderAmount deliveryFee storeAddress storePhone storeNotice errandBaseFee freeShippingThreshold
         }
     }
@@ -22,7 +22,7 @@ const PRODUCT_LIST_QUERY = `
                 featuredAsset { preview }
                 variants { id name priceWithTax stockLevel enabled options { id name code } }
                 collections { id name slug parent { name } }
-                customFields { reviewRating reviewCount }
+                customFields { reviewRating reviewCount waimaiMonthlySales }
             }
         }
     }

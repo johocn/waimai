@@ -336,4 +336,100 @@
 - 验证：`shop-api` 恢复 200；`activeChannel` 正常返回；磁盘占用回落至 62%。
 - 说明：13G 日志源自历史上某次以 `SQL_LOG=1` 启动的进程（TypeORM query 日志），当前进程环境无 `SQL_LOG`，重启后不再刷查询日志。
 
+---
+
+# 第四轮常用功能（商品排序 / 搜索联想 / 营业时间公告 / 订单统计与临期券）
+
+> 上线日期：2026-10-21（第四轮）
+> 截图脚本：`node .secrets/common-features-v4-shots.cjs`（Playwright 390×844 dpr=2，输出 `docs/screenshots/common-features-v4/`）
+> 后端变更：`Channel.customFields.waimaiBusinessHours`（string）、`Product.customFields.waimaiMonthlySales`（int）；`waimaiStoreList` 透出 `businessHours`
+
+## 21. 店铺菜单商品排序 + 售罄置底
+
+1. 店铺菜单「商品」Tab 顶部新增排序 chips：`综合 / 销量 / 价格 ↑↓`，默认综合（保持后台排序）；
+2. **销量**：按 `Product.customFields.waimaiMonthlySales` 降序，未配置按 0 处理；
+3. **价格**：取该商品可售规格的最低 `priceWithTax` 升序；再次点击价格切换为降序（箭头同步 `↑ / ↓`）；
+4. **售罄恒置底**：所有排序模式下，售罄商品（`stockLevel=OUT_OF_STOCK`）一律排在可售商品之后，且组内仍按当前排序键排序；
+5. 首次触发排序且存在售罄商品时，Toast 提示「售罄商品已置底」；
+6. 排序为纯本地内存计算，不重新请求接口、不打断滚动位置。
+
+![店铺菜单：排序 chips + 价格升序](screenshots/common-features-v4/03-menu-sort.png)
+
+> 说明：`waimaiMonthlySales` 由商家后台（渠道商品 customFields）维护，测试环境已配置 328 / 156 / 12 用于演示。
+
+## 22. 首页搜索联想
+
+1. 搜索框聚焦且已输入关键词时，在原历史/热搜面板位置展示**联想面板**（两者互斥，不会重叠）；
+2. 分组规则（均为本地计算，不发请求）：
+   - **店铺**：店铺名包含关键词的店铺（最多 4 条），右侧展示配送时长 / 起送价等 meta；
+   - **历史**：本地搜索历史中包含关键词的词条（最多 3 条）；
+   - **热搜**：本地热搜词中包含关键词的词条（最多 3 条）；
+3. 点击任意联想行即用该词直接提交搜索；
+4. 无任何匹配时不展示空面板，保持原有店铺列表；
+5. 清空输入或失焦后恢复历史/热搜面板与正常列表。
+
+![首页：搜索联想面板](screenshots/common-features-v4/01-home-search-suggest.png)
+
+## 23. 店铺营业时间 + 店铺公告
+
+1. 营业时间由渠道配置下发：`Channel.customFields.waimaiBusinessHours` → `waimaiStoreList.businessHours`；
+2. 店铺菜单「商家」Tab 展示动态营业时间，未配置时回退文案 `10:00–22:00`（不再是硬编码唯一值）；
+3. 店铺公告沿用 `campus_fulfillment_config.storeNotice`，仅在有值时展示「📣 店铺公告」行；
+4. 演示数据：`canteen-a` = `10:00-22:00`，`canteen-b` = `11:00-21:30`。
+
+![店铺菜单：营业时间 + 店铺公告](screenshots/common-features-v4/04-menu-hours.png)
+
+## 24. 个人中心订单统计 + 券临期提醒
+
+### 24.1 个人中心订单角标
+
+1. 「我的」订单快捷区（待付款 / 待送达 / 待评价）右上角显示未处理订单数，>99 显示 `99+`；
+2. 统计口径与订单入口 Tab 一致：
+   - 待付款：`ArrangingPayment`；
+   - 待送达：`PaymentAuthorized` / `PaymentSettled`（与入口 Tab 过滤条件相同）；
+   - 待评价：`Delivered` 且存在未评价订单行（剔除已删除评价）；
+3. 跨渠道聚合：按 `waimaiStoreList` 的渠道 token 逐店拉取最近 20 单，按订单 id 去重；单店失败不影响其他店，整体失败静默置 0；
+4. 每次 `onShow` 刷新，未登录不请求、不展示角标。
+
+![个人中心：待付款 / 待送达 / 待评价角标](screenshots/common-features-v4/05-profile-order-badges.png)
+
+### 24.2 首页临期券提示 + 券包临期标记
+
+1. 首页在优惠横幅下方新增「⏰ N 张券即将过期」提示条（3 天内到期的未使用券），点击直达「我的优惠券」；
+2. 数量与首页「领券中心」角标复用同一份 `myCoupons(status: UNUSED)` 数据，避免重复请求；
+3. 券包「未使用」Tab 按 `expiredAt` 升序排列（无到期时间排最后）；
+4. 3 天内到期的券卡片右上角显示「即将过期」角标。
+
+![首页：临期券提示条](screenshots/common-features-v4/02-home-coupon-expiring.png)
+![券包：即将过期标记 + 到期时间升序](screenshots/common-features-v4/06-my-coupons-expiring.png)
+
+## 25. 验收记录（第四轮，2026-10-21）
+
+| 项 | 结果 |
+|---|---|
+| 后端插件 `pnpm build` | 通过，提交 `6fdf5c1f2`（字段 + 透出）、`401619c91`（Product customFields 合并修复） |
+| `waimaiStoreList.businessHours` | 线上返回 `canteen-a=10:00-22:00`、`canteen-b=11:00-21:30` |
+| `Product.customFields.waimaiMonthlySales` | introspection 可见，线上商品查询返回 `null`（未配置商品）不报错 |
+| 菜单排序 | chips `综合 / 销量 / 价格 ↑` 均展示；点价格后商品顺序变化（¥0.00 → ¥2.05 → ¥3.05） |
+| 售罄置底 | 逻辑内置（当前测试商品无售罄，售罄分支由 `OUT_OF_STOCK` 判定） |
+| 搜索联想 | 输入「麻」后面板展开，分组「历史」含「麻辣拌面」，点击可搜索 |
+| 营业时间/公告 | 商家 Tab 显示 `10:00-22:00`，公告「新店开业，满20减4，欢迎光临」 |
+| 个人中心角标 | 待付款 1 / 待送达 1 / 待评价 1 |
+| 首页临期券 | 提示条「2 张券即将过期」，领券中心角标 2 |
+| 券包临期 | 「即将过期」2 张，按到期时间升序 |
+| 前端构建/部署 | `pnpm build:h5` 通过，产物校验 2556 KB，线上入口 `index-DcL6Ph0B.js` 已更新 |
+| 线上回归 | 首页 200；`assets/index-BqSorris.js`、`pages-shop-menu.CaOE8lIz.js`、`waimai.BZrkQLRO.js` 均含新功能代码 |
+| 数据修正 | 演示店铺公告/地址/电话由测试乱码改为正式文案（仅演示渠道 113/114） |
+| 手机视口截图 | 390×844 dpr=2，共 6 张（见上） |
+
+## 26. 边界与已知限制（第四轮）
+
+- `waimaiMonthlySales` 为手工维护的静态月销，不随订单实时累加；如需实时销量需在订单完成后回写商品字段。
+- 排序仅作用于当前已加载的商品列表（单店商品量为单页全量），不做服务端分页排序。
+- 搜索联想为本地匹配，依赖已加载的店铺列表与本地历史/热搜；未加载的店铺不会出现在联想中。
+- 营业时间为单段字符串展示，不解析多时段（如午市/晚市分开），也不参与「营业中/休息中」判定（该判定沿用原配置）。
+- 订单角标最多统计各渠道最近 20 单，历史积压的未付款旧单可能不计入。
+- 临期券阈值固定 3 天，暂未做成后台可配。
+
+
 

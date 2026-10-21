@@ -36,8 +36,8 @@
       </scroll-view>
 
       <view class="sku-sheet__bar">
-        <button class="sku-sheet__btn sku-sheet__btn--cart" :disabled="!currentVariant" @click="emitAction('cart')">{{ $t('comp.addToCart') }}</button>
-        <button class="sku-sheet__btn sku-sheet__btn--buy" :disabled="!currentVariant" @click="emitAction('buy')">{{ $t('comp.buyNow') }}</button>
+        <button class="sku-sheet__btn sku-sheet__btn--cart" :disabled="!canBuy" @click="emitAction('cart')">{{ $t('comp.addToCart') }}</button>
+        <button class="sku-sheet__btn sku-sheet__btn--buy" :disabled="!canBuy" @click="emitAction('buy')">{{ $t('comp.buyNow') }}</button>
       </view>
     </view>
   </view>
@@ -77,12 +77,36 @@ const currentVariant = computed(() => {
 
 const variantAsset = computed(() => currentVariant.value?.featuredAsset?.preview || props.product?.featuredAsset?.preview || '');
 
+/** shop-api 库存：枚举 IN_STOCK / LOW_STOCK / OUT_OF_STOCK / null，兼容旧数字库存 */
+type StockState = 'out' | 'low' | 'in' | 'unknown';
+function stockOf(v: any): StockState {
+    const raw = v?.stockLevel;
+    if (raw === 'OUT_OF_STOCK') return 'out';
+    if (raw === 'LOW_STOCK') return 'low';
+    if (raw === 'IN_STOCK') return 'in';
+    if (raw == null) return 'unknown';
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 'unknown';
+    return n <= 0 ? 'out' : 'in';
+}
+
 const stockText = computed(() => {
     const v = currentVariant.value;
     if (!v) return locale.t('comp.noStock');
-    const stock = Number(v.stockLevel);
-    if (Number.isFinite(stock) && stock >= 0) return locale.t('comp.stock').replace('{n}', String(stock));
+    const state = stockOf(v);
+    if (state === 'out') return locale.t('comp.noStock');
+    if (state === 'low') return locale.t('comp.lowStock');
+    if (state === 'in') {
+        const n = Number(v.stockLevel);
+        // 仅旧数字库存显示「库存 n」；枚举 IN_STOCK 不显示数字
+        if (Number.isFinite(n)) return locale.t('comp.stock').replace('{n}', String(n));
+    }
     return '';
+});
+
+const canBuy = computed(() => {
+    const v = currentVariant.value;
+    return !!v && v.enabled !== false && stockOf(v) !== 'out';
 });
 
 const pickedText = computed(() => {
@@ -107,8 +131,8 @@ function isOptionEnabled(group: any, opt: any): boolean {
         (v.options || []).every((o: any) => Object.values(trial).includes(o.id)),
     );
     if (!hit) return false;
-    const stock = Number(hit.stockLevel);
-    return !(Number.isFinite(stock) && stock <= 0);
+    if (hit.enabled === false) return false;
+    return stockOf(hit) !== 'out';
 }
 
 function pickOption(group: any, opt: any) {
@@ -119,8 +143,11 @@ function pickOption(group: any, opt: any) {
 function changeQty(delta: number) {
     const next = quantity.value + delta;
     if (next < 1) return;
-    const stock = Number(currentVariant.value?.stockLevel);
-    if (Number.isFinite(stock) && stock > 0 && next > stock) return;
+    const raw = currentVariant.value?.stockLevel;
+    // 枚举库存（IN_STOCK / LOW_STOCK）不做数量上限，仅旧数字库存保留上限逻辑
+    const isEnumStock = raw === 'IN_STOCK' || raw === 'LOW_STOCK' || raw === 'OUT_OF_STOCK';
+    const stock = Number(raw);
+    if (!isEnumStock && Number.isFinite(stock) && stock > 0 && next > stock) return;
     quantity.value = next;
 }
 
@@ -129,7 +156,7 @@ function close() {
 }
 
 function emitAction(action: 'cart' | 'buy') {
-    if (!currentVariant.value) return;
+    if (!canBuy.value || !currentVariant.value) return;
     emit('action', { action, variantId: currentVariant.value.id, quantity: quantity.value });
 }
 

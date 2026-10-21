@@ -39,10 +39,14 @@
                         <text class="good-search__txt">{{ $t('menu.searchChip').replace('{q}', productQuery) }}</text>
                         <text class="good-search__x" @tap="clearProductQuery">✕</text>
                     </view>
-                    <view v-for="g in goodsOf(activeCat)" :key="g.id" class="good" @tap="pickSku(g)">
+                    <view v-for="g in goodsOf(activeCat)" :key="g.id" class="good" :class="{ 'good--sold': goodSoldOut(g) }" @tap="pickSku(g)">
                         <VImage :src="g.featuredAsset?.preview" width="140rpx" height="140rpx" class="good-img" />
                         <view class="good-info">
-                            <text class="good-name">{{ g.name }}</text>
+                            <view class="good-title">
+                                <text class="good-name">{{ g.name }}</text>
+                                <text v-if="goodSoldOut(g)" class="good-tag good-tag--sold">{{ $t('menu.soldOut') }}</text>
+                                <text v-else-if="goodLowStock(g)" class="good-tag good-tag--low">{{ $t('menu.lowStock') }}</text>
+                            </view>
                             <text class="good-desc">{{ plainDescription(g.description) }}</text>
                             <view class="good-rate" v-if="g.customFields?.reviewCount > 0">
                                 <text class="good-rate__star">★</text>
@@ -57,8 +61,8 @@
                                 <PriceTag :price="g.variants[0]?.priceWithTax || 0" />
                             </view>
                         </view>
-                        <view class="add-btn spec" v-if="(g.variants?.length ?? 0) > 1" @tap.stop="pickSku(g)">{{ $t('menu.pickSpec') }}</view>
-                        <view class="add-btn" v-else @tap.stop="addToCart(g)">+</view>
+                        <view class="add-btn spec" :class="{ disabled: goodSoldOut(g) }" v-if="(g.variants?.length ?? 0) > 1" @tap.stop="pickSku(g)">{{ $t('menu.pickSpec') }}</view>
+                        <view class="add-btn" :class="{ disabled: goodSoldOut(g) }" v-else @tap.stop="addToCart(g)">+</view>
                         <view class="good-fav" :class="{ on: isGoodFav(g) }" @tap.stop="toggleGoodFav(g)">{{ isGoodFav(g) ? '♥' : '♡' }}</view>
                     </view>
                     <view class="scroll-pad"></view>
@@ -497,12 +501,42 @@ async function claimProduct(binding: any) {
 
 watch(activeCat, () => { loadProductCoupons(goodsOf(activeCat.value)); });
 
+/** shop-api stockLevel 枚举：IN_STOCK / LOW_STOCK / OUT_OF_STOCK / null（不跟踪库存） */
+function variantAvailable(v: any): boolean {
+    return !!v && v.enabled !== false && v.stockLevel !== 'OUT_OF_STOCK';
+}
+
+function goodSoldOut(g: any): boolean {
+    const variants: any[] = g?.variants ?? [];
+    return !variants.some(v => variantAvailable(v));
+}
+
+function goodLowStock(g: any): boolean {
+    const variants: any[] = g?.variants ?? [];
+    return variants.some(v => variantAvailable(v)) && variants.some(v => variantAvailable(v) && v.stockLevel === 'LOW_STOCK');
+}
+
+function findVariant(variantId: string): any {
+    for (const p of products.value) {
+        const hit = (p.variants ?? []).find((v: any) => String(v.id) === String(variantId));
+        if (hit) return hit;
+    }
+    return null;
+}
+
+function toastSoldOut() {
+    uni.showToast({ title: locale.t('menu.soldOutToast'), icon: 'none' });
+}
+
 function pickSku(g: any) {
+    if (goodSoldOut(g)) { toastSoldOut(); return; }
     if ((g.variants?.length ?? 0) > 1) { skuProduct.value = g; skuOpen.value = true; }
     else addToCart(g);
 }
 
 async function doAddItem(variantId: string, quantity: number) {
+    const target = findVariant(variantId);
+    if (target && !variantAvailable(target)) { toastSoldOut(); return false; }
     const res: any = await addItemToOrder(variantId, quantity);
     if (res?.addItemToOrder?.errorCode) {
         uni.showToast({ title: res.addItemToOrder.message || locale.t('menu.addFail'), icon: 'none' });
@@ -513,8 +547,11 @@ async function doAddItem(variantId: string, quantity: number) {
 }
 
 async function addToCart(g: any) {
-    const ok = await doAddItem(g.variants[0].id, 1);
+    const variant = g?.variants?.[0];
+    if (!variant || !variantAvailable(variant)) { toastSoldOut(); return false; }
+    const ok = await doAddItem(variant.id, 1);
     if (ok) uni.showToast({ title: locale.t('menu.added'), icon: 'none' });
+    return ok;
 }
 
 async function onSkuAction(v: { action: 'cart' | 'buy'; variantId: string; quantity: number }) {
@@ -612,7 +649,12 @@ function goCheckout() {
 .good { display: flex; gap: 16rpx; padding: 20rpx 0; border-bottom: 1rpx solid var(--w-border); position: relative; }
 .good-img { flex-shrink: 0; background: var(--w-surface-muted); border-radius: $radius; overflow: hidden; }
 .good-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; padding-right: 120rpx; }
-.good-name { font-size: 28rpx; font-weight: 600; color: var(--w-text); }
+.good-title { display: flex; align-items: center; gap: 8rpx; min-width: 0; }
+.good-name { flex: 1; min-width: 0; font-size: 28rpx; font-weight: 600; color: var(--w-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.good-tag { flex-shrink: 0; font-size: 20rpx; line-height: 1; padding: 4rpx 10rpx; border-radius: 6rpx; }
+.good-tag--sold { color: var(--w-surface); background: var(--w-text-muted); }
+.good-tag--low { color: var(--w-brand-text); background: var(--w-brand-soft); }
+.good--sold .good-img, .good--sold .good-info { opacity: 0.5; }
 .good-desc { font-size: 22rpx; color: var(--w-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .good-rate { display: flex; align-items: center; gap: 6rpx; font-size: 22rpx; }
 .good-rate__star { color: #f59e0b; font-size: 22rpx; }
@@ -624,6 +666,7 @@ function goCheckout() {
 .good-coupon__action { font-size: 20rpx; color: #fff; background: #ff6600; border-radius: 4rpx; padding: 0 8rpx; }
 .add-btn { position: absolute; right: 0; bottom: 20rpx; min-width: 56rpx; height: 56rpx; border-radius: 999rpx; background: $brand; color: #fff; font-size: 36rpx; display: flex; align-items: center; justify-content: center; }
 .add-btn.spec { font-size: 22rpx; padding: 0 20rpx; font-weight: 600; }
+.add-btn.disabled { background: var(--w-surface-muted); color: var(--w-text-muted); }
 /* 商品收藏心标 + 搜索定位 chip（复用 --w-* 主题 token） */
 .good-fav { position: absolute; right: 0; top: 16rpx; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; font-size: 36rpx; color: var(--w-text-muted); }
 .good-fav.on { color: #ff4d6d; }

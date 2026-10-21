@@ -19,6 +19,9 @@
         <text class="asset-item__ico">{{ $t('profile.icoCoupon') }}</text><text class="asset-item__lbl">{{ $t('profile.coupons') }}</text>
         <text class="asset-item__badge" v-if="unusedCouponCount > 0">{{ unusedCouponCount > 99 ? '99+' : unusedCouponCount }}</text>
       </view>
+      <view class="asset-item" @click="nav('/pkg-promotion/pages/coupon-centre')">
+        <text class="asset-item__ico">领</text><text class="asset-item__lbl">{{ $t('profile.couponCentre') }}</text>
+      </view>
       <view class="asset-item" @click="nav('/pkg-user/pages/address-book')">
         <text class="asset-item__ico">{{ $t('profile.icoAddress') }}</text><text class="asset-item__lbl">{{ $t('profile.addresses') }}</text>
       </view>
@@ -168,9 +171,9 @@ function switchLang() {
     }
 }
 .asset-item {
-    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; position: relative;
-    &__ico { width: 56rpx; height: 56rpx; border-radius: $radius-md; background: $brand-soft; color: $brand-color; font-size: 26rpx; display: flex; align-items: center; justify-content: center; }
-    &__lbl { font-size: 24rpx; color: $text-color; }
+    flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8rpx; position: relative;
+    &__ico { width: 56rpx; height: 56rpx; border-radius: $radius-md; background: $brand-soft; color: $brand-color; font-size: 26rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    &__lbl { max-width: 100%; font-size: 24rpx; color: $text-color; text-align: center; }
     &__badge { position: absolute; top: 8rpx; right: 8rpx; min-width: 32rpx; height: 32rpx; line-height: 32rpx; padding: 0 8rpx; border-radius: 16rpx; background: #ff4d4f; color: #fff; font-size: 20rpx; text-align: center; }
 }
 .order-shortcut {

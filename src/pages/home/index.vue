@@ -36,6 +36,10 @@
                     <view class="qico">📣</view>
                     <text class="qtxt">{{ $t('home.notice') }}</text>
                 </view>
+                <view class="qk" @tap="goCouponCentre">
+                    <view class="qico">🎟️<text class="qk-badge" v-if="unusedCouponCount > 0">{{ unusedCouponCount > 99 ? '99+' : unusedCouponCount }}</text></view>
+                    <text class="qtxt">{{ $t('home.couponCentre') }}</text>
+                </view>
                 <view class="qk" v-if="jianghuEntry" @tap="goJianghu">
                     <view class="qico">🗡️</view>
                     <text class="qtxt">江湖</text>
@@ -246,12 +250,14 @@ import { ref, computed, onMounted } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
+import { getMyCoupons } from '../../api/queries/coupon';
 import { readSearchHistory, pushSearchHistory, clearSearchHistory, buildHotWords, matchesProduct } from '../../utils/search';
 import { filterStores, applyStoreFilters, sortStores, type StoreSort, type StoreFilterOptions } from '../../utils/store-filter';
 import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
 import { useLocaleStore } from '../../stores/locale';
 import { useFavoritesStore } from '../../stores/favorites';
+import { useAuthStore } from '../../stores/auth';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 import EmptyState from '../../components/EmptyState.vue';
 
@@ -260,6 +266,8 @@ const TAG_ICONS: Record<string, string> = { 全部: '🍽️', 米饭快餐: '�
 const MIN_ORDER_OPTIONS = [15, 20, 30];
 const locale = useLocaleStore();
 const favorites = useFavoritesStore();
+const authStore = useAuthStore();
+const unusedCouponCount = ref(0);
 const keyword = ref('');
 const activeTag = ref('全部');
 const loading = ref(true);
@@ -531,7 +539,17 @@ function goRider() {
     uni.navigateTo({ url: '/pkg-rider/pages/rider-join' });
 }
 function goErrand() { uni.navigateTo({ url: '/pkg-campus/errand/create' }); }
+function goCouponCentre() { uni.navigateTo({ url: '/pkg-promotion/pages/coupon-centre' }); }
 function goJianghu() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-hall' }); }
+
+/** 未使用券角标：未登录不请求；失败静默置 0，不阻塞首页店铺加载 */
+async function loadCouponBadge() {
+    if (!authStore.isLoggedIn) { unusedCouponCount.value = 0; return; }
+    try {
+        const res = await getMyCoupons('UNUSED');
+        unusedCouponCount.value = (res?.myCoupons ?? []).length;
+    } catch { unusedCouponCount.value = 0; }
+}
 function showNotice() {
     uni.showModal({ title: locale.t('home.notice'), content: locale.t('home.noticeText'), showCancel: false, confirmText: locale.t('home.noticeOk') });
 }
@@ -562,6 +580,7 @@ onMounted(() => {
 // 登录/退出后回到首页：同步云端收藏（登录时会把游客收藏补写到云端）；同时刷新结算页刚保存的楼栋
 onShow(() => {
     void favorites.loadRemote();
+    void loadCouponBadge();
     deliveryTarget.value = readLocalJSON('delivery_target');
 });
 onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.stopPullDownRefresh(); });
@@ -609,9 +628,10 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .search :deep(.uni-input-placeholder) { color: var(--w-text-muted); }
 .body { padding: 0 24rpx; }
 .quick { margin-top: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx 0; display: flex; }
-.qk { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
-.qico { width: 76rpx; height: 76rpx; border-radius: 999rpx; background: var(--w-brand-soft); display: flex; align-items: center; justify-content: center; font-size: 38rpx; }
-.qtxt { font-size: 22rpx; color: var(--w-text); }
+.qk { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
+.qico { position: relative; flex-shrink: 0; width: 76rpx; height: 76rpx; border-radius: 999rpx; background: var(--w-brand-soft); display: flex; align-items: center; justify-content: center; font-size: 38rpx; }
+.qtxt { max-width: 100%; font-size: 22rpx; color: var(--w-text); text-align: center; }
+.qk-badge { position: absolute; top: -8rpx; right: -12rpx; min-width: 32rpx; height: 32rpx; line-height: 32rpx; padding: 0 6rpx; border-radius: 16rpx; background: #ff4d4f; color: #fff; font-size: 20rpx; font-weight: 600; text-align: center; }
 .pills { white-space: nowrap; padding: 20rpx 0 4rpx; }
 .pill { display: inline-flex; align-items: center; gap: 6rpx; padding: 10rpx 24rpx; margin-right: 16rpx; border-radius: 999rpx; font-size: 24rpx; color: var(--w-text-muted); background: var(--w-surface); border: 1rpx solid var(--w-border); }
 .pill.on { background: $brand; border-color: $brand; color: #fff; }

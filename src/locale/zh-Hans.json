@@ -201,7 +201,8 @@
         "switchTarget": "切换",
         "targetTitle": "选择配送楼栋",
         "saveTarget": "保存",
-        "noTargetOptions": "暂无可选楼栋，请在结算页选择"
+        "noTargetOptions": "暂无可选楼栋，请在结算页选择",
+        "couponCentre": "领券中心"
     },
     "menu": {
         "tabGoods": "商品",
@@ -263,7 +264,10 @@
         "searchChip": "搜索：{q}",
         "minOrderGap": "还差 ¥{d} 起送",
         "promoGap": "再买 ¥{d} 可减 ¥{y}",
-        "promoReached": "已满 ¥{t} 减 ¥{y}"
+        "promoReached": "已满 ¥{t} 减 ¥{y}",
+        "soldOut": "售罄",
+        "lowStock": "仅剩少量",
+        "soldOutToast": "该商品已售罄"
     },
     "orders": {
         "tabAll": "全部",
@@ -283,7 +287,12 @@
         "afterSaleAll": "查看全部",
         "afterSaleBar": "售后处理中 {n} 单",
         "deliverySlot": "送达时段：{t}",
-        "exceptionTag": "配送异常"
+        "exceptionTag": "配送异常",
+        "pendingReviewBar": "待评价 {n} 单",
+        "pendingReviewOnly": "只看待评价",
+        "reviewBtn": "去评价",
+        "reviewAll": "查看全部",
+        "stateUpdated": "订单状态已更新"
     },
     "profile": {
         "guest": "客",
@@ -292,6 +301,7 @@
         "editProfile": "编辑资料",
         "icoCoupon": "券",
         "coupons": "优惠券",
+        "couponCentre": "领券中心",
         "icoAddress": "址",
         "addresses": "常用地址",
         "icoInvoice": "票",
@@ -374,6 +384,7 @@
         "buyNow": "立即购买",
         "noStock": "暂无库存",
         "stock": "库存 {n}",
+        "lowStock": "仅剩少量",
         "pickSpec": "请选择规格"
     },
     "checkout": {
@@ -478,6 +489,13 @@
         "thinkAgain": "再想想",
         "promoGap": "再买 ¥{d} 可减 ¥{y}",
         "promoReached": "已满 ¥{t} 减 ¥{y}",
+        "tablewareLabel": "餐具份数",
+        "tablewareNone": "无需餐具",
+        "tablewareCount": "{n} 份",
+        "invoiceLabel": "发票",
+        "invoiceNone": "不开发票",
+        "invoiceAddHint": "暂无发票抬头，请先到「我的-发票抬头」添加",
+        "invoiceSelected": "已选择",
         "payIncomplete": "支付未完成，请重试或更换支付方式",
         "payFail": "支付失败"
     },

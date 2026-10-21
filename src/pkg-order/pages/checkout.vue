@@ -250,6 +250,31 @@
       <view class="note-card__count" v-if="orderNote.length">{{ orderNote.length }}/200</view>
     </view>
 
+    <!-- 就餐设置：餐具份数 + 发票抬头，下单前随单写入 Order customFields -->
+    <view class="setting-card">
+      <view class="setting-row">
+        <text class="setting-row__label">{{ $t('checkout.tablewareLabel') }}</text>
+        <view class="chip-row setting-row__chips">
+          <view
+            v-for="n in tablewareOptions"
+            :key="n"
+            class="chip"
+            :class="{ on: tablewareCount === n }"
+            @click="tablewareCount = n"
+          >
+            {{ n === 0 ? $t('checkout.tablewareNone') : $t('checkout.tablewareCount').replace('{n}', String(n)) }}
+          </view>
+        </view>
+      </view>
+      <view class="setting-row setting-row--link" @click="openInvoiceSheet">
+        <text class="setting-row__label">{{ $t('checkout.invoiceLabel') }}</text>
+        <view class="setting-row__value">
+          <text class="setting-row__text" :class="{ 'setting-row__text--picked': selectedInvoiceTitle }">{{ invoiceRowText }}</text>
+          <text class="setting-row__arrow">›</text>
+        </view>
+      </view>
+    </view>
+
     <button class="checkout-page__submit" :disabled="submitting" @click="submitOrder">
       {{ submitting ? $t('checkout.processing') : $t('checkout.submitOrder') }}
     </button>
@@ -278,6 +303,32 @@
         </scroll-view>
       </view>
     </view>
+
+    <!-- 发票抬头弹层：不开发票 / 已保存抬头单选（无抬头请先到发票抬头页添加） -->
+    <view class="invoice-sheet-mask" v-if="showInvoiceSheet" @click="showInvoiceSheet = false">
+      <view class="invoice-sheet" @click.stop>
+        <view class="invoice-sheet__title">{{ $t('checkout.invoiceLabel') }}</view>
+        <scroll-view scroll-y class="invoice-sheet__list">
+          <view class="iv-item" :class="{ 'iv-item--on': selectedInvoiceIndex < 0 }" @click="chooseInvoice(-1)">
+            <text class="iv-item__name">{{ $t('checkout.invoiceNone') }}</text>
+            <text class="iv-item__check" v-if="selectedInvoiceIndex < 0">✓</text>
+          </view>
+          <view
+            v-for="(t, i) in invoiceTitles"
+            :key="i"
+            class="iv-item"
+            :class="{ 'iv-item--on': selectedInvoiceIndex === i }"
+            @click="chooseInvoice(i)"
+          >
+            <view class="iv-item__main">
+              <text class="iv-item__name">{{ t.name }}</text>
+              <text class="iv-item__meta">{{ t.email }}</text>
+            </view>
+            <text class="iv-item__check" v-if="selectedInvoiceIndex === i">✓</text>
+          </view>
+        </scroll-view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -299,7 +350,7 @@ import { handlePayment, type PaymentMethod } from '../../composables/usePayment'
 import { useTenantStore } from '../../stores/tenant';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { filterCampusRoutes } from '../../utils/errand';
-import { pickDefaultCampusAddress, isValidCampusTarget } from '../../utils/profile-mapping';
+import { pickDefaultCampusAddress, isValidCampusTarget, parseInvoiceTitles, type InvoiceTitle } from '../../utils/profile-mapping';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
 import { useFavoritesStore } from '../../stores/favorites';
@@ -323,6 +374,11 @@ const selectedShipping = ref('');
 const selectedPayment = ref('');
 const submitting = ref(false);
 const orderNote = ref(''); // 整单备注（给商家留言，≤200 字）
+const tablewareOptions = [0, 1, 2, 3, 4, 5]; // 餐具份数选项：0=无需餐具
+const tablewareCount = ref(0);               // 默认无需餐具
+const invoiceTitles = ref<InvoiceTitle[]>([]);
+const selectedInvoiceIndex = ref(-1);        // -1=不开发票
+const showInvoiceSheet = ref(false);
 const showAddressPicker = ref(false);
 const customerAddresses = ref<any[]>([]);
 const selectedAddress = ref<any>(null);
@@ -937,9 +993,48 @@ async function tryAutoApplyBest() {
     } catch { /* 试挂失败静默，用户可手动选 */ }
 }
 
+// ===== 就餐设置：发票抬头选择（数据源 Customer customFields.invoiceTitles） =====
+const selectedInvoiceTitle = computed(() =>
+    selectedInvoiceIndex.value >= 0 ? invoiceTitles.value[selectedInvoiceIndex.value] || null : null);
+
+const invoiceRowText = computed(() => {
+    const t = selectedInvoiceTitle.value;
+    return t ? `${t.name} ${locale.t('checkout.invoiceSelected')}` : locale.t('checkout.invoiceNone');
+});
+
+/** 登录态下拉取发票抬头（解析失败/请求失败均静默，不阻断结算）；传入已有 customFields 时不再重复请求 */
+async function loadInvoiceTitles(customFields?: any) {
+    if (!authStore.isLoggedIn) return;
+    if (!customFields) {
+        try {
+            const res: any = await getActiveCustomer();
+            customFields = res?.activeCustomer?.customFields;
+        } catch { /* 静默 */ }
+    }
+    invoiceTitles.value = parseInvoiceTitles(customFields?.invoiceTitles);
+    if (selectedInvoiceIndex.value >= invoiceTitles.value.length) selectedInvoiceIndex.value = -1;
+}
+
+function openInvoiceSheet() {
+    // 无抬头：引导到发票抬头管理页新增，不在弹层内嵌表单
+    if (!invoiceTitles.value.length) {
+        uni.showToast({ title: locale.t('checkout.invoiceAddHint'), icon: 'none' });
+        uni.navigateTo({ url: '/pkg-user/pages/invoice-titles' });
+        return;
+    }
+    showInvoiceSheet.value = true;
+}
+
+function chooseInvoice(i: number) {
+    selectedInvoiceIndex.value = i;
+    showInvoiceSheet.value = false;
+}
+
 onMounted(async () => {
-    // Load saved addresses
-    try { const custRes: any = await getActiveCustomer(); customerAddresses.value = custRes.activeCustomer?.addresses || []; if (customerAddresses.value.length > 0) { selectedAddress.value = customerAddresses.value.find((a: any) => a.defaultShippingAddress) || customerAddresses.value[0]; } } catch (e) {}
+    // Load saved addresses（发票抬头复用同一份 customFields，避免重复请求）
+    let custFields: any = null;
+    try { const custRes: any = await getActiveCustomer(); customerAddresses.value = custRes.activeCustomer?.addresses || []; custFields = custRes.activeCustomer?.customFields; if (customerAddresses.value.length > 0) { selectedAddress.value = customerAddresses.value.find((a: any) => a.defaultShippingAddress) || customerAddresses.value[0]; } } catch (e) {}
+    await loadInvoiceTitles(custFields);
     try {
         const orderRes: any = await getActiveOrder();
         if (orderRes.activeOrder) cart.setOrder(orderRes.activeOrder);
@@ -1121,8 +1216,26 @@ async function submitOrder() {
         ui.showLoading();
         const ok = await prepareOrderAddressAndShipping();
         if (!ok) return;
-        // 整单备注：transition 前写入（总是调用，空值清残留）
-        await setOrderCustomFields({ note: orderNote.value.trim() ? orderNote.value.trim().slice(0, 200) : null });
+        // 整单备注 + 餐具份数 + 发票：transition 前写入（总是调用，空值清残留）
+        const note = orderNote.value.trim() ? orderNote.value.trim().slice(0, 200) : null;
+        const invoiceTitle = selectedInvoiceTitle.value;
+        const invoiceFields = invoiceTitle
+            ? {
+                invoiceApplied: true,
+                invoiceInfo: JSON.stringify({
+                    titleName: invoiceTitle.name,
+                    titleType: invoiceTitle.type,
+                    taxNo: invoiceTitle.taxNo ?? null,
+                    email: invoiceTitle.email,
+                    appliedAt: new Date().toISOString(),
+                }),
+            }
+            : { invoiceApplied: false, invoiceInfo: null };
+        await setOrderCustomFields({
+            note,
+            tablewareCount: tablewareCount.value,
+            ...invoiceFields,
+        });
         // Transition to ArrangingPayment
         await transitionOrderToState('ArrangingPayment');
         const pay = await payCurrentOrder(selectedPayment.value);
@@ -1196,6 +1309,28 @@ onLoad((q: any) => {
   .note-card__label { font-size: 26rpx; font-weight: 600; color: $text-color; }
   .note-card__input { margin-top: 12rpx; width: 100%; min-height: 100rpx; font-size: 26rpx; color: $text-color; line-height: 1.6; }
   .note-card__count { text-align: right; font-size: 22rpx; color: $text-color-secondary; } }
+// ===== 就餐设置：餐具份数 + 发票入口 =====
+.setting-card { background: #fff; border-radius: 16rpx; padding: 20rpx 24rpx; margin-top: 20rpx;
+  .setting-row { display: flex; flex-direction: column; gap: 12rpx;
+    & + .setting-row { margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid $border-color; }
+    &__label { font-size: 26rpx; font-weight: 600; color: $text-color; flex-shrink: 0; }
+    &__chips { gap: 12rpx; .chip { padding: 10rpx 16rpx; font-size: 22rpx; } }
+    &--link { flex-direction: row; align-items: center; justify-content: space-between; }
+    &__value { display: flex; align-items: center; gap: 8rpx; max-width: 62%; }
+    &__text { font-size: 26rpx; color: $text-color-secondary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      &--picked { color: $brand-color; } }
+    &__arrow { font-size: 30rpx; color: $text-color-placeholder; } } }
+// ===== 发票抬头弹层 =====
+.invoice-sheet-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: flex-end; }
+.invoice-sheet { width: 100%; background: #f5f5f5; border-radius: 24rpx 24rpx 0 0; padding: 32rpx 24rpx calc(32rpx + env(safe-area-inset-bottom)); max-height: 70vh; box-sizing: border-box; display: flex; flex-direction: column; }
+.invoice-sheet__title { text-align: center; font-size: 30rpx; font-weight: bold; padding-bottom: 24rpx; }
+.invoice-sheet__list { max-height: 56vh; }
+.iv-item { display: flex; align-items: center; justify-content: space-between; background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 16rpx; border: 1rpx solid transparent;
+  &--on { border-color: $brand-color; background: $brand-color-light; }
+  &__main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  &__name { font-size: 28rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__meta { font-size: 22rpx; color: $text-color-secondary; margin-top: 6rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__check { font-size: 30rpx; color: $brand-color; margin-left: 16rpx; } }
 .checkout-page__total { color: $price-color; font-size: 36rpx; font-weight: bold; }
 // plan 3.2 满X免配送费（方案A：运费行内减免）
 .ship-orig { color: $text-color-placeholder; text-decoration: line-through; font-size: 24rpx; margin-right: 8rpx; }

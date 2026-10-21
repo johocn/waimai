@@ -218,3 +218,122 @@
 - 满减提示仅解析 `promoText` 文本，实际优惠仍以平台优惠券/活动计算为准。
 - 首页楼栋切换仅写本机偏好；实际下单仍以结算页所选分区/楼栋为准。
 
+---
+
+# 第三轮常用功能（售罄库存 / 领券入口 / 餐具发票 / 待评价与状态刷新）
+
+> 上线日期：2026-10-21（第三轮）
+> 截图脚本：`node .secrets/common-features-v3-shots.cjs`（Playwright 390×844 dpr=2，输出 `docs/screenshots/common-features-v3/`）
+> 后端变更：Order customField 新增 `tablewareCount`（int，可空）
+
+## 14. 商品售罄 / 库存展示
+
+1. 店铺菜单商品行按 `stockLevel` 展示状态：
+   - `OUT_OF_STOCK`（所有规格均售罄）：整行置灰，价格旁显示「售罄」标签，右侧 `+` 置灰；
+   - `LOW_STOCK`（存在低库存规格）：显示「仅剩少量」标签，仍可正常加购；
+   - `null`（不跟踪库存）/ `IN_STOCK`：不展示标签。
+2. 售罄商品点 `+` 只提示「该商品已售罄」，不打开规格弹层、不写入购物车；`addToCart` 内部亦做不可售守卫，防止并发/缓存导致误加。
+3. 规格弹层（SkuSheet）同步兼容枚举库存：
+   - 售罄规格不可选、按钮禁用，库存文案显示「暂无库存」；
+   - 低库存显示「仅剩少量」；数字库存显示「库存 N」，不再出现 `NaN`。
+
+![店铺菜单：售罄置灰 + 仅剩少量标签](screenshots/common-features-v3/03-shop-soldout.png)
+
+> 说明：测试校区当前商品均为 `IN_STOCK`，截图中「仅剩少量 / 售罄」为截图脚本对接口返回的 `stockLevel` 注入枚举值，用于验证 UI 分支；真实库存由商家后台设置。
+
+## 15. 领券中心入口 + 券角标
+
+1. 首页快捷区新增「领券中心」（🎟️），点击进入 `/pkg-promotion/pages/coupon-centre`；
+2. 个人中心资产区新增「领券中心」入口，与「优惠券（我的券包）」并列；
+3. 首页入口右上角显示未使用券数量角标（登录态 `myCoupons(status: UNUSED)`，>99 显示 `99+`）；未登录不请求、不显示，请求失败静默置 0，不阻塞店铺列表加载；
+4. 首页每次 `onShow`（切回 tab / 从领券中心返回）刷新角标。
+
+![首页：领券中心入口 + 券角标](screenshots/common-features-v3/01-home-coupon-entry.png)
+![个人中心：资产区领券中心入口](screenshots/common-features-v3/02-profile-coupon-entry.png)
+
+> 说明：测试账号当前未使用券为 0，截图中角标「3」为脚本模拟券数量，用于验证角标样式与位置；真实数量按接口返回。
+
+## 16. 结算页餐具份数 + 发票抬头
+
+### 16.1 餐具份数
+
+1. 结算页「订单备注」下方新增「餐具份数」卡片：无需餐具 / 1–5 份，默认「无需餐具」；
+2. 选中项高亮，随订单写入 `Order.customFields.tablewareCount`（int，0=无需餐具）；
+3. 商家工作台/小票可按该字段配餐。
+
+### 16.2 发票抬头
+
+1. 「发票」行显示当前选择（默认「不开发票」）；点击打开底部弹层单选；
+2. 抬头数据来自顾客 `customFields.invoiceTitles`（与「我的-发票抬头」同一数据源）；
+3. 无抬头时点击发票行：提示「暂无发票抬头，请先到「我的-发票抬头」添加」并跳转发票抬头管理页（弹层内不嵌新增表单）；
+4. 提交订单前写入：
+   - 未选抬头：`invoiceApplied=false, invoiceInfo=null`；
+   - 已选抬头：`invoiceApplied=true, invoiceInfo={"titleName","titleType","taxNo","email","appliedAt"}`；
+5. 写入与备注、餐具份数在同一次 `setOrderCustomFields` 中完成，位于 `transitionOrderToState(ArrangingPayment)` 之前。
+
+![结算页：餐具份数 + 发票行](screenshots/common-features-v3/04-checkout-tableware-invoice.png)
+![发票抬头弹层](screenshots/common-features-v3/05-checkout-invoice-sheet.png)
+![选中抬头后回显](screenshots/common-features-v3/06-checkout-invoice-picked.png)
+
+> 说明：测试账号当前无发票抬头，抬头列表为截图脚本注入的模拟数据；接口写入能力已用真实 `setOrderCustomFields` 回归（见 §18）。
+
+## 17. 订单待评价提醒 + 状态自动刷新
+
+### 17.1 待评价聚合
+
+1. 登录后订单页拉取 `myReviews` 构建「已评价 orderLineId 集合」（剔除 deleted）；
+2. 已送达（`state=Delivered`）且仍有未评价商品行的订单计入「待评价 N 单」；
+3. 顶部绿色聚合条「待评价 N 单 / 只看待评价」：点击只看待评价订单，切换时自动关闭售后筛选（两筛选互斥）；
+4. 订单卡底部显示「去评价」按钮，取第一条未评价商品行跳评价页（带 productId/lineId/variantId/名称/图片）；
+5. 从评价页返回（`onShow`）重新拉取评价集合，已评价订单按钮即时消失。
+
+### 17.2 状态自动刷新
+
+1. 订单页 `onShow` 启动 30 秒轮询，`onHide/onUnload` 停止；
+2. 每轮对各店铺渠道拉取最近 10 单（不带 tab 过滤），仅同步本地订单 `state`，不触发 loading、不改变分页游标；
+3. 检测到状态变化时提示「订单状态已更新」（同一轮多次变化只提示一次）；请求失败静默。
+
+![订单中心：待评价聚合条 + 去评价按钮](screenshots/common-features-v3/07-orders-pending-review.png)
+![只看待评价](screenshots/common-features-v3/08-orders-pending-filter.png)
+
+> 说明：测试账号当前无已送达订单，截图脚本将首单 `state` 模拟为 `Delivered` 以验证聚合条/按钮；真实判定按订单状态与评价记录。
+
+## 18. 验收记录（第三轮，2026-10-21）
+
+| 项 | 结果 |
+|---|---|
+| 后端插件 `pnpm build` | 通过，`lib` 产物已提交 |
+| `tablewareCount` 字段上线 | shop-api introspection `OrderCustomFields` 已含 `tablewareCount: Int` |
+| `setOrderCustomFields` 写入 | 真实写入 `note/tablewareCount=2/invoiceApplied=true/invoiceInfo` 成功，随后重置为 `null/0/false/null` |
+| 商品售罄 UI | 注入 `OUT_OF_STOCK` 后整行置灰、标签「售罄」、`+` 禁用；`LOW_STOCK` 显示「仅剩少量」 |
+| 首页领券入口 + 角标 | 快捷区 5 项均分不溢出，角标「3」显示在右上角 |
+| 个人中心入口 | 资产区 5 项：优惠券 / 领券中心 / 常用地址 / 发票抬头 / 邀请好友 |
+| 结算餐具 | 选「2 份」高亮，默认「无需餐具」 |
+| 结算发票 | 弹层含「不开发票 + 2 条抬头」，选中回显「张同学 已选择」 |
+| 订单待评价 | 聚合条「待评价 1 单」，首单出现「去评价」；点击后仅剩 1 单 |
+| 前端构建/部署 | `pnpm build:h5` 通过（产物 2546 KB），线上入口已更新 |
+| 测试数据清理 | 测试账号购物车已清空，`tablewareCount/invoice*` 已重置 |
+| 手机视口截图 | 390×844 dpr=2，共 8 张（见上） |
+
+## 19. 边界与已知限制（第三轮）
+
+- 售罄判定以 `stockLevel` 枚举为主，商城未启用库存跟踪（`null`）时无法区分售罄，需商家自行下架商品。
+- 售罄商品的「已加购」历史行不会被自动移除，提交时由后端库存校验拦截。
+- 发票仅记录抬头快照，不生成/上传 PDF，开票流程仍走商家侧（订单 `invoiceApplied` 后不再重复申请）。
+- 餐具份数仅写订单字段，商家工作台打印/展示需另行支持该字段。
+- 待评价判定依赖 `myReviews` 全量返回；评价量很大时后续改为后端分页/按订单查询。
+- 订单状态轮询为 30 秒固定间隔，仅在订单页可见时运行；退到后台即停止，不消耗流量。
+- 「去评价」每次跳转第一条未评价商品行，一单多商品需多次进入评价页。
+
+## 20. 运维记录（2026-10-21）
+
+- 现象：线上 `shop-api` 返回 502，首页正常但接口不可用。
+- 根因：`/home/admin/.pm2/logs/vendure-out.log` 增长至 13G，磁盘使用率 100%，PostgreSQL 容器 `could not write lock file postmaster.pid: No space left on device` 后崩溃重启循环，pm2 进程列表同时丢失。
+- 处置：
+  1. 截断 `vendure-out.log` / `strapi-out.log`（释放 13G），`journalctl --vacuum-size=500M` 再释放 1.8G；
+  2. 重启 PostgreSQL 容器，`pm2 resurrect` 恢复 `vendure / nshop / strapi` 三个进程；
+  3. 安装并配置 `pm2-logrotate`（`max_size=100M`、`retain=5`、`compress=true`、每日轮转），防止日志再次撑满磁盘。
+- 验证：`shop-api` 恢复 200；`activeChannel` 正常返回；磁盘占用回落至 62%。
+- 说明：13G 日志源自历史上某次以 `SQL_LOG=1` 启动的进程（TypeORM query 日志），当前进程环境无 `SQL_LOG`，重启后不再刷查询日志。
+
+

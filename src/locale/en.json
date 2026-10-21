@@ -201,7 +201,8 @@
         "switchTarget": "Change",
         "targetTitle": "Choose delivery building",
         "saveTarget": "Save",
-        "noTargetOptions": "No buildings available. Please choose at checkout."
+        "noTargetOptions": "No buildings available. Please choose at checkout.",
+        "couponCentre": "Coupon Center"
     },
     "menu": {
         "tabGoods": "Goods",
@@ -263,7 +264,10 @@
         "searchChip": "Search: {q}",
         "minOrderGap": "¥{d} away from min. order",
         "promoGap": "Add ¥{d} to save ¥{y}",
-        "promoReached": "¥{t} reached: ¥{y} off"
+        "promoReached": "¥{t} reached: ¥{y} off",
+        "soldOut": "Sold out",
+        "lowStock": "Low stock",
+        "soldOutToast": "This item is sold out"
     },
     "orders": {
         "tabAll": "All",
@@ -283,7 +287,12 @@
         "afterSaleAll": "Show all",
         "afterSaleBar": "{n} after-sale request(s) in progress",
         "deliverySlot": "Delivery slot: {t}",
-        "exceptionTag": "Delivery issue"
+        "exceptionTag": "Delivery issue",
+        "pendingReviewBar": "{n} to review",
+        "pendingReviewOnly": "To review only",
+        "reviewBtn": "Review",
+        "reviewAll": "Show all",
+        "stateUpdated": "Order status updated"
     },
     "profile": {
         "guest": "Guest",
@@ -292,6 +301,7 @@
         "editProfile": "Edit profile",
         "icoCoupon": "C",
         "coupons": "Coupons",
+        "couponCentre": "Coupon Center",
         "icoAddress": "A",
         "addresses": "Addresses",
         "icoInvoice": "I",
@@ -374,6 +384,7 @@
         "buyNow": "Buy now",
         "noStock": "Out of stock",
         "stock": "Stock {n}",
+        "lowStock": "Low stock",
         "pickSpec": "Select options"
     },
     "checkout": {
@@ -478,6 +489,13 @@
         "thinkAgain": "Not now",
         "promoGap": "Add ¥{d} to save ¥{y}",
         "promoReached": "¥{t} reached: ¥{y} off",
+        "tablewareLabel": "Cutlery",
+        "tablewareNone": "No cutlery",
+        "tablewareCount": "{n} set(s)",
+        "invoiceLabel": "Invoice",
+        "invoiceNone": "No invoice",
+        "invoiceAddHint": "No invoice title yet. Add one under Me → Invoices first.",
+        "invoiceSelected": "Selected",
         "payIncomplete": "Payment not completed, please retry or switch method",
         "payFail": "Payment failed"
     },

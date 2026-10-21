@@ -22,6 +22,11 @@
                 <text class="tag">🔥 {{ promoText }}</text>
             </view>
         </view>
+        <!-- 营业状态提示：打烊/即将打烊（打烊仍可浏览加购，不可提交订单） -->
+        <view v-if="storeStateText" class="shop-state" :class="storeClosed ? 'shop-state--closed' : 'shop-state--closing'">
+            <text class="shop-state__ico">{{ storeClosed ? '🌙' : '⏰' }}</text>
+            <text class="shop-state__txt">{{ storeStateText }}</text>
+        </view>
         <!-- 三 Tab -->
         <view class="tabs">
             <view class="tb" :class="{ on: tab === 'goods' }" @tap="switchTab('goods')">{{ $t('menu.tabGoods') }}</view>
@@ -220,8 +225,8 @@
                     <text v-if="cartPromoText" class="cart-promo">{{ cartPromoText }}</text>
                 </block>
             </view>
-            <view class="checkout-btn" :class="{ disabled: !cartCount || belowMinOrder }">
-                {{ belowMinOrder ? $t('menu.minOrderGap').replace('{d}', minGapYuan) : $t('menu.checkout') }}
+            <view class="checkout-btn" :class="{ disabled: !cartCount || belowMinOrder || storeClosed }">
+                {{ storeClosed ? $t('menu.closedBtn') : belowMinOrder ? $t('menu.minOrderGap').replace('{d}', minGapYuan) : $t('menu.checkout') }}
             </view>
         </view>
         <SkuSheet v-model:visible="skuOpen" :product="skuProduct" @action="onSkuAction" @share="shareProduct" />
@@ -242,6 +247,7 @@ import { getChannelReviews, getChannelReviewStats } from '../../api/queries/revi
 import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
 import { matchesProduct, readSearchHistory, pushSearchHistory, clearSearchHistory as clearHistoryStorage } from '../../utils/search';
 import { nextPromoHint, yuan } from '../../utils/promo';
+import { getStoreStatus } from '../../utils/store-status';
 import { theme, initTheme } from '../../utils/theme';
 import { sharePage } from '../../utils/share';
 import { addItemToOrder } from '../../api/mutations/cart';
@@ -291,6 +297,28 @@ const minOrderFen = computed(() => {
 });
 const belowMinOrder = computed(() => !!cartCount.value && minOrderFen.value != null && cartTotal.value < minOrderFen.value);
 const minGapYuan = computed(() => (minOrderFen.value == null ? '' : yuan(minOrderFen.value - cartTotal.value)));
+
+// —— 营业状态：按 businessHours 判断打烊/即将打烊；打烊仍可浏览加购，仅拦截提交 ——
+const storeStatus = computed(() => getStoreStatus(storeInfo.value?.businessHours));
+const storeClosed = computed(() => storeStatus.value.state === 'closed');
+const storeStateText = computed(() => {
+    const st = storeStatus.value;
+    if (st.state === 'closed') {
+        const key = st.nextOpenDayOffset === 1 ? 'menu.closedTomorrow' : 'menu.closedToday';
+        return locale.t(key).replace('{t}', st.nextOpenHM);
+    }
+    if (st.state === 'closing') return locale.t('menu.closingSoon').replace('{n}', String(st.closesInMin ?? 0));
+    return '';
+});
+// 免配送费门槛（后端配置单位为分）
+const freeShippingFen = computed(() => {
+    const n = Number(storeInfo.value?.freeShippingThreshold);
+    return storeInfo.value?.freeShippingThreshold == null || !Number.isFinite(n) || n <= 0 ? null : Math.round(n);
+});
+const freeShippingGapFen = computed(() => {
+    if (!cartCount.value || freeShippingFen.value == null) return 0;
+    return Math.max(0, freeShippingFen.value - cartTotal.value);
+});
 const cartPromoText = computed(() => {
     if (!cartCount.value) return '';
     const hint = nextPromoHint(storeInfo.value?.promoText || promoText.value, cartTotal.value);
@@ -300,12 +328,13 @@ const cartPromoText = computed(() => {
         : locale.t('menu.promoGap').replace('{d}', yuan(hint.gapFen)).replace('{y}', yuan(hint.discountFen));
 });
 
-// 凑单推荐：未达起送价优先提示起送差额，其次提示满减差额；无门槛差额不展示
+// 凑单推荐：起送价差额 > 满减差额 > 免配送费差额；无门槛差额不展示
 const crossSellGapFen = computed(() => {
     if (!cartCount.value) return 0;
     if (belowMinOrder.value) return (minOrderFen.value ?? 0) - cartTotal.value;
     const hint = nextPromoHint(storeInfo.value?.promoText || promoText.value, cartTotal.value);
-    return hint && !hint.reached ? hint.gapFen : 0;
+    if (hint && !hint.reached) return hint.gapFen;
+    return freeShippingGapFen.value;
 });
 const crossSellHint = computed(() => {
     if (crossSellGapFen.value <= 0) return '';
@@ -313,9 +342,10 @@ const crossSellHint = computed(() => {
         return locale.t('menu.minOrderGap').replace('{d}', yuan(crossSellGapFen.value));
     }
     const hint = nextPromoHint(storeInfo.value?.promoText || promoText.value, cartTotal.value);
-    return hint
-        ? locale.t('menu.promoGap').replace('{d}', yuan(hint.gapFen)).replace('{y}', yuan(hint.discountFen))
-        : '';
+    if (hint && !hint.reached) {
+        return locale.t('menu.promoGap').replace('{d}', yuan(hint.gapFen)).replace('{y}', yuan(hint.discountFen));
+    }
+    return locale.t('menu.freeShipGap').replace('{d}', yuan(crossSellGapFen.value));
 });
 // —— 店内搜索 / 筛选（纯前端）——
 const keyword = ref('');
@@ -792,6 +822,10 @@ function callStore() {
 
 function goCheckout() {
     if (!cartCount.value) return;
+    if (storeClosed.value) {
+        uni.showToast({ title: storeStateText.value || locale.t('menu.closedBtn'), icon: 'none' });
+        return;
+    }
     if (belowMinOrder.value) {
         uni.showToast({ title: locale.t('menu.minOrderGap').replace('{d}', minGapYuan.value), icon: 'none' });
         return;
@@ -861,6 +895,14 @@ function goCheckout() {
 .smeta em { font-style: normal; color: var(--w-text-muted); }
 .tags { display: flex; gap: 12rpx; margin-top: 16rpx; flex-wrap: wrap; }
 .tag { font-size: 20rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 8rpx; padding: 4rpx 12rpx; }
+/* 营业状态条：打烊红、即将打烊橙，均贴在店铺卡下方 */
+.shop-state { display: flex; align-items: center; gap: 10rpx; margin: 16rpx 24rpx 0; padding: 14rpx 20rpx; border-radius: 12rpx; flex-shrink: 0; }
+.shop-state--closed { background: #fff2f0; border: 1rpx solid #f3b6b0; }
+.shop-state--closing { background: #fff8ef; border: 1rpx solid #ffd9ad; }
+.shop-state__ico { font-size: 26rpx; }
+.shop-state__txt { font-size: 24rpx; line-height: 1.4; flex: 1; }
+.shop-state--closed .shop-state__txt { color: #b42318; }
+.shop-state--closing .shop-state__txt { color: #b45309; }
 /* ── Tab 行 ── */
 .tabs { display: flex; gap: 48rpx; padding: 0 32rpx; border-bottom: 1rpx solid var(--w-border); flex-shrink: 0; }
 .tb { padding: 20rpx 0; font-size: 28rpx; color: var(--w-text-muted); border-bottom: 4rpx solid transparent; margin-bottom: -1rpx; }

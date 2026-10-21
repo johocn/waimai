@@ -215,6 +215,8 @@
                             <view class="name-row">
                                 <text class="name">{{ s.name }}</text>
                                 <text v-if="s.paused" class="paused">{{ $t('home.paused') }}</text>
+                                <text v-else-if="storeStatusOf(s) === 'closed'" class="paused paused--closed">{{ $t('home.storeClosed') }}</text>
+                                <text v-else-if="storeStatusOf(s) === 'closing'" class="paused paused--closing">{{ $t('home.storeClosing') }}</text>
                             </view>
                             <text class="meta">{{ $t('home.monthlySales').replace('{n}', String(s.monthlySales)) }}</text>
                             <view class="tags">
@@ -300,6 +302,7 @@ import { getMyCoupons } from '../../api/queries/coupon';
 import { readSearchHistory, pushSearchHistory, clearSearchHistory, buildHotWords, matchesProduct } from '../../utils/search';
 import { filterStores, applyStoreFilters, sortStores, type StoreSort, type StoreFilterOptions } from '../../utils/store-filter';
 import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
+import { getStoreStatus, type StoreOpenState } from '../../utils/store-status';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
 import { useLocaleStore } from '../../stores/locale';
 import { useFavoritesStore } from '../../stores/favorites';
@@ -563,6 +566,10 @@ const shown = computed(() => sortStores(
     favorites.ids,
 ));
 const emptyText = computed(() => filterCount.value ? locale.t('home.filteredEmpty') : locale.t('home.emptySearch'));
+/** 店铺营业状态：按 businessHours 实时计算（未配置返回 unknown，不额外标注） */
+function storeStatusOf(s: any): StoreOpenState {
+    return getStoreStatus(s?.businessHours).state;
+}
 /** 常买店铺：本地记录 → 匹配当前店铺列表（已下线/休息不隐藏，点进店有休息提示） */
 const recentStores = computed(() => {
     if (keyword.value) return [] as any[];
@@ -748,6 +755,8 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .name-row { display: flex; align-items: center; gap: 12rpx; }
 .name { font-size: 30rpx; font-weight: 600; color: var(--w-text); }
 .paused { font-size: 20rpx; color: var(--w-text-muted); border: 1rpx solid var(--w-border); border-radius: 6rpx; padding: 0 8rpx; }
+.paused--closed { color: #b42318; border-color: #f3b6b0; background: #fff2f0; }
+.paused--closing { color: #b45309; border-color: #ffd9ad; background: #fff8ef; }
 .meta { display: block; font-size: 24rpx; color: var(--w-text-muted); margin-top: 6rpx; }
 .tags { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 12rpx; }
 .tag { font-size: 20rpx; padding: 2rpx 12rpx; border-radius: 8rpx; }

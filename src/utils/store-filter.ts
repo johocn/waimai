@@ -1,8 +1,11 @@
+import { getStoreStatus } from './store-status';
+
 export interface StoreLike {
     name: string;
     tags: string[];
     channelId?: string | number;
     paused?: boolean;
+    businessHours?: string | null;
     deliveryMinutes?: number | null;
     minOrderAmount?: number | null;
     deliveryFee?: number | null;
@@ -38,7 +41,7 @@ export function filterStores(list: StoreLike[], keyword: string, tag: string): S
 
 export function applyStoreFilters(list: StoreLike[], opts: StoreFilterOptions = {}): StoreLike[] {
     let out = list;
-    if (opts.openOnly) out = out.filter(s => !s.paused);
+    if (opts.openOnly) out = out.filter(s => !s.paused && getStoreStatus(s.businessHours).state !== 'closed');
     if (opts.freeDelivery) out = out.filter(s => Number(s.deliveryFee) === 0);
     if (opts.hasPromo) out = out.filter(s => !!s.promoText);
     if (opts.minOrderMax != null) {

@@ -14,6 +14,12 @@
       <text class="sched-card__hint">{{ $t('orderDetail.scheduleHint') }}</text>
     </view>
 
+    <!-- 预计送达倒计时：仅待配送/配送中，预约单与已送达单不展示 -->
+    <view class="section eta-card" v-if="etaText" :class="{ 'eta-card--late': etaLate }">
+      <text class="eta-card__title">{{ etaText }}</text>
+      <text class="eta-card__hint">{{ etaLate ? $t('orderDetail.etaLateHint') : $t('orderDetail.etaHint') }}</text>
+    </view>
+
     <!-- 异常赔付提示（plan 3.4）：处理中黄条 / 已处理绿条（展示赔付结果） -->
     <view
       v-if="campusRoute && (exceptionPending || exceptionFinal)"
@@ -262,6 +268,7 @@ import { useAuthStore } from '../../stores/auth';
 import { getGraphQLClient } from '../../api/client';
 import { fetchOrderRider, fetchR2Relay, markArrived, urgeOrder } from '../../api/mutations/campus';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
+import { orderEta, clockHM } from '../../utils/order-eta';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
 import type { AfterSaleRequest } from '../../api/queries/afterSale';
 import { getActiveCustomer } from '../../api/queries/user';
@@ -399,6 +406,34 @@ const canReview = computed(() => ['Delivered', 'Completed'].includes(order.value
 const isScheduled = computed(() => ((order.value?.customFields?.hallStatus ?? '') + '').toLowerCase() === 'scheduled');
 // 预约送达时段（结算页写入 customFields.deliverySlotText）
 const scheduledText = computed(() => String(order.value?.customFields?.deliverySlotText ?? ''));
+// —— 预计送达倒计时：按店铺 deliveryMinutes 估算，30s 刷新 ——
+const nowTs = ref(Date.now());
+const etaMinutes = ref<number | null>(null);
+let etaTimer: ReturnType<typeof setInterval> | null = null;
+const eta = computed(() => orderEta(order.value, etaMinutes.value, nowTs.value));
+const etaLate = computed(() => (eta.value?.overdueMin ?? 0) > 0);
+const etaText = computed(() => {
+    const e = eta.value;
+    if (!e) return '';
+    return e.overdueMin > 0
+        ? locale.t('orderDetail.etaOverdue').replace('{n}', String(e.overdueMin))
+        : locale.t('orderDetail.etaArrive').replace('{t}', clockHM(e.etaAt)).replace('{n}', String(e.remainMin));
+});
+function startEtaTicker() {
+    stopEtaTicker();
+    etaTimer = setInterval(() => { nowTs.value = Date.now(); }, 30000);
+}
+function stopEtaTicker() { if (etaTimer) { clearInterval(etaTimer); etaTimer = null; } }
+/** 店铺配送时长：优先按 channelToken 匹配，回退店名 */
+async function loadEtaMinutes() {
+    try {
+        const list: any[] = await fetchStoreList();
+        const o = order.value;
+        const hit = list.find(s => s.channelToken === o?.channelToken) || list.find(s => s.name === o?.channelName);
+        const mins = Number(hit?.deliveryMinutes);
+        if (Number.isFinite(mins) && mins > 0) etaMinutes.value = mins;
+    } catch (e) { /* 静默：无配置按默认 40 分钟估算 */ }
+}
 // 「平台调度中」降级（spec §5.4）：无骑手且在大厅停留超 2 分钟
 const dispatching = computed(() => {
     const cf = order.value?.customFields;
@@ -462,6 +497,8 @@ onMounted(async () => {
     } catch (e) { /* 未登录等场景静默 */ }
     loadPickupCode();
     startRiderPolling();
+    startEtaTicker();
+    void loadEtaMinutes();
     // 订单列表「再来一单」直达：加载完成后自动打开复购弹层
     if (page?.options?.reorder === '1' && order.value) void reorder();
 });
@@ -494,6 +531,7 @@ async function loadRelay() {
 }
 function stopRiderPolling() { if (riderTimer) { clearInterval(riderTimer); riderTimer = null; } }
 onUnmounted(stopRiderPolling);
+onUnmounted(stopEtaTicker);
 // —— R2 快递到校（二期 spec §5.2）——
 const relay = ref<any>(null);
 const relayLabel = computed(() => relayStatusLabel(relay.value));
@@ -804,6 +842,14 @@ async function confirmReorder() {
   &__title { font-size: 26rpx; font-weight: bold; color: #2d5bd1; }
   &__slot { font-size: 26rpx; color: #2d5bd1; font-weight: bold; }
   &__hint { display: block; margin-top: 10rpx; font-size: 22rpx; color: #5b76b8; }
+}
+// 预计送达卡（品牌色浅底，超时转红）
+.eta-card { background: #fff8ef; border: 1rpx solid #ffd9ad;
+  &__title { font-size: 26rpx; font-weight: bold; color: #b45309; }
+  &__hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #9a6a2a; }
+  &--late { background: #fff2f0; border-color: #f3b6b0; }
+  &--late &__title { color: #b42318; }
+  &--late &__hint { color: #b42318; }
 }
 // 骑手卡
 .rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__meta { display: flex; gap: 16rpx; font-size: 22rpx; color: $brand-color; } &__hint { font-size: 26rpx; color: $brand-color; } &__contact { font-size: 24rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 8rpx 20rpx; flex-shrink: 0; } &__urge { margin-top: 16rpx; display: flex; flex-direction: column; align-items: center; gap: 8rpx; } &__urge-btn { width: 240rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; border-radius: 999rpx; background: $surface; color: $brand-color; border: 1rpx solid $brand-color; padding: 0; margin: 0; } &__urge-hint { font-size: 20rpx; color: $text-color-placeholder; } &__urged-tag { font-size: 24rpx; color: #e02020; background: #fdeaea; border-radius: 999rpx; padding: 8rpx 24rpx; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } &__track { margin-top: 16rpx; font-size: 26rpx; color: $brand-color; font-weight: bold; } }

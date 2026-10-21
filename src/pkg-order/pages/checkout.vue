@@ -229,6 +229,9 @@
       <view class="promo-hint" v-if="promoNotice">{{ promoNotice }}</view>
       <!-- 起送价硬校验提示（提交会被阻断，后端 min-order process 兜底） -->
       <view class="min-order-hint" v-if="belowMinOrder">{{ $t('checkout.minOrderGap').replace('{d}', minOrderGapYuan) }}</view>
+      <view class="coupon-tip" v-if="switchSavingFen >= 100" @click="applyBestCoupon">
+        {{ $t('checkout.couponBetter').replace('{d}', csYuan(switchSavingFen)) }} 一键换券 ›
+      </view>
       <view class="summary-row summary-row--coupon" @click="openCouponSheet">
         <text>{{ $t('checkout.couponTitle') }}</text>
         <text :class="{ 'coupon-val': attachedCoupon }">
@@ -321,7 +324,11 @@
               <text class="cs-item__cond" v-if="c.template.type === 'FULL'">{{ $t('checkout.csCond').replace('{c}', csYuan(c.template.minSpend)) }}</text>
             </view>
             <view class="cs-item__right">
-              <text class="cs-item__name">{{ c.template.name }}</text>
+              <view class="cs-item__title-row">
+                <text class="cs-item__name">{{ c.template.name }}</text>
+                <text class="cs-item__best" v-if="c.code === bestCouponCode && !unavailableReason(c)">{{ $t('checkout.csBest') }}</text>
+              </view>
+              <text class="cs-item__save" v-if="!unavailableReason(c) && estimateOf(c) > 0">{{ $t('checkout.csSave').replace('{d}', csYuan(estimateOf(c))) }}</text>
               <text class="cs-item__expire" v-if="c.expiredAt">{{ $t('checkout.csExpire').replace('{t}', csDate(c.expiredAt)) }}</text>
               <text class="cs-item__reason" v-if="unavailableReason(c)">{{ unavailableReason(c) }}</text>
             </view>
@@ -1057,6 +1064,32 @@ const sheetCoupons = computed(() =>
     [...myUnusedCoupons.value].sort((a, b) =>
         estimateDiscountFen(b.template, subtotalFen.value, shippingFen.value) - estimateDiscountFen(a.template, subtotalFen.value, shippingFen.value)));
 
+/** 单张券在当前小计下的估算优惠（分） */
+function estimateOf(c: any): number {
+    return estimateDiscountFen(c.template, subtotalFen.value, shippingFen.value);
+}
+
+/** 当前可用券中估算最优的一张（门槛未过的排除） */
+const bestCoupon = computed(() => {
+    const usable = myUnusedCoupons.value.filter(c => !unavailableReason(c));
+    return pickBestCoupon(usable.map(c => ({ ...c.template, code: c.code })), subtotalFen.value, shippingFen.value);
+});
+const bestCouponCode = computed(() => (bestCoupon.value as any)?.code ?? '');
+
+/** 已挂券但存在更优券时，换券可再省的分额（同额不提示） */
+const switchSavingFen = computed(() => {
+    const best = bestCoupon.value as any;
+    if (!attachedCouponCode.value || !best?.code || best.code === attachedCouponCode.value) return 0;
+    const current = myUnusedCoupons.value.find(c => c.code === attachedCouponCode.value);
+    const currentFen = current ? estimateOf(current) : 0;
+    return Math.max(0, estimateDiscountFen(best, subtotalFen.value, shippingFen.value) - currentFen);
+});
+
+function applyBestCoupon() {
+    const target = myUnusedCoupons.value.find(c => c.code === bestCouponCode.value);
+    if (target) void pickCoupon(target);
+}
+
 function unavailableReason(c: any): string | null {
     return couponUnavailableReason(c.template as CouponTemplateLike, subtotalFen.value);
 }
@@ -1553,5 +1586,10 @@ onLoad((q: any) => {
 .cs-item__name { font-size: 26rpx; color: #333; }
 .cs-item__expire { font-size: 22rpx; color: #999; margin-top: 6rpx; }
 .cs-item__reason { font-size: 22rpx; color: #ff4d4f; margin-top: 6rpx; }
+.cs-item__title-row { display: flex; align-items: center; gap: 10rpx; }
+.cs-item__best { font-size: 18rpx; color: #fff; background: #ff6600; border-radius: 6rpx; padding: 2rpx 8rpx; flex-shrink: 0; }
+.cs-item__save { font-size: 22rpx; color: #ff6600; margin-top: 6rpx; }
+/* 「换券可再省」提示条：位于优惠券行上方，点击直接切到最优券 */
+.coupon-tip { display: flex; align-items: center; font-size: 22rpx; color: #b45309; background: #fff8ef; border: 1rpx solid #ffd9ad; border-radius: $radius-sm; padding: 10rpx 16rpx; margin: 4rpx 0 8rpx; }
 .cs-item--none { justify-content: center; padding: 28rpx 0; color: #666; font-size: 26rpx; }
 </style>

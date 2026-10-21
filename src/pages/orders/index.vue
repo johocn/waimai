@@ -46,6 +46,8 @@
         </view>
         <!-- 预约时段：校园配送单 customFields.deliverySlotText -->
         <text v-if="order.customFields?.deliverySlotText" class="order-card__slot">{{ $t('orders.deliverySlot').replace('{t}', order.customFields.deliverySlotText) }}</text>
+        <!-- 预计送达：待配送/配送中订单按店铺配送时长倒计时，超时转红 -->
+        <text v-if="etaText(order)" class="order-card__eta" :class="{ late: isEtaLate(order) }">{{ etaText(order) }}</text>
         <view class="order-card__footer">
           <text>{{ $t('orders.totalItems').replace('{n}', String(order.totalQuantity)) }}</text>
           <view class="order-card__footer-right">
@@ -75,6 +77,7 @@ import { fetchStoreList } from '../../api/queries/waimai';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
 import { getMyReviews } from '../../api/queries/review';
 import { fulfillmentBadge } from '../../utils/order-badge';
+import { orderEta, clockHM } from '../../utils/order-eta';
 import { storeDisplayName } from '../../utils/store-display';
 import { useLocaleStore } from '../../stores/locale';
 import { useAuthStore } from '../../stores/auth';
@@ -112,6 +115,22 @@ function isScheduled(order: any): boolean {
     return !['Delivered', 'Cancelled'].includes(String(order.state ?? ''));
 }
 const scheduledCount = computed(() => orders.value.filter(isScheduled).length);
+// —— 预计送达倒计时：按店铺 deliveryMinutes 估算，30s 刷新 ——
+const nowTs = ref(Date.now());
+const deliveryMinutesByName = ref<Record<string, number>>({});
+function etaOf(order: any) {
+    const name = String(order?.channelName ?? '');
+    return orderEta(order, deliveryMinutesByName.value[name] ?? null, nowTs.value);
+}
+function etaText(order: any): string {
+    const eta = etaOf(order);
+    if (!eta) return '';
+    if (eta.overdueMin > 0) return locale.t('orders.etaOverdue').replace('{n}', String(eta.overdueMin));
+    return locale.t('orders.etaArrive').replace('{t}', clockHM(eta.etaAt)).replace('{n}', String(eta.remainMin));
+}
+function isEtaLate(order: any): boolean {
+    return (etaOf(order)?.overdueMin ?? 0) > 0;
+}
 function toggleScheduled() {
     onlyScheduled.value = !onlyScheduled.value;
     if (onlyScheduled.value) {
@@ -233,6 +252,7 @@ function stateLabel(order: any): string {
 async function loadChannels() {
     if (channelsLoaded) return;
     const map = new Map<string, string>([[normChannel(PLATFORM_TOKEN), locale.t('orders.platform')]]);
+    const minutes: Record<string, number> = {};
     try {
         const stores = await fetchStoreList();
         for (const s of stores) {
@@ -240,8 +260,14 @@ async function loadChannels() {
             if (!map.has(key) || key === normChannel(PLATFORM_TOKEN)) {
                 map.set(key, storeDisplayName(s.name) || map.get(key) || locale.t('orders.platform')); // 店铺挂在站点渠道时显示店铺名
             }
+            const mins = Number(s.deliveryMinutes);
+            if (s.name && Number.isFinite(mins) && mins > 0) {
+                minutes[String(s.name)] = mins;
+                minutes[String(storeDisplayName(s.name) || '')] = mins;
+            }
         }
     } catch (e) { console.error(e); }
+    deliveryMinutesByName.value = minutes;
     channels = Array.from(map, ([token, name]) => ({ token, name }));
     channelsLoaded = true;
 }
@@ -255,7 +281,7 @@ function stopStatePolling() {
 }
 function startStatePolling() {
     stopStatePolling();
-    pollTimer = setInterval(() => { void pollStates(); }, POLL_INTERVAL);
+    pollTimer = setInterval(() => { nowTs.value = Date.now(); void pollStates(); }, POLL_INTERVAL);
 }
 async function pollStates() {
     if (polling || !auth.isLoggedIn || orders.value.length === 0) return;
@@ -285,6 +311,7 @@ async function pollStates() {
 onShow(() => {
     void loadAfterSales();
     void loadMyReviews();
+    nowTs.value = Date.now();
     startStatePolling();
     const pending = uni.getStorageSync('orders_pending_tab');
     if (pending !== '' && pending !== null && pending !== undefined) {
@@ -380,6 +407,9 @@ function goDetail(code: string) { uni.navigateTo({ url: '/pkg-order/pages/order-
 .flag--after.done { color: #0a7d4b; background: #e8f7ef; }
 .flag--exception { color: #c62828; background: #fdecea; }
 .order-card__slot { display: block; margin-top: 8rpx; font-size: 22rpx; color: $text-color-secondary; }
+/* 预计送达倒计时：正常为品牌色，超时转红 */
+.order-card__eta { display: block; margin-top: 6rpx; font-size: 22rpx; color: $brand-color; }
+.order-card__eta.late { color: #d93025; font-weight: 600; }
 .order-card__footer-right { display: flex; align-items: center; gap: 16rpx; }
 .review-btn { font-size: 24rpx; color: $brand-color; padding: 6rpx 20rpx; border: 1rpx solid $brand-color; border-radius: 999rpx; }
 </style>

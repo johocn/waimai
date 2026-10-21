@@ -294,7 +294,9 @@
     "closedTomorrow": "Store closed · opens tomorrow at {t}, you can still add items",
     "closingSoon": "Closing in {n} min, order soon",
     "closedBtn": "Closed",
-    "freeShipGap": "{d} more for free delivery"
+    "freeShipGap": "{d} more for free delivery",
+    "tierLabel": "Spend {t} save {d}",
+    "tierGap": "{d} to go"
   },
   "orders": {
     "tabAll": "All",
@@ -1122,7 +1124,17 @@
     "closedBtn": "Closed",
     "freeShipGap": "{d} more for free delivery",
     "freeShipOk": "Free delivery unlocked",
-    "closedTag": "Closed · opens {t}"
+    "closedTag": "Closed · opens {t}",
+    "cleanInvalid": "Remove {n} invalid",
+    "cleanTitle": "Remove invalid items",
+    "cleanConfirm": "{n} item(s) are delisted or sold out. Remove them?",
+    "cleanDone": "Invalid items removed",
+    "cleanFail": "Failed to remove, please retry",
+    "lineRemoved": "Delisted",
+    "lineSoldOut": "Sold out",
+    "linePriceChanged": "Price changed",
+    "oldPrice": "was ¥{d}",
+    "cleanFirst": "Remove invalid items first"
   },
   "favorites": {
     "stores": "Favorite shops",

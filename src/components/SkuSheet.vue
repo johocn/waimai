@@ -69,6 +69,8 @@ const props = defineProps<{
     product: any;
     /** 秒杀活动（用于详情页 applyFlashSale 联动） */
     activityId?: string;
+    /** 上次选择的变体：可用时优先选中（规格记忆） */
+    preferredVariantId?: string;
 }>();
 const emit = defineEmits<{
     (e: 'update:visible', v: boolean): void;
@@ -191,15 +193,27 @@ function emitAction(action: 'cart' | 'buy') {
     emit('action', { action, variantId: currentVariant.value.id, quantity: quantity.value });
 }
 
-/** 打开时自动选第一个可用的规格组合 */
+/** 打开时优先恢复上次选择，否则自动选第一个可用的规格组合 */
 watch(
     () => props.visible,
     (v) => {
         if (!v) return;
         const init: Record<string, string> = {};
-        for (const g of optionGroups.value) {
-            const firstOk = (g.options || []).find((o: any) => isOptionEnabled(g, o));
-            if (firstOk) init[g.id] = firstOk.id;
+        const pref = String(props.preferredVariantId || '');
+        const prefVariant = pref
+            ? (props.product?.variants || []).find((x: any) => String(x.id) === pref && x.enabled !== false && stockOf(x) !== 'out')
+            : null;
+        if (prefVariant) {
+            for (const o of prefVariant.options || []) {
+                for (const g of optionGroups.value) {
+                    if ((g.options || []).some((x: any) => x.id === o.id)) init[g.id] = o.id;
+                }
+            }
+        } else {
+            for (const g of optionGroups.value) {
+                const firstOk = (g.options || []).find((o: any) => isOptionEnabled(g, o));
+                if (firstOk) init[g.id] = firstOk.id;
+            }
         }
         selected.value = init;
         quantity.value = 1;

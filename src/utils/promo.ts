@@ -59,3 +59,29 @@ export function yuan(fen: number): string {
     const v = Math.max(0, Math.round(fen)) / 100;
     return Number.isInteger(v) ? String(v) : v.toFixed(2);
 }
+
+export interface PromoTier extends PromoRule {
+    /** 当前商品金额已过该档门槛 */
+    reached: boolean;
+    /** 是否为下一档（未达成中门槛最低的一档） */
+    next: boolean;
+    /** 距该档门槛差额（已达成或非下一档为 0） */
+    gapFen: number;
+}
+
+/**
+ * 阶梯满减面板：返回全部档位及达成状态，供店铺/购物车展示「满X减Y」进度。
+ * 无规则返回空数组；金额缺失按 0 处理。
+ */
+export function promoTiers(text: string | null | undefined, amountFen: number): PromoTier[] {
+    const rules = parsePromoRules(text);
+    if (!rules.length) return [];
+    const amount = Number.isFinite(amountFen) ? Math.max(0, amountFen) : 0;
+    const nextRule = rules.find(r => amount < r.thresholdFen);
+    return rules.map(r => ({
+        ...r,
+        reached: amount >= r.thresholdFen,
+        next: !!nextRule && nextRule.thresholdFen === r.thresholdFen,
+        gapFen: nextRule && nextRule.thresholdFen === r.thresholdFen ? r.thresholdFen - amount : 0,
+    }));
+}

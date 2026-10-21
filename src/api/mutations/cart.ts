@@ -43,6 +43,18 @@ export async function removeAllOrderLinesForChannel(channelToken: string) {
     return client.request(mutation);
 }
 
+/** 删除指定渠道购物车中的单行（购物车失效巡查，跨店场景必须固定 vendure-token） */
+export async function removeOrderLineForChannel(channelToken: string, orderLineId: string) {
+    const authStore = useAuthStore();
+    const headers: Record<string, string> = { 'vendure-token': channelToken };
+    const bearer = authStore.token || getSessionToken();
+    if (bearer) headers['Authorization'] = 'Bearer ' + bearer;
+    const client = new GraphQLClient(getShopApiUrl(), { headers });
+    const mutation = `${CART_FRAGMENT}
+        mutation RemoveLine($orderLineId: ID!) { removeOrderLine(orderLineId: $orderLineId) { ... on Order { ...CartInfo } ... on ErrorResult { errorCode message } } }`;
+    return client.request(mutation, { orderLineId });
+}
+
 export async function applyCouponCode(couponCode: string) {
     const client = getGraphQLClient();
     const mutation = `${CART_FRAGMENT}

@@ -294,7 +294,9 @@
     "closedTomorrow": "本店已打烊 · 明日 {t} 开始营业，可先加购",
     "closingSoon": "还有 {n} 分钟打烊，请尽快下单",
     "closedBtn": "已打烊",
-    "freeShipGap": "再买 ¥{d} 免配送费"
+    "freeShipGap": "再买 ¥{d} 免配送费",
+    "tierLabel": "满{t}减{d}",
+    "tierGap": "再买 ¥{d}"
   },
   "orders": {
     "tabAll": "全部",
@@ -1122,7 +1124,17 @@
     "closedBtn": "已打烊",
     "freeShipGap": "再买 ¥{d} 免配送费",
     "freeShipOk": "已免配送费",
-    "closedTag": "已打烊 · {t} 营业"
+    "closedTag": "已打烊 · {t} 营业",
+    "cleanInvalid": "清理失效 {n} 件",
+    "cleanTitle": "清理失效商品",
+    "cleanConfirm": "有 {n} 件商品已下架或售罄，确认移除？",
+    "cleanDone": "已清理失效商品",
+    "cleanFail": "清理失败，请稍后重试",
+    "lineRemoved": "已下架",
+    "lineSoldOut": "已售罄",
+    "linePriceChanged": "已变价",
+    "oldPrice": "原 ¥{d}",
+    "cleanFirst": "请先清理失效商品"
   },
   "favorites": {
     "stores": "收藏店铺",

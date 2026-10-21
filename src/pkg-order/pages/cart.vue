@@ -23,20 +23,35 @@
             </view>
           </view>
           <view class="cart-card__head-right">
+            <text v-if="invalidCount(g) > 0" class="cart-card__clean" @click.stop="cleanInvalid(g)">{{ $t('cart.cleanInvalid').replace('{n}', String(invalidCount(g))) }}</text>
             <text v-if="closedText(g)" class="cart-card__closed">{{ closedTag(g) }}</text>
             <text class="cart-card__clear" @click.stop="clearGroup(g)">{{ $t('cart.clear') }}</text>
           </view>
         </view>
 
-        <view class="cart-line" v-for="l in g.order.lines" :key="l.id">
+        <view class="cart-line" v-for="l in g.order.lines" :key="l.id" :class="{ 'cart-line--invalid': !!lineIssue(l, g) }">
           <VImage :src="l.featuredAsset?.preview" width="96rpx" height="96rpx" class="cart-line__img" />
           <view class="cart-line__body">
-            <text class="cart-line__name">{{ l.productVariant?.name }}</text>
+            <view class="cart-line__title">
+              <text class="cart-line__name">{{ l.productVariant?.name }}</text>
+              <text v-if="lineIssueText(l, g)" class="cart-line__badge">{{ lineIssueText(l, g) }}</text>
+            </view>
             <text v-if="optionsText(l)" class="cart-line__opt">{{ optionsText(l) }}</text>
             <view class="cart-line__foot">
-              <text class="cart-line__price">¥{{ fen(l.linePriceWithTax ?? l.unitPriceWithTax * l.quantity) }}</text>
+              <view class="cart-line__prices">
+                <text class="cart-line__price">¥{{ fen(l.linePriceWithTax ?? l.unitPriceWithTax * l.quantity) }}</text>
+                <text v-if="lineIssue(l, g) === 'priceChanged'" class="cart-line__old">{{ $t('cart.oldPrice').replace('{d}', fen(prevPriceOf(l, g) * l.quantity)) }}</text>
+              </view>
               <text class="cart-line__qty">×{{ l.quantity }}</text>
             </view>
+          </view>
+        </view>
+
+        <!-- 阶梯满减：全部档位 + 已达成/下一档差额 -->
+        <view class="cart-tiers" v-if="tiersOf(g).length">
+          <view v-for="t in tiersOf(g)" :key="'ct-' + t.thresholdFen" class="cart-tier" :class="{ hit: t.reached, next: t.next }">
+            <text>{{ $t('menu.tierLabel').replace('{t}', tierYuan(t.thresholdFen)).replace('{d}', tierYuan(t.discountFen)) }}</text>
+            <text v-if="t.next && t.gapFen > 0" class="cart-tier__gap">{{ $t('menu.tierGap').replace('{d}', tierYuan(t.gapFen)) }}</text>
           </view>
         </view>
 
@@ -54,7 +69,7 @@
           </view>
           <view class="cart-card__btns">
             <view class="cart-btn cart-btn--ghost" @click="enterStore(g)">{{ gapFen(g) > 0 ? $t('cart.topUp') : $t('cart.addMore') }}</view>
-            <view class="cart-btn cart-btn--primary" :class="{ disabled: !!closedText(g) }" @click="goCheckout(g)">{{ closedText(g) ? $t('cart.closedBtn') : $t('cart.checkout') }}</view>
+            <view class="cart-btn cart-btn--primary" :class="{ disabled: !!closedText(g) || invalidCount(g) > 0 }" @click="goCheckout(g)">{{ closedText(g) ? $t('cart.closedBtn') : $t('cart.checkout') }}</view>
           </view>
         </view>
       </view>
@@ -67,13 +82,15 @@ import { ref } from 'vue';
 import { onShow, onUnload } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { getActiveOrderForChannel } from '../../api/queries/order';
-import { removeAllOrderLinesForChannel } from '../../api/mutations/cart';
+import { removeAllOrderLinesForChannel, removeOrderLineForChannel } from '../../api/mutations/cart';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
 import { getSessionToken } from '../../api/client';
 import { useLocaleStore } from '../../stores/locale';
 import { getStoreStatus } from '../../utils/store-status';
+import { promoTiers, yuan as promoYuan } from '../../utils/promo';
+import { lineIssueOf, isRemovableIssue, linePriceFen, readLinePrices, writeLinePrices, type CartLineIssue, type PriceMap } from '../../utils/cart-inspect';
 import VImage from '../../components/VImage.vue';
 
 const tenant = useTenantStore();
@@ -91,13 +108,17 @@ interface CartGroup {
   deliveryFee?: number | null;
   freeShipping?: number | null;
   businessHours?: string | null;
+  promoText?: string;
   order: any;
 }
 
 const groups = ref<CartGroup[]>([]);
 const loading = ref(false);
+/** 上次打开购物车时的单价快照（token:variantId → 分），仅用于变价提示 */
+const prevPrices = ref<PriceMap>({});
 
 onShow(() => {
+  prevPrices.value = readLinePrices();
   void load();
 });
 onUnload(() => { void tenant.backToDefault(); });
@@ -125,6 +146,7 @@ async function load() {
           deliveryFee: s.deliveryFee,
           freeShipping: s.freeShippingThreshold,
           businessHours: s.businessHours,
+          promoText: s.promoText,
           order,
         } as CartGroup;
       }),
@@ -133,6 +155,15 @@ async function load() {
       .filter((r): r is PromiseFulfilledResult<CartGroup | null> => r.status === 'fulfilled')
       .map(r => r.value)
       .filter((g): g is CartGroup => !!g);
+    // 刷新单价快照，供下次打开比对变价（本次比对用的是打开前读到的旧快照）
+    const snap: PriceMap = {};
+    for (const g of groups.value) {
+      for (const l of g.order?.lines ?? []) {
+        const vid = l?.productVariant?.id;
+        if (vid != null) snap[`${g.token}:${vid}`] = linePriceFen(l);
+      }
+    }
+    writeLinePrices(snap);
   } finally {
     loading.value = false;
   }
@@ -152,6 +183,55 @@ function gapFen(g: CartGroup): number {
 function optionsText(l: any): string {
   const opts = (l?.productVariant?.options ?? []).map((o: any) => o?.name).filter(Boolean);
   return opts.join(' / ');
+}
+
+/** 单行失效状态：下架/售罄/变价 */
+function lineIssue(l: any, g: CartGroup): CartLineIssue {
+  return lineIssueOf(l, g.token, prevPrices.value);
+}
+function lineIssueText(l: any, g: CartGroup): string {
+  const issue = lineIssue(l, g);
+  if (issue === 'removed') return locale.t('cart.lineRemoved');
+  if (issue === 'soldOut') return locale.t('cart.lineSoldOut');
+  if (issue === 'priceChanged') return locale.t('cart.linePriceChanged');
+  return '';
+}
+function prevPriceOf(l: any, g: CartGroup): number {
+  return Number(prevPrices.value[`${g.token}:${l?.productVariant?.id}`] || 0);
+}
+/** 需清理的行数（下架/售罄；变价仅提示不移除） */
+function invalidCount(g: CartGroup): number {
+  return (g.order?.lines ?? []).filter((l: any) => isRemovableIssue(lineIssue(l, g))).length;
+}
+function tiersOf(g: CartGroup) {
+  return promoTiers(g.promoText, Number(g.order?.subTotalWithTax || 0));
+}
+/** 满减金额用整数优先格式：满30减5（与店铺页一致） */
+function tierYuan(v: number): string {
+  return promoYuan(Number(v) || 0);
+}
+
+/** 一键清理失效行：仅移除下架/售罄，保留变价行 */
+async function cleanInvalid(g: CartGroup) {
+  const lines = (g.order?.lines ?? []).filter((l: any) => isRemovableIssue(lineIssue(l, g)));
+  if (!lines.length) return;
+  const ok = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: locale.t('cart.cleanTitle'),
+      content: locale.t('cart.cleanConfirm').replace('{n}', String(lines.length)),
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false),
+    });
+  });
+  if (!ok) return;
+  try {
+    for (const l of lines) await removeOrderLineForChannel(g.token, l.id);
+    if (tenant.token === g.token) cart.clearCart();
+    uni.showToast({ title: locale.t('cart.cleanDone'), icon: 'none' });
+  } catch {
+    uni.showToast({ title: locale.t('cart.cleanFail'), icon: 'none' });
+  }
+  void load();
 }
 
 /** 打烊提示：仅 closed 才拦截提交，closing 由店铺页提示 */
@@ -219,6 +299,10 @@ async function goCheckout(g: CartGroup) {
     uni.showToast({ title: closed, icon: 'none' });
     return;
   }
+  if (invalidCount(g) > 0) {
+    uni.showToast({ title: locale.t('cart.cleanFirst'), icon: 'none' });
+    return;
+  }
   if (gapFen(g) > 0) {
     uni.showToast({ title: locale.t('cart.minGap').replace('{d}', yuan(gapFen(g))), icon: 'none' });
     return;
@@ -250,7 +334,7 @@ function goHome() {
   &__name { font-size: 28rpx; font-weight: 600; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__sub { font-size: 22rpx; color: $text-color-secondary; }
   &__clear { font-size: 24rpx; color: $text-color-placeholder; padding: 8rpx; flex-shrink: 0; }
-  &__head-right { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; }
+  &__head-right { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 56%; }
   &__closed { font-size: 20rpx; color: #b42318; background: #fff2f0; border: 1rpx solid #f3b6b0; border-radius: 6rpx; padding: 2rpx 8rpx; max-width: 300rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__foot { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid $border-color; }
   &__sum { display: flex; flex-direction: column; gap: 4rpx; }
@@ -269,11 +353,26 @@ function goHome() {
 .cart-line { display: flex; gap: 16rpx; padding: 18rpx 0; border-bottom: 1rpx solid $border-color;
   &__img { border-radius: $radius-sm; background: $bg-color; flex-shrink: 0; }
   &__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
+  &__title { display: flex; align-items: center; gap: 10rpx; min-width: 0; }
   &__name { font-size: 26rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__badge { font-size: 18rpx; color: #b42318; background: #fff2f0; border: 1rpx solid #f3b6b0; border-radius: 6rpx; padding: 2rpx 8rpx; flex-shrink: 0; }
   &__opt { font-size: 22rpx; color: $text-color-secondary; }
   &__foot { display: flex; align-items: center; justify-content: space-between; }
+  &__prices { display: flex; align-items: baseline; gap: 10rpx; }
   &__price { font-size: 26rpx; color: $price-color; }
+  &__old { font-size: 20rpx; color: $text-color-placeholder; text-decoration: line-through; }
   &__qty { font-size: 24rpx; color: $text-color-secondary; }
+  &--invalid { opacity: 0.55;
+    & .cart-line__price { text-decoration: line-through; color: $text-color-secondary; } }
+}
+/* 失效巡查入口 */
+.cart-card__clean { font-size: 20rpx; color: #b42318; background: #fff2f0; border: 1rpx solid #f3b6b0; border-radius: 6rpx; padding: 2rpx 10rpx; }
+/* 阶梯满减 chips */
+.cart-tiers { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 12rpx; }
+.cart-tier { display: flex; align-items: center; gap: 8rpx; font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 8rpx; border: 1rpx solid $border-color; color: $text-color-secondary; background: $surface;
+  &__gap { font-size: 18rpx; color: #b45309; }
+  &.hit { border-color: $brand-color; background: $brand-color-light; color: $brand-color; }
+  &.next { border-style: dashed; border-color: #ffb27a; color: #b45309; }
 }
 .cart-btn { height: 72rpx; line-height: 72rpx; padding: 0 32rpx; border-radius: 999rpx; font-size: 26rpx; text-align: center;
   &--ghost { background: $bg-color; color: $text-color-secondary; border: 1rpx solid $border-color; }

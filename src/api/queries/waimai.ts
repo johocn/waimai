@@ -21,6 +21,7 @@ const PRODUCT_LIST_QUERY = `
                 id name slug description
                 featuredAsset { preview }
                 variants { id name priceWithTax stockLevel enabled options { id name code } }
+                optionGroups { id name code options { id name code } }
                 collections { id name slug parent { name } }
                 customFields { reviewRating reviewCount waimaiMonthlySales }
             }

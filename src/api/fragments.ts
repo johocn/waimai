@@ -61,7 +61,7 @@ export const CART_FRAGMENT = `
         lines {
             id quantity linePriceWithTax unitPriceWithTax
             featuredAsset { preview }
-            productVariant { id name options { name } }
+            productVariant { id name enabled stockLevel options { name } }
         }
         couponCodes
         discounts { description amountWithTax }

@@ -21,6 +21,16 @@
             <view class="tags" v-if="promoText">
                 <text class="tag">🔥 {{ promoText }}</text>
             </view>
+            <!-- 阶梯满减：全部档位 + 已达成/下一档差额 -->
+            <view class="promo-tiers" v-if="promoTierList.length">
+                <view
+                    v-for="t in promoTierList" :key="'tier-' + t.thresholdFen"
+                    class="promo-tier" :class="{ hit: t.reached, next: t.next }"
+                >
+                    <text class="promo-tier__main">{{ $t('menu.tierLabel').replace('{t}', yuan(t.thresholdFen)).replace('{d}', yuan(t.discountFen)) }}</text>
+                    <text v-if="t.next && t.gapFen > 0" class="promo-tier__gap">{{ $t('menu.tierGap').replace('{d}', yuan(t.gapFen)) }}</text>
+                </view>
+            </view>
         </view>
         <!-- 营业状态提示：打烊/即将打烊（打烊仍可浏览加购，不可提交订单） -->
         <view v-if="storeStateText" class="shop-state" :class="storeClosed ? 'shop-state--closed' : 'shop-state--closing'">
@@ -229,7 +239,7 @@
                 {{ storeClosed ? $t('menu.closedBtn') : belowMinOrder ? $t('menu.minOrderGap').replace('{d}', minGapYuan) : $t('menu.checkout') }}
             </view>
         </view>
-        <SkuSheet v-model:visible="skuOpen" :product="skuProduct" @action="onSkuAction" @share="shareProduct" />
+        <SkuSheet v-model:visible="skuOpen" :product="skuProduct" :preferred-variant-id="skuPreferred" @action="onSkuAction" @share="shareProduct" />
     </view>
 </template>
 
@@ -246,7 +256,7 @@ import { getProductCoupons } from '../../api/queries/coupon';
 import { getChannelReviews, getChannelReviewStats } from '../../api/queries/review';
 import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
 import { matchesProduct, readSearchHistory, pushSearchHistory, clearSearchHistory as clearHistoryStorage } from '../../utils/search';
-import { nextPromoHint, yuan } from '../../utils/promo';
+import { nextPromoHint, promoTiers, yuan } from '../../utils/promo';
 import { getStoreStatus } from '../../utils/store-status';
 import { theme, initTheme } from '../../utils/theme';
 import { sharePage } from '../../utils/share';
@@ -258,6 +268,7 @@ import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import SkuSheet from '../../components/SkuSheet.vue';
 import { recordFootprint } from '../../utils/footprint';
+import { rememberVariant, resolvePreferredVariant } from '../../utils/sku-memory';
 
 const tenant = useTenantStore();
 const cart = useCartStore();
@@ -276,6 +287,7 @@ const activeCat = ref('all');
 const products = ref<any[]>([]);
 const skuOpen = ref(false);
 const skuProduct = ref<any>(null);
+const skuPreferred = ref('');
 // 首页搜索/收藏商品带 q 进店：仅筛商品（不改分类），✕ 可清除
 const productQuery = ref('');
 // 商品排序：综合（接口原序）/ 销量 / 价格（再次点击切升/降）；售罄始终置底
@@ -319,6 +331,8 @@ const freeShippingGapFen = computed(() => {
     if (!cartCount.value || freeShippingFen.value == null) return 0;
     return Math.max(0, freeShippingFen.value - cartTotal.value);
 });
+// 阶梯满减面板：按当前购物车金额标出已达成与下一档差额
+const promoTierList = computed(() => promoTiers(storeInfo.value?.promoText || promoText.value, cartTotal.value));
 const cartPromoText = computed(() => {
     if (!cartCount.value) return '';
     const hint = nextPromoHint(storeInfo.value?.promoText || promoText.value, cartTotal.value);
@@ -767,6 +781,8 @@ function pickSku(g: any) {
     if (goodSoldOut(g)) { toastSoldOut(); return; }
     rememberView(g);
     skuProduct.value = g;
+    const preferred = resolvePreferredVariant(g?.id, g?.variants);
+    skuPreferred.value = preferred ? String(preferred.id) : '';
     skuOpen.value = true;
 }
 
@@ -799,17 +815,21 @@ async function doAddItem(variantId: string, quantity: number) {
 }
 
 async function addToCart(g: any) {
-    const variant = g?.variants?.[0];
+    const variant = resolvePreferredVariant(g?.id, g?.variants) || g?.variants?.[0];
     if (!variant || !variantAvailable(variant)) { toastSoldOut(); return false; }
     rememberView(g);
     const ok = await doAddItem(variant.id, 1);
-    if (ok) uni.showToast({ title: locale.t('menu.added'), icon: 'none' });
+    if (ok) {
+        rememberVariant(g?.id, variant.id);
+        uni.showToast({ title: locale.t('menu.added'), icon: 'none' });
+    }
     return ok;
 }
 
 async function onSkuAction(v: { action: 'cart' | 'buy'; variantId: string; quantity: number }) {
     const ok = await doAddItem(v.variantId, v.quantity);
     if (ok) {
+        rememberVariant(skuProduct.value?.id, v.variantId);
         skuOpen.value = false;
         if (v.action === 'buy') goCheckout();
     }
@@ -895,6 +915,14 @@ function goCheckout() {
 .smeta em { font-style: normal; color: var(--w-text-muted); }
 .tags { display: flex; gap: 12rpx; margin-top: 16rpx; flex-wrap: wrap; }
 .tag { font-size: 20rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 8rpx; padding: 4rpx 12rpx; }
+/* 阶梯满减：达成置亮、下一档描边并提示差额 */
+.promo-tiers { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 12rpx; }
+.promo-tier { display: flex; align-items: center; gap: 8rpx; font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 8rpx; border: 1rpx solid var(--w-border); color: var(--w-text-muted); background: var(--w-surface);
+  &__main { color: inherit; }
+  &__gap { font-size: 18rpx; color: #b45309; }
+  &.hit { border-color: var(--w-brand); background: var(--w-brand-soft); color: var(--w-brand-text); }
+  &.next { border-style: dashed; border-color: #ffb27a; color: #b45309; }
+}
 /* 营业状态条：打烊红、即将打烊橙，均贴在店铺卡下方 */
 .shop-state { display: flex; align-items: center; gap: 10rpx; margin: 16rpx 24rpx 0; padding: 14rpx 20rpx; border-radius: 12rpx; flex-shrink: 0; }
 .shop-state--closed { background: #fff2f0; border: 1rpx solid #f3b6b0; }

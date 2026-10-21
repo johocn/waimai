@@ -245,6 +245,20 @@
         <text class="note-card__label">{{ $t('checkout.noteLabel') }}</text>
         <text class="note-card__manage" @click="noteManageOpen = true">{{ $t('checkout.noteManage') }}</text>
       </view>
+      <!-- 口味与忌口：本地记忆默认偏好，切换后自动同步到订单备注 -->
+      <view class="taste-row">
+        <text class="taste-row__label">{{ $t('checkout.tasteLabel') }}</text>
+        <scroll-view scroll-x class="taste-chips">
+          <view
+            v-for="t in tasteOptions"
+            :key="'taste-' + t.key"
+            class="taste-chip"
+            :class="{ on: tasteSelected.includes(t.key) }"
+            @click="toggleTaste(t.key)"
+          >{{ t.label }}</view>
+        </scroll-view>
+      </view>
+      <text class="taste-hint">{{ $t('checkout.tasteHint') }}</text>
       <scroll-view scroll-x class="note-chips">
         <view
           v-for="t in quickNoteTemplates"
@@ -449,6 +463,43 @@ const quickNoteTemplates = computed(() => [...builtinNoteTemplates.value, ...cus
 function persistNoteTemplates() {
   uni.setStorageSync(NOTE_TPL_KEY, JSON.stringify(customNoteTemplates.value));
 }
+
+// ── 口味与忌口偏好：本地记忆（taste_preferences），默认带入订单备注 ──
+const TASTE_KEY = 'taste_preferences';
+const TASTE_KEYS = ['noSpicy', 'lessSpicy', 'noCoriander', 'noOnion'] as const;
+/** 辣度二选一：同时勾选「不要辣 + 少辣」会在备注里写出矛盾要求 */
+const SPICY_KEYS: readonly string[] = ['noSpicy', 'lessSpicy'];
+const tasteSelected = ref<string[]>((() => {
+  try {
+    const raw = uni.getStorageSync(TASTE_KEY);
+    const arr = typeof raw === 'string' ? JSON.parse(raw || '[]') : raw;
+    return Array.isArray(arr) ? arr.map(String).filter(k => (TASTE_KEYS as readonly string[]).includes(k)) : [];
+  } catch {
+    return [];
+  }
+})());
+const tasteOptions = computed(() => TASTE_KEYS.map(k => ({ key: k, label: locale.t('checkout.taste.' + k) })));
+
+/** 把当前口味偏好同步进备注：先清掉所有口味段，再按选中顺序前置，保留用户自由输入与其它模板 */
+function applyTasteToNote() {
+  const allLabels = TASTE_KEYS.map(k => locale.t('checkout.taste.' + k));
+  const picked = TASTE_KEYS.filter(k => tasteSelected.value.includes(k)).map(k => locale.t('checkout.taste.' + k));
+  const rest = orderNote.value.split('；').map(s => s.trim()).filter(s => s && !allLabels.includes(s));
+  orderNote.value = [...picked, ...rest].join('；').slice(0, 200);
+}
+
+function toggleTaste(key: string) {
+  const on = tasteSelected.value.includes(key);
+  let next = tasteSelected.value.filter(k => k !== key);
+  if (!on) {
+    if (SPICY_KEYS.includes(key)) next = next.filter(k => !SPICY_KEYS.includes(k));
+    next = [...next, key];
+  }
+  tasteSelected.value = next;
+  uni.setStorageSync(TASTE_KEY, JSON.stringify(tasteSelected.value));
+  applyTasteToNote();
+}
+
 function noteHas(t: string): boolean {
   return orderNote.value.includes(t);
 }
@@ -1139,6 +1190,8 @@ function chooseInvoice(i: number) {
 }
 
 onMounted(async () => {
+    // 记忆的口味/忌口默认带入备注（用户仍可手动删改）
+    if (tasteSelected.value.length) applyTasteToNote();
     // Load saved addresses（发票抬头复用同一份 customFields，避免重复请求）
     let custFields: any = null;
     try { const custRes: any = await getActiveCustomer(); customerAddresses.value = custRes.activeCustomer?.addresses || []; custFields = custRes.activeCustomer?.customFields; if (customerAddresses.value.length > 0) { selectedAddress.value = customerAddresses.value.find((a: any) => a.defaultShippingAddress) || customerAddresses.value[0]; } } catch (e) {}
@@ -1422,6 +1475,13 @@ onLoad((q: any) => {
   .note-card__input { margin-top: 12rpx; width: 100%; min-height: 100rpx; font-size: 26rpx; color: $text-color; line-height: 1.6; }
   .note-card__count { text-align: right; font-size: 22rpx; color: $text-color-secondary; } }
 .note-chips { margin-top: 12rpx; white-space: nowrap; }
+// 口味偏好：浅蓝底与常用备注模板区分，避免误以为同一组
+.taste-row { display: flex; align-items: center; gap: 12rpx; margin-top: 14rpx; }
+.taste-row__label { flex-shrink: 0; font-size: 22rpx; color: $text-color-secondary; }
+.taste-chips { flex: 1; white-space: nowrap; }
+.taste-chip { display: inline-block; padding: 8rpx 18rpx; margin-right: 12rpx; border-radius: 999rpx; font-size: 22rpx; background: #eef4ff; color: #2d5bd1; border: 1rpx solid transparent;
+  &.on { color: #fff; background: #2d5bd1; border-color: #2d5bd1; } }
+.taste-hint { display: block; margin-top: 6rpx; font-size: 20rpx; color: $text-color-placeholder; }
 .note-chip { display: inline-block; padding: 8rpx 18rpx; margin-right: 12rpx; border-radius: 999rpx; font-size: 22rpx; background: $bg-color; color: $text-color-secondary; border: 1rpx solid transparent;
   &.on { color: $brand-color; border-color: $brand-color; background: $brand-color-light; }
   &--add { color: $brand-color; background: #fff; border: 1rpx dashed $brand-color; } }

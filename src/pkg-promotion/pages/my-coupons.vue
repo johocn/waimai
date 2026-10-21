@@ -1,5 +1,12 @@
 <template>
   <view class="mc-page">
+    <!-- 券码兑换：输入活动/社群发放的券码，兑换后直接进当前店铺券包 -->
+    <view class="mc-redeem" @tap="openRedeem">
+      <text class="mc-redeem__ico">🎁</text>
+      <text class="mc-redeem__txt">{{ $t('myCoupons.redeemEntry') }}</text>
+      <text class="mc-redeem__arrow">›</text>
+    </view>
+
     <view class="mc-tabs">
       <text v-for="k in TABS" :key="k.key" class="mc-tab" :class="{ on: tab === k.key }" @tap="switchTab(k.key)">
         {{ $t('myCoupons.' + k.label) }}<text class="mc-tab__n" v-if="counts[k.key]">{{ counts[k.key] }}</text>
@@ -40,6 +47,29 @@
       </view>
       <view class="scroll-pad"></view>
     </scroll-view>
+
+    <!-- 兑换码弹层 -->
+    <view class="mc-mask" v-if="redeemOpen" @tap="redeemOpen = false">
+      <view class="mc-sheet" @tap.stop>
+        <text class="mc-sheet__title">{{ $t('myCoupons.redeemTitle') }}</text>
+        <text class="mc-sheet__hint">{{ $t('myCoupons.redeemHint') }}</text>
+        <input
+          class="mc-sheet__ipt"
+          v-model="redeemCode"
+          :placeholder="$t('myCoupons.redeemPlaceholder')"
+          :maxlength="32"
+          confirm-type="done"
+          @confirm="doRedeem"
+        />
+        <text class="mc-sheet__err" v-if="redeemError">{{ redeemError }}</text>
+        <view class="mc-sheet__actions">
+          <view class="mc-sheet__cancel" @tap="redeemOpen = false">{{ $t('myCoupons.cancel') }}</view>
+          <view class="mc-sheet__ok" :class="{ disabled: redeeming }" @tap="doRedeem">
+            {{ redeeming ? $t('myCoupons.redeeming') : $t('myCoupons.redeemBtn') }}
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -49,6 +79,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { useAuthStore } from '../../stores/auth';
 import { useCartStore } from '../../stores/cart';
 import { getMyCoupons } from '../../api/queries/coupon';
+import { redeemCouponByCode } from '../../api/mutations/coupon';
 import EmptyState from '../../components/EmptyState.vue';
 import { useLocaleStore } from '../../stores/locale';
 
@@ -64,6 +95,57 @@ const locale = useLocaleStore();
 const tab = ref<string>('UNUSED');
 const data = ref<Record<string, any[]>>({ UNUSED: [], USED: [], EXPIRED: [] });
 const loading = ref(false);
+
+// —— 券码兑换 ——
+const redeemOpen = ref(false);
+const redeemCode = ref('');
+const redeemError = ref('');
+const redeeming = ref(false);
+
+function openRedeem() {
+    redeemError.value = '';
+    redeemOpen.value = true;
+}
+
+/** 后端错误原文映射为本地化提示（无法识别时沿用原文） */
+function redeemErrorText(raw: string): string {
+    const msg = String(raw || '');
+    if (/Invalid claim code/i.test(msg)) return locale.t('myCoupons.redeemInvalid');
+    if (/not available in this shop/i.test(msg)) return locale.t('myCoupons.redeemWrongShop');
+    if (/already|Coupon redeemed|limit reached/i.test(msg)) return locale.t('myCoupons.redeemUsed');
+    if (/sold out/i.test(msg)) return locale.t('myCoupons.redeemSoldOut');
+    if (/expired/i.test(msg)) return locale.t('myCoupons.redeemExpired');
+    if (/not yet started/i.test(msg)) return locale.t('myCoupons.redeemNotStarted');
+    if (/disabled|not claimable/i.test(msg)) return locale.t('myCoupons.redeemDisabled');
+    return msg || locale.t('myCoupons.redeemFail');
+}
+
+async function doRedeem() {
+    if (redeeming.value) return;
+    const code = redeemCode.value.trim().toUpperCase();
+    if (!code) {
+        redeemError.value = locale.t('myCoupons.redeemEmpty');
+        return;
+    }
+    redeeming.value = true;
+    redeemError.value = '';
+    try {
+        const res: any = await redeemCouponByCode(code);
+        const coupon = res?.redeemCouponByCode;
+        if (!coupon?.id) throw new Error(locale.t('myCoupons.redeemFail'));
+        redeemOpen.value = false;
+        redeemCode.value = '';
+        // 重新拉可用券，保证新兑换的券立刻出现
+        data.value.UNUSED = [];
+        tab.value = 'UNUSED';
+        await load('UNUSED');
+        uni.showToast({ title: locale.t('myCoupons.redeemOk'), icon: 'success' });
+    } catch (e: any) {
+        redeemError.value = redeemErrorText(e?.response?.errors?.[0]?.message || e?.message || '');
+    } finally {
+        redeeming.value = false;
+    }
+}
 
 const EXPIRING_WINDOW_MS = 3 * 86400000;
 
@@ -183,6 +265,21 @@ onShow(() => { data.value = { UNUSED: [], USED: [], EXPIRED: [] }; load(tab.valu
 
 <style lang="scss" scoped>
 .mc-page { min-height: 100vh; background: #f5f5f5; display: flex; flex-direction: column; }
+.mc-redeem { display: flex; align-items: center; gap: 10rpx; margin: 20rpx 24rpx 0; padding: 18rpx 24rpx; border-radius: $radius-md; background: $surface; border: 1rpx dashed #ffb37a; }
+.mc-redeem__ico { font-size: 26rpx; }
+.mc-redeem__txt { flex: 1; font-size: 26rpx; color: #b45309; }
+.mc-redeem__arrow { font-size: 30rpx; color: #b45309; }
+.mc-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 90; display: flex; align-items: center; justify-content: center; padding: 0 48rpx; }
+.mc-sheet { width: 100%; background: #fff; border-radius: 24rpx; padding: 32rpx; box-sizing: border-box; }
+.mc-sheet__title { display: block; font-size: 30rpx; font-weight: bold; color: #333; }
+.mc-sheet__hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #999; }
+.mc-sheet__ipt { margin-top: 24rpx; height: 88rpx; padding: 0 24rpx; border-radius: 12rpx; background: #f5f5f5; font-size: 28rpx; letter-spacing: 2rpx; }
+.mc-sheet__err { display: block; margin-top: 12rpx; font-size: 24rpx; color: #e02020; }
+.mc-sheet__actions { display: flex; gap: 20rpx; margin-top: 28rpx; }
+.mc-sheet__cancel, .mc-sheet__ok { flex: 1; text-align: center; height: 80rpx; line-height: 80rpx; border-radius: 12rpx; font-size: 28rpx; }
+.mc-sheet__cancel { background: #f5f5f5; color: #666; }
+.mc-sheet__ok { background: #ff6600; color: #fff; }
+.mc-sheet__ok.disabled { opacity: .6; }
 .mc-tabs { display: flex; background: #fff; padding: 0 32rpx; }
 .mc-tab { flex: 1; text-align: center; padding: 24rpx 0; font-size: 30rpx; color: #666; &.on { color: #ff6600; font-weight: bold; border-bottom: 4rpx solid #ff6600; } }
 .mc-tab__n { font-size: 22rpx; margin-left: 6rpx; color: inherit; }

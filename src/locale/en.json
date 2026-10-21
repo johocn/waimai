@@ -312,12 +312,7 @@
         "pendingReviewOnly": "To review only",
         "reviewBtn": "Review",
         "reviewAll": "Show all",
-        "stateUpdated": "Order status updated",
-        "trackBtn": "Track courier",
-        "reorderShort": "Order again",
-        "scheduledBar": "{n} scheduled order(s)",
-        "scheduledOnly": "Scheduled only",
-        "scheduledAll": "View all"
+        "stateUpdated": "Order status updated"
     },
     "profile": {
         "guest": "Guest",
@@ -356,7 +351,8 @@
         "langZh": "中文",
         "langEn": "English",
         "myAfterSales": "After-sales",
-        "help": "Help & Support"
+        "help": "Help & Support",
+        "history": "History & frequent"
     },
     "login": {
         "brand": "Shiguangda",
@@ -544,7 +540,15 @@
         "invoiceAddHint": "No invoice title yet. Add one under Me → Invoices first.",
         "invoiceSelected": "Selected",
         "payIncomplete": "Payment not completed, please retry or switch method",
-        "payFail": "Payment failed"
+        "payFail": "Payment failed",
+        "tasteLabel": "Taste",
+        "tasteHint": "Saved and added to the note automatically; edit above anytime",
+        "taste": {
+            "noSpicy": "No spicy",
+            "lessSpicy": "Less spicy",
+            "noCoriander": "No coriander",
+            "noOnion": "No onion/garlic"
+        }
     },
     "orderDetail": {
         "stCreated": "Pending Payment",
@@ -680,9 +684,7 @@
         "manageTitles": "Manage titles",
         "riderDistance": "{n} away",
         "riderEta": "Arriving in ~{n} min",
-        "urgeHint": "The courier will be notified after urging",
-        "scheduleTitle": "Scheduled delivery",
-        "scheduleHint": "A courier will be arranged before your slot starts. Stay tuned for updates."
+        "urgeHint": "The courier will be notified after urging"
     },
     "riderTracking": {
         "title": "Courier Tracking",
@@ -903,7 +905,17 @@
         "phoneInvalid": "Invalid phone number",
         "zoneBuildingRequired": "Please select a zone and building",
         "saveFail": "Save failed",
-        "saved": "Saved"
+        "saved": "Saved",
+        "pasteTitle": "Auto-fill from pasted address",
+        "pasteHint": "Copy “name phone address” and split it in one tap",
+        "pasteBtn": "Paste",
+        "pasteSheetTitle": "Paste delivery info",
+        "pastePlaceholder": "e.g. John 13800138000 East Zone Building 1 Room 305",
+        "pasteParse": "Fill in",
+        "pasteEmpty": "Nothing to parse yet",
+        "pasteNoContact": "No name or phone found, please fill manually",
+        "pasteDone": "Filled in, please review",
+        "cancel": "Cancel"
     },
     "invoice": {
         "typePersonal": "Personal",
@@ -990,7 +1002,24 @@
         "emptyExpired": "No expired coupons",
         "expiringBanner": "{n} coupon(s) expire within 3 days",
         "daysLeft": "{n} days left",
-        "todayExpire": "Expires today"
+        "todayExpire": "Expires today",
+        "redeemEntry": "Have a code? Redeem",
+        "redeemTitle": "Redeem coupon",
+        "redeemHint": "Enter the code from campaigns or groups; it will be added to your wallet",
+        "redeemPlaceholder": "Enter coupon code",
+        "redeemBtn": "Redeem",
+        "redeeming": "Redeeming…",
+        "redeemOk": "Redeemed",
+        "redeemFail": "Redemption failed, please retry",
+        "redeemEmpty": "Please enter a code",
+        "redeemInvalid": "Invalid code, please check",
+        "redeemWrongShop": "This code is not valid in the current store",
+        "redeemUsed": "Code already redeemed or limit reached",
+        "redeemSoldOut": "All coupons have been claimed",
+        "redeemExpired": "This coupon has expired",
+        "redeemNotStarted": "Campaign has not started",
+        "redeemDisabled": "This coupon cannot be redeemed now",
+        "cancel": "Cancel"
     },
     "errandCreate": {
         "myOrders": "My errand orders",
@@ -1083,15 +1112,7 @@
         "removeFail": "Operation failed",
         "itemFallback": "Item",
         "minOrder": "Min ¥{y}",
-        "paused": "Shop is closed now",
-        "dynamics": "Store updates",
-        "dynamicsTitle": "Updates from followed stores",
-        "dynamicsLoading": "Loading store updates…",
-        "clearNew": "Mark all read",
-        "dynEmpty": "No followed stores yet. Save one first.",
-        "newProducts": "{n} new item(s)",
-        "newBadge": "New",
-        "hotBadge": "Popular"
+        "paused": "Shop is closed now"
     },
     "afterSalesList": {
         "tabAll": "All",
@@ -1143,5 +1164,24 @@
         "a10": "Try signing in with a verification code first; contact support for identity verification.",
         "foot": "If the issue persists, please contact support or the store.",
         "noPhoneHint": "For urgent help, contact the merchant or platform from your order detail"
+    },
+    "history": {
+        "tabFootprint": "Recently viewed",
+        "tabFrequent": "Frequently bought",
+        "footprintHint": "Latest 40 items you viewed",
+        "clear": "Clear",
+        "clearTitle": "Clear history",
+        "clearConfirm": "This cannot be undone. Continue?",
+        "cleared": "Cleared",
+        "emptyFootprint": "No browsing history yet",
+        "emptyFrequent": "No past orders yet; frequently bought items will appear here",
+        "goHome": "Browse stores",
+        "frequentHint": "Sorted by purchase count",
+        "refresh": "Refresh",
+        "loading": "Summarizing past orders…",
+        "boughtTimes": "Bought {n}×",
+        "add": "Add",
+        "today": "Today {t}",
+        "noStore": "Store info is no longer available"
     }
 }

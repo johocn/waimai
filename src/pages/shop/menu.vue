@@ -251,6 +251,7 @@ import VImage from '../../components/VImage.vue';
 import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import SkuSheet from '../../components/SkuSheet.vue';
+import { recordFootprint } from '../../utils/footprint';
 
 const tenant = useTenantStore();
 const cart = useCartStore();
@@ -734,8 +735,25 @@ function toastSoldOut() {
 /** 点商品：统一打开详情弹层（大图/描述/月销/规格/收藏/加购），单规格也可先看清详情 */
 function pickSku(g: any) {
     if (goodSoldOut(g)) { toastSoldOut(); return; }
+    rememberView(g);
     skuProduct.value = g;
     skuOpen.value = true;
+}
+
+/** 浏览足迹：记录商品 + 店铺信息，供「我的足迹」页回访 */
+function rememberView(g: any) {
+    const variant = g?.variants?.[0];
+    recordFootprint({
+        productId: String(g?.id ?? ''),
+        variantId: variant?.id ? String(variant.id) : '',
+        name: g?.name || '',
+        image: g?.featuredAsset?.preview || '',
+        price: Number(variant?.priceWithTax ?? 0),
+        storeName: shopName.value,
+        channelToken: shopToken.value,
+        channelId: storeInfo.value?.channelId != null ? String(storeInfo.value.channelId) : (favChannelId.value != null ? String(favChannelId.value) : ''),
+        routes: shopRoutes.value,
+    });
 }
 
 async function doAddItem(variantId: string, quantity: number) {
@@ -753,6 +771,7 @@ async function doAddItem(variantId: string, quantity: number) {
 async function addToCart(g: any) {
     const variant = g?.variants?.[0];
     if (!variant || !variantAvailable(variant)) { toastSoldOut(); return false; }
+    rememberView(g);
     const ok = await doAddItem(variant.id, 1);
     if (ok) uni.showToast({ title: locale.t('menu.added'), icon: 'none' });
     return ok;

@@ -18,6 +18,15 @@ export async function claimProductCoupon(bindingId: string) {
     return client.request(mutation, { bindingId });
 }
 
+/** 券码兑换：claimCode 对应券模板的 claimCode，成功后直接发券到当前用户券包 */
+export async function redeemCouponByCode(claimCode: string) {
+    const client = getGraphQLClient();
+    const mutation = `mutation RedeemCouponByCode($claimCode: String!) {
+        redeemCouponByCode(claimCode: $claimCode) { id code status template { id name type discountValue minSpend } }
+    }`;
+    return client.request(mutation, { claimCode });
+}
+
 export async function applyCouponToOrder(code: string) {
     const client = getGraphQLClient();
     const mutation = `${CART_FRAGMENT}

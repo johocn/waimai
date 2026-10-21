@@ -37,6 +37,7 @@
         "nav.cart": "Cart",
         "nav.favorites": "My Favorites",
         "nav.afterSales": "After-sales",
-        "nav.help": "Help & Support"
+        "nav.help": "Help & Support",
+        "nav.history": "History"
     }
 }

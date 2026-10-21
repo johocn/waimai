@@ -37,6 +37,7 @@
         "nav.cart": "购物车",
         "nav.favorites": "我的收藏",
         "nav.afterSales": "我的售后",
-        "nav.help": "帮助与客服"
+        "nav.help": "帮助与客服",
+        "nav.history": "足迹与常买"
     }
 }

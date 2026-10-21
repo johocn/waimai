@@ -52,6 +52,7 @@
         <text class="menu-arrow">></text>
       </view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/favorites')"><text>{{ $t('profile.favorites') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/history')"><text>{{ $t('profile.history') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/cart')"><text>{{ $t('profile.cart') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/my-reviews')"><text>{{ $t('profile.myReviews') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/after-sales')">

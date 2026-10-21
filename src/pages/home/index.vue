@@ -5,6 +5,10 @@
                 <text class="loc">{{ $t('home.locText') }}</text>
                 <view class="head-right">
                     <view class="theme-btn" @tap="toggleTheme">{{ theme === 'dark' ? '☀️' : '🌙' }}</view>
+                    <view class="bell-btn" @tap="goMessages">
+                        <text class="bell-ico">🔔</text>
+                        <text class="bell-badge" v-if="messages.unreadCount > 0">{{ messages.unreadCount > 99 ? '99+' : messages.unreadCount }}</text>
+                    </view>
                     <text class="hlink" @tap="goOrders">{{ $t('home.myOrders') }}</text>
                 </view>
             </view>
@@ -31,6 +35,10 @@
                 <view class="qk" @tap="goErrand">
                     <view class="qico">🏃</view>
                     <text class="qtxt">{{ $t('home.errand') }}</text>
+                </view>
+                <view class="qk" @tap="goCart">
+                    <view class="qico">🛒</view>
+                    <text class="qtxt">{{ $t('home.cart') }}</text>
                 </view>
                 <view class="qk" @tap="showNotice">
                     <view class="qico">📣</view>
@@ -296,6 +304,7 @@ import { theme, initTheme, toggleTheme } from '../../utils/theme';
 import { useLocaleStore } from '../../stores/locale';
 import { useFavoritesStore } from '../../stores/favorites';
 import { useAuthStore } from '../../stores/auth';
+import { useMessagesStore } from '../../stores/messages';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 import EmptyState from '../../components/EmptyState.vue';
 
@@ -305,6 +314,7 @@ const MIN_ORDER_OPTIONS = [15, 20, 30];
 const locale = useLocaleStore();
 const favorites = useFavoritesStore();
 const authStore = useAuthStore();
+const messages = useMessagesStore();
 const unusedCouponCount = ref(0);
 const expiringCouponCount = ref(0);
 const keyword = ref('');
@@ -615,6 +625,8 @@ function goErrand() { uni.navigateTo({ url: '/pkg-campus/errand/create' }); }
 function goCouponCentre() { uni.navigateTo({ url: '/pkg-promotion/pages/coupon-centre' }); }
 function goMyCoupons() { uni.navigateTo({ url: '/pkg-promotion/pages/my-coupons' }); }
 function goJianghu() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-hall' }); }
+function goMessages() { uni.navigateTo({ url: '/pkg-user/pages/messages' }); }
+function goCart() { uni.navigateTo({ url: '/pkg-order/pages/cart' }); }
 
 /** 未使用券角标 + 临期券提示：同一次 myCoupons 返回计算两项；未登录不请求；失败静默置 0，不阻塞首页店铺加载 */
 async function loadCouponBadge() {
@@ -663,6 +675,7 @@ onMounted(() => {
 onShow(() => {
     void favorites.loadRemote();
     void loadCouponBadge();
+    void messages.load();
     deliveryTarget.value = readLocalJSON('delivery_target');
 });
 onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.stopPullDownRefresh(); });
@@ -705,6 +718,9 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .loc { color: #fff; font-size: 28rpx; font-weight: 600; }
 .head-right { display: flex; align-items: center; gap: 8rpx; }
 .theme-btn { width: 56rpx; height: 56rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.22); display: flex; align-items: center; justify-content: center; font-size: 28rpx; }
+.bell-btn { position: relative; width: 56rpx; height: 56rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.22); display: flex; align-items: center; justify-content: center; }
+.bell-ico { font-size: 26rpx; line-height: 1; }
+.bell-badge { position: absolute; top: -6rpx; right: -8rpx; min-width: 30rpx; height: 30rpx; line-height: 30rpx; padding: 0 6rpx; border-radius: 999rpx; background: #ff3b30; color: #fff; font-size: 18rpx; text-align: center; }
 .hlink { color: #fff; font-size: 24rpx; opacity: .92; padding: 4rpx 0 4rpx 8rpx; }
 .search { background: var(--w-search-bg); color: var(--w-text); border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; }
 .search :deep(.uni-input-placeholder) { color: var(--w-text-muted); }

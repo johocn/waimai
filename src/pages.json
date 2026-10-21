@@ -18,7 +18,8 @@
                 { "path": "pages/review-create", "style": { "navigationBarTitleText": "%nav.review%" } },
                 { "path": "pages/after-sale-create", "style": { "navigationBarTitleText": "%nav.aftersaleCreate%" } },
                 { "path": "pages/after-sale-detail", "style": { "navigationBarTitleText": "%nav.aftersaleDetail%" } },
-                { "path": "pages/my-reviews", "style": { "navigationBarTitleText": "%nav.myReviews%" } }
+                { "path": "pages/my-reviews", "style": { "navigationBarTitleText": "%nav.myReviews%" } },
+                { "path": "pages/cart", "style": { "navigationBarTitleText": "%nav.cart%" } }
             ]
         },
         {
@@ -47,7 +48,9 @@
                 { "path": "pages/address-edit", "style": { "navigationBarTitleText": "%nav.addressEdit%" } },
                 { "path": "pages/invoice-titles", "style": { "navigationBarTitleText": "%nav.invoice%" } },
                 { "path": "pages/invite", "style": { "navigationBarTitleText": "%nav.invite%" } },
-                { "path": "pages/about", "style": { "navigationBarTitleText": "%nav.about%" } }
+                { "path": "pages/about", "style": { "navigationBarTitleText": "%nav.about%" } },
+                { "path": "pages/messages", "style": { "navigationBarTitleText": "%nav.messages%" } },
+                { "path": "pages/favorites", "style": { "navigationBarTitleText": "%nav.favorites%" } }
             ]
         },
         {

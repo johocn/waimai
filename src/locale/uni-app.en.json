@@ -32,6 +32,9 @@
         "tab.profile": "Profile",
         "nav.couponCentre": "Coupon Centre",
         "nav.myCoupons": "My Coupons",
-        "nav.riderTracking": "Courier Tracking"
+        "nav.riderTracking": "Courier Tracking",
+        "nav.messages": "Messages",
+        "nav.cart": "Cart",
+        "nav.favorites": "My Favorites"
     }
 }

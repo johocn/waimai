@@ -524,3 +524,114 @@
 - 分享在非微信环境走复制链接；微信内卡片需公众号 JS 安全域名与签名服务可用；
 - 凑单推荐只从当前店铺已加载商品中挑选，不跨店推荐；满减门槛解析自 `promoText` 文案，非结构化配置；
 - 单规格商品也进入详情弹层（原为直接加购），交互多一步，已在手册注明。
+
+---
+
+# 第六轮常用功能（消息中心 / 跨店购物车 / 备注模板 / 收藏管理）
+
+> 上线日期：2026-10-21（第六轮）
+> 截图脚本：`node .secrets/common-features-v6-shots.cjs`（Playwright 390×844 dpr=2，输出 `docs/screenshots/common-features-v6/`）
+> 新增页面：`src/pkg-user/pages/messages.vue`、`src/pkg-order/pages/cart.vue`、`src/pkg-user/pages/favorites.vue`
+> 新增 store：`src/stores/messages.ts`
+> 修改文件：`src/pages/home/index.vue`、`src/pages/profile/index.vue`、`src/pkg-order/pages/checkout.vue`、`src/api/queries/order.ts`、`src/api/mutations/cart.ts`、`src/pages.json`、`src/locale/zh-Hans.json`、`src/locale/en.json`、`src/locale/uni-app.zh-Hans.json`、`src/locale/uni-app.en.json`
+> 后端：无改动，全部复用现有 shop-api（`waimaiStoreList`、`myOrders`、`myCoupons`、`myReviews`、`activeOrder`、`removeAllOrderLines`）
+
+## 32. 消息通知中心
+
+### 32.1 入口
+
+- 首页右上角铃铛 `🔔`，未读数红色角标（> 99 不截断，最多展示三位）；
+- 「我的」页面菜单新增「消息中心」，右侧红色未读数；
+- 首页 / 我的页每次 `onShow` 都会刷新消息（不轮询、无推送）。
+
+### 32.2 聚合口径（不新增后端接口）
+
+| 消息类型 | 来源 | 判定条件 | 点击跳转 |
+|---|---|---|---|
+| 待付款 | 各店铺渠道 `myOrders` | `state = ArrangingPayment` | 订单详情 |
+| 配送中 | 同上 | `state ∈ {PaymentAuthorized, PaymentSettled}` | 订单详情 |
+| 待评价 | 同上 + `myReviews` | `state = Delivered` 且存在未评价 `orderLine` | 订单详情 |
+| 券即将过期 | `myCoupons(UNUSED)` | `expiredAt` 距今 ≤ 3 天且未过期 | 券包（我的券） |
+
+- 订单按**店铺渠道逐个查询**（会话全局 + `vendure-token` 隔离），按订单 `id` 去重；
+- 展示顺序按时间倒序（订单取 `updatedAt`，券取 `expiredAt`），最多 50 条；
+- 每店取最近 20 单，历史积压的老单可能不出现。
+
+### 32.3 已读管理
+
+- 消息 key：订单 `order-{id}-{state}`、券 `coupon-{id}`；订单状态变化后会生成新 key → 重新变为未读；
+- 点击卡片：标记已读 + 跳转；右上「全部已读」一键清空未读；
+- 已读 key 存本地 `waimai_msg_read`，不跨设备同步；
+- 未登录：空态「登录后查看消息」+ 去登录按钮。
+
+![首页铃铛角标 + 购物车快捷入口](screenshots/common-features-v6/12-home-bell-cart.png)
+![消息中心](screenshots/common-features-v6/13-messages.png)
+
+## 33. 跨店购物车管理页
+
+1. 入口：首页快捷区「🛒 购物车」、「我的」菜单「购物车」；
+2. 数据口径：Vendure `activeOrder` 按渠道隔离，页面用**独立 GraphQLClient 逐店读取**（`getActiveOrderForChannel`），只展示当前有商品行的店铺；
+3. 每张店铺卡片：
+   - 店铺头：logo / 店名 / 件数 / 「清空」；
+   - 商品行：缩略图、名称、规格、行小计、数量；
+   - 底部：商品合计（`subTotalWithTax`）、差额提示（`还差 ¥X 起送` / `已达起送价`）；
+4. 操作：
+   - 「继续加购」→ 带 `token/name/routes/cid` 回店铺菜单；
+   - 「清空」→ 二次确认后调用 `removeAllOrderLinesForChannel`（仅清该店，不影响其他店）；
+   - 「去结算」→ 未达起送价 Toast 拦截；达成则 `switchTenant(token)` + `cart.setOrder(order)` 后跳结算页（携带 `routes/minOrder/dfee/cid/shop/token`）；
+5. 离开页面自动 `backToDefault()` 恢复站点默认渠道，避免影响订单/个人中心聚合。
+
+![跨店购物车](screenshots/common-features-v6/14-cart-groups.png)
+
+## 34. 订单备注模板
+
+1. 结算页「订单备注」卡片新增常用模板 chips：
+   - 内置 5 条：`不要辣 / 少盐 / 不要香菜 / 多放酱 / 不需要餐具`（走 i18n）；
+   - 自定义模板：最多 8 条，存本地 `order_note_templates`，与内置文案去重；
+2. 交互：
+   - 点 chip 追加到备注（多条以「；」拼接），已存在的再点即移除；总长上限 200 字；
+   - chip 右侧「+ 添加」打开「常用备注」管理弹层：自定义列表可删除、输入框 + 「添加」、「完成」关闭；
+   - 顶部「管理常用」也可打开同一弹层；
+3. 兼容：不使用模板时可直接手输，模板为空时输入区不受影响；自定义模板不跨设备同步。
+
+![备注模板 chips](screenshots/common-features-v6/15-checkout-note-templates.png)
+![常用备注管理弹层](screenshots/common-features-v6/16-note-manage-sheet.png)
+
+## 35. 收藏管理页
+
+1. 入口：「我的」→「我的收藏」；
+2. 两个 tab 带计数：`收藏店铺 N` / `收藏商品 N`；
+3. 收藏店铺：
+   - 用 `waimaiStoreList` 与本地收藏 `channelId` 取交集，只展示仍在营业列表中的店；
+   - 展示店名、营业时间/配送方式（`businessHours` + routes 摘要）、起送价；休息中显示「休息中」；
+   - 「取消收藏」即时移除；点击卡片进店；
+4. 收藏商品：
+   - 两列卡片：名称、店铺名、价格快照；点击进店并带 `&q=商品名` 定位搜索；
+   - 「取消收藏」即时移除；空态引导回首页；
+5. 数据仍沿用本地 `favorite_stores` / `favorite_variants`，登录后由 `favorites.loadRemote()` 与云端收藏合并。
+
+![我的收藏-店铺](screenshots/common-features-v6/17-favorites.png)
+![我的收藏-商品](screenshots/common-features-v6/18-favorites-items.png)
+
+## 36. 验收记录与边界（第六轮，2026-10-21）
+
+| 项 | 结果 |
+|---|---|
+| 首页入口 | `{"bell":true,"badge":"4","quick":["我的订单","传信者加入","校内拾光达","购物车","校园公告","领券中心"]}` |
+| 消息中心 | 4 张卡片（1 张临期券 + 3 张配送中订单），头部「未读 4」；点击/全部已读逻辑正常 |
+| 跨店购物车 | `{"cards":1,"store":"canteen-a","lines":["可乐鸡排饭","冰可乐"],"gap":"还差 ¥7.00 起送","total":"¥8.00"}` |
+| 备注模板 | chips = 内置 5 条 + `+ 添加`；点选后 `active=["不要辣","少盐"]`、备注「不要辣；少盐」、字数 6/200 |
+| 备注管理弹层 | `{"open":true,"title":"常用备注"}`，空态文案「还没有自定义备注」+ 输入框 + 添加/完成 |
+| 收藏管理 | 店铺 tab `["收藏店铺1","收藏商品2"]`、店铺 `canteen-b`；商品 tab `["可乐鸡排饭","麻辣拌面"]` |
+| i18n | `zh-Hans.json` / `en.json` / `uni-app.*.json` 四份均补齐并通过 `JSON.parse` 校验 |
+| 前端构建/部署 | `pnpm build:h5` 通过（产物 2608 KB），`node .secrets/deploy-waimai.mjs` 部署成功 |
+| 线上回归 | 首页 200；入口 `assets/index-BBFQCqd0.js`；新页面 chunk `pkg-user-pages-messages.4fN8WEwA.js` / `pkg-user-pages-favorites.CfFMTJCd.js` / `pkg-order-pages-cart.CNUui-Kr.js` 均含新增 i18n key；首页 chunk 含 `bell-badge`，我的页 chunk 含三条新菜单路由，结算 chunk 含 `note-sheet` |
+| 手机视口截图 | 390×844 dpr=2，共 7 张（12–18） |
+
+边界与已知限制：
+- 消息为**拉取式聚合**，无系统推送/订阅消息；已读状态仅存本地，换设备会重新显示未读；
+- 订单类消息每店只取最近 20 单、总条数上限 50，历史老单可能不出现；`Shipped / PartiallyDelivered` 状态暂未归入「配送中」；
+- 购物车差额按**商品小计**对比起送价（不含运费与优惠），与实际结算门槛可能有差异；
+- 购物车页按店铺数逐店请求（并行），店铺较多时首屏请求数相应增加；
+- 备注自定义模板上限 8 条、本机存储；备注总长 200 字由前端截断；
+- 收藏商品卡片的价格/名称是收藏时的本地快照，实时价格以进店后为准；已下架商品仍会展示快照，点进店后由店铺页面兜底。

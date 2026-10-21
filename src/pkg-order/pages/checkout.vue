@@ -237,9 +237,22 @@
       <view class="summary-row summary-row--total"><text>{{ $t('checkout.payable') }}</text><text class="checkout-page__total">¥{{ cart.formatPrice(cart.order.totalWithTax) }}</text></view>
     </view>
 
-    <!-- 整单备注（P1）：给商家留言，随单写入 Order customFields.note -->
+    <!-- 整单备注（P1）：给商家留言，随单写入 Order customFields.note；常用模板一键填充 -->
     <view class="note-card">
-      <view class="note-card__label">{{ $t('checkout.noteLabel') }}</view>
+      <view class="note-card__head">
+        <text class="note-card__label">{{ $t('checkout.noteLabel') }}</text>
+        <text class="note-card__manage" @click="noteManageOpen = true">{{ $t('checkout.noteManage') }}</text>
+      </view>
+      <scroll-view scroll-x class="note-chips">
+        <view
+          v-for="t in quickNoteTemplates"
+          :key="'nt-' + t"
+          class="note-chip"
+          :class="{ on: noteHas(t) }"
+          @click="toggleNoteTemplate(t)"
+        >{{ t }}</view>
+        <view class="note-chip note-chip--add" @click="noteManageOpen = true">+ {{ $t('checkout.noteAdd') }}</view>
+      </scroll-view>
       <textarea
         class="note-card__input"
         v-model="orderNote"
@@ -329,6 +342,31 @@
         </scroll-view>
       </view>
     </view>
+    <!-- 常用备注模板管理：内置 + 自定义（本地存储，最多 8 条） -->
+    <view class="note-sheet-mask" v-if="noteManageOpen" @click="noteManageOpen = false">
+      <view class="note-sheet" @click.stop>
+        <view class="note-sheet__title">{{ $t('checkout.noteManageTitle') }}</view>
+        <scroll-view scroll-y class="note-sheet__list">
+          <view class="note-tpl" v-for="t in customNoteTemplates" :key="'ct-' + t">
+            <text class="note-tpl__txt">{{ t }}</text>
+            <text class="note-tpl__del" @click="removeCustomNote(t)">✕</text>
+          </view>
+          <view v-if="!customNoteTemplates.length" class="note-sheet__empty">{{ $t('checkout.noteEmpty') }}</view>
+        </scroll-view>
+        <view class="note-sheet__add">
+          <input
+            class="note-sheet__input"
+            v-model="newNoteTpl"
+            :maxlength="12"
+            :placeholder="$t('checkout.noteAddPlaceholder')"
+            confirm-type="done"
+            @confirm="addCustomNote"
+          />
+          <view class="note-sheet__btn" @click="addCustomNote">{{ $t('checkout.noteAddBtn') }}</view>
+        </view>
+        <view class="note-sheet__done" @click="noteManageOpen = false">{{ $t('checkout.noteDone') }}</view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -374,6 +412,66 @@ const selectedShipping = ref('');
 const selectedPayment = ref('');
 const submitting = ref(false);
 const orderNote = ref(''); // 整单备注（给商家留言，≤200 字）
+
+// ── 常用备注模板：内置 5 条 + 用户自定义（本地存储，最多 8 条） ──
+const NOTE_TPL_KEY = 'order_note_templates';
+const NOTE_TPL_MAX = 8;
+const noteManageOpen = ref(false);
+const newNoteTpl = ref('');
+const customNoteTemplates = ref<string[]>((() => {
+  try {
+    const raw = uni.getStorageSync(NOTE_TPL_KEY);
+    const arr = typeof raw === 'string' ? JSON.parse(raw || '[]') : raw;
+    return Array.isArray(arr) ? arr.map(String).filter(Boolean).slice(0, NOTE_TPL_MAX) : [];
+  } catch {
+    return [];
+  }
+})());
+const builtinNoteTemplates = computed(() => [
+  locale.t('checkout.noteTplNoSpicy'),
+  locale.t('checkout.noteTplLessSalt'),
+  locale.t('checkout.noteTplNoCoriander'),
+  locale.t('checkout.noteTplMoreSauce'),
+  locale.t('checkout.noteTplNoCutlery'),
+]);
+const quickNoteTemplates = computed(() => [...builtinNoteTemplates.value, ...customNoteTemplates.value]);
+
+function persistNoteTemplates() {
+  uni.setStorageSync(NOTE_TPL_KEY, JSON.stringify(customNoteTemplates.value));
+}
+function noteHas(t: string): boolean {
+  return orderNote.value.includes(t);
+}
+/** 点模板：已包含则移除该段；未包含则追加（用「；」分隔，去重去空） */
+function toggleNoteTemplate(t: string) {
+  const segs = orderNote.value.split('；').map(s => s.trim()).filter(Boolean);
+  if (segs.includes(t)) {
+    orderNote.value = segs.filter(s => s !== t).join('；').slice(0, 200);
+    return;
+  }
+  const next = [...segs, t].join('；');
+  orderNote.value = next.slice(0, 200);
+}
+function addCustomNote() {
+  const t = newNoteTpl.value.trim().slice(0, 12);
+  if (!t) return;
+  if (customNoteTemplates.value.includes(t) || builtinNoteTemplates.value.includes(t)) {
+    uni.showToast({ title: locale.t('checkout.noteDuplicate'), icon: 'none' });
+    return;
+  }
+  if (customNoteTemplates.value.length >= NOTE_TPL_MAX) {
+    uni.showToast({ title: locale.t('checkout.noteMax'), icon: 'none' });
+    return;
+  }
+  customNoteTemplates.value = [...customNoteTemplates.value, t];
+  persistNoteTemplates();
+  newNoteTpl.value = '';
+}
+function removeCustomNote(t: string) {
+  customNoteTemplates.value = customNoteTemplates.value.filter(x => x !== t);
+  persistNoteTemplates();
+}
+
 const tablewareOptions = [0, 1, 2, 3, 4, 5]; // 餐具份数选项：0=无需餐具
 const tablewareCount = ref(0);               // 默认无需餐具
 const invoiceTitles = ref<InvoiceTitle[]>([]);
@@ -1306,9 +1404,28 @@ onLoad((q: any) => {
 .checkout-page__summary { background: $surface; border-radius: $radius-md; padding: 24rpx; margin-bottom: 20rpx; }
 .summary-row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; color: $text-color-secondary; &--total { border-top: 1rpx solid $border-color; margin-top: 8rpx; padding-top: 16rpx; color: $text-color; font-size: 28rpx; } }
 .note-card { background: #fff; border-radius: 16rpx; padding: 20rpx 24rpx; margin-top: 20rpx;
+  .note-card__head { display: flex; align-items: center; justify-content: space-between; }
   .note-card__label { font-size: 26rpx; font-weight: 600; color: $text-color; }
+  .note-card__manage { font-size: 22rpx; color: $brand-color; padding: 4rpx 8rpx; }
   .note-card__input { margin-top: 12rpx; width: 100%; min-height: 100rpx; font-size: 26rpx; color: $text-color; line-height: 1.6; }
   .note-card__count { text-align: right; font-size: 22rpx; color: $text-color-secondary; } }
+.note-chips { margin-top: 12rpx; white-space: nowrap; }
+.note-chip { display: inline-block; padding: 8rpx 18rpx; margin-right: 12rpx; border-radius: 999rpx; font-size: 22rpx; background: $bg-color; color: $text-color-secondary; border: 1rpx solid transparent;
+  &.on { color: $brand-color; border-color: $brand-color; background: $brand-color-light; }
+  &--add { color: $brand-color; background: #fff; border: 1rpx dashed $brand-color; } }
+// ===== 备注模板管理弹层 =====
+.note-sheet-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: flex-end; }
+.note-sheet { width: 100%; background: #fff; border-radius: 24rpx 24rpx 0 0; padding: 32rpx 24rpx calc(32rpx + env(safe-area-inset-bottom)); max-height: 70vh; box-sizing: border-box; display: flex; flex-direction: column;
+  &__title { text-align: center; font-size: 30rpx; font-weight: 600; padding-bottom: 24rpx; }
+  &__list { max-height: 40vh; }
+  &__empty { text-align: center; padding: 40rpx 0; font-size: 24rpx; color: $text-color-placeholder; }
+  &__add { display: flex; gap: 12rpx; margin-top: 16rpx; }
+  &__input { flex: 1; height: 72rpx; background: $bg-color; border-radius: $radius-sm; padding: 0 20rpx; font-size: 26rpx; }
+  &__btn { height: 72rpx; line-height: 72rpx; padding: 0 28rpx; border-radius: $radius-sm; background: $brand-color; color: #fff; font-size: 26rpx; }
+  &__done { margin-top: 20rpx; height: 80rpx; line-height: 80rpx; text-align: center; border-radius: $radius-md; background: $bg-color; color: $text-color; font-size: 28rpx; } }
+.note-tpl { display: flex; align-items: center; justify-content: space-between; padding: 20rpx 24rpx; border: 1rpx solid $border-color; border-radius: $radius-md; margin-bottom: 12rpx;
+  &__txt { font-size: 26rpx; color: $text-color; }
+  &__del { font-size: 26rpx; color: $text-color-placeholder; padding: 4rpx 10rpx; } }
 // ===== 就餐设置：餐具份数 + 发票入口 =====
 .setting-card { background: #fff; border-radius: 16rpx; padding: 20rpx 24rpx; margin-top: 20rpx;
   .setting-row { display: flex; flex-direction: column; gap: 12rpx;

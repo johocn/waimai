@@ -44,6 +44,15 @@
     </view>
 
     <view class="profile-page__menu">
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/messages')">
+        <view class="menu-item__lbl">
+          <text>{{ $t('profile.messages') }}</text>
+          <text class="menu-item__badge" v-if="messages.unreadCount > 0">{{ messages.unreadCount > 99 ? '99+' : messages.unreadCount }}</text>
+        </view>
+        <text class="menu-arrow">></text>
+      </view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/favorites')"><text>{{ $t('profile.favorites') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/cart')"><text>{{ $t('profile.cart') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/my-reviews')"><text>{{ $t('profile.myReviews') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-campus/pages/errand/list')"><text>{{ $t('profile.myErrands') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="callService"><text>{{ $t('profile.contactService') }}</text><text class="menu-arrow">></text></view>
@@ -71,10 +80,12 @@ import { getSessionToken } from '../../api/client';
 import { logout } from '../../api/mutations/auth';
 import { fetchMyRiderProfile } from '../../api/mutations/campus';
 import { useLocaleStore } from '../../stores/locale';
+import { useMessagesStore } from '../../stores/messages';
 
 const authStore = useAuthStore();
 const cartStore = useCartStore();
 const locale = useLocaleStore();
+const messages = useMessagesStore();
 const customer = ref<any>(null);
 const unusedCouponCount = ref(0);
 const SERVICE_PHONE = (import.meta.env.VITE_SERVICE_PHONE as string) || '';
@@ -107,6 +118,7 @@ onShow(async () => {
     // 券角标与订单角标并行拉取，均不阻塞页面渲染
     loadCouponBadge();
     loadOrderBadges();
+    void messages.load();
     try { const res: any = await getActiveCustomer(); customer.value = res.activeCustomer; } catch (e) {}
 });
 
@@ -257,5 +269,7 @@ function switchLang() {
     > text:first-child { flex: 1; }
 }
 .menu-value { color: $text-color-placeholder; margin-right: 12rpx; }
+.menu-item__lbl { flex: 1; display: flex; align-items: center; gap: 12rpx; }
+.menu-item__badge { min-width: 32rpx; height: 32rpx; line-height: 32rpx; padding: 0 8rpx; border-radius: 999rpx; background: #ff3b30; color: #fff; font-size: 20rpx; text-align: center; }
 .menu-arrow { color: $text-color-placeholder; }
 </style>

@@ -1,4 +1,6 @@
-import { getGraphQLClient } from '../client';
+import { GraphQLClient } from 'graphql-request';
+import { getGraphQLClient, getShopApiUrl, getSessionToken } from '../client';
+import { useAuthStore } from '../../stores/auth';
 import { CART_FRAGMENT } from '../fragments';
 
 export async function addItemToOrder(productVariantId: string, quantity: number) {
@@ -24,6 +26,18 @@ export async function removeOrderLine(orderLineId: string) {
 
 export async function removeAllOrderLines() {
     const client = getGraphQLClient();
+    const mutation = `${CART_FRAGMENT}
+        mutation RemoveAllLines { removeAllOrderLines { ... on Order { ...CartInfo } ... on ErrorResult { errorCode message } } }`;
+    return client.request(mutation);
+}
+
+/** 清空指定渠道购物车（跨店购物车页用，独立客户端固定 vendure-token） */
+export async function removeAllOrderLinesForChannel(channelToken: string) {
+    const authStore = useAuthStore();
+    const headers: Record<string, string> = { 'vendure-token': channelToken };
+    const bearer = authStore.token || getSessionToken();
+    if (bearer) headers['Authorization'] = 'Bearer ' + bearer;
+    const client = new GraphQLClient(getShopApiUrl(), { headers });
     const mutation = `${CART_FRAGMENT}
         mutation RemoveAllLines { removeAllOrderLines { ... on Order { ...CartInfo } ... on ErrorResult { errorCode message } } }`;
     return client.request(mutation);

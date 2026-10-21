@@ -50,6 +50,21 @@ export async function getOrdersForChannel(channelToken: string, options?: { take
     return client.request(query, { options: { take: 10, sort: { createdAt: 'DESC' }, ...options } });
 }
 
+/**
+ * 指定渠道的当前购物车（跨店购物车页用）。
+ * 与 getActiveOrder 同构，但用独立 GraphQLClient 固定 vendure-token。
+ */
+export async function getActiveOrderForChannel(channelToken: string) {
+    const authStore = useAuthStore();
+    const headers: Record<string, string> = { 'vendure-token': channelToken };
+    const bearer = authStore.token || getSessionToken();
+    if (bearer) headers['Authorization'] = 'Bearer ' + bearer;
+    const client = new GraphQLClient(getShopApiUrl(), { headers });
+    const query = `${ORDER_FRAGMENT}
+        query ActiveOrderInChannel { activeOrder { ...OrderDetail } }`;
+    return client.request(query);
+}
+
 export async function getEligibleShippingMethods() {
     const client = getGraphQLClient();
     const query = `query { eligibleShippingMethods { id name code price priceWithTax description } }`;

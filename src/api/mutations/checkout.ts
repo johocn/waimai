@@ -40,6 +40,13 @@ export async function setCustomerForOrder(input: any) {
         mutation SetCustomer($input: CreateCustomerInput!) { setCustomerForOrder(input: $input) { ... on Order { ...OrderDetail } ... on ErrorResult { errorCode message } } }`, { input });
 }
 
+/** 整单备注：transition 前写入 Order customFields.note（空串/null 清除，防上单残留） */
+export async function setOrderCustomFields(customFields: Record<string, any>) {
+    const client = getGraphQLClient();
+    return client.request(`${ORDER_FRAGMENT}
+        mutation SetOrderNote($customFields: JSON!) { setOrderCustomFields(customFields: $customFields) { ... on Order { ...OrderDetail } ... on ErrorResult { errorCode message } } }`, { customFields });
+}
+
 export async function setOrderPickupLocation(pickupLocationId: string, pickupType: string) {
     const client = getGraphQLClient();
     // setOrderPickupLocation 返回 Order!（非 union），不能使用 inline fragments

@@ -233,6 +233,19 @@
       <view class="summary-row summary-row--total"><text>{{ $t('checkout.payable') }}</text><text class="checkout-page__total">¥{{ cart.formatPrice(cart.order.totalWithTax) }}</text></view>
     </view>
 
+    <!-- 整单备注（P1）：给商家留言，随单写入 Order customFields.note -->
+    <view class="note-card">
+      <view class="note-card__label">{{ $t('checkout.noteLabel') }}</view>
+      <textarea
+        class="note-card__input"
+        v-model="orderNote"
+        :placeholder="$t('checkout.notePlaceholder')"
+        :maxlength="200"
+        auto-height
+      />
+      <view class="note-card__count" v-if="orderNote.length">{{ orderNote.length }}/200</view>
+    </view>
+
     <button class="checkout-page__submit" :disabled="submitting" @click="submitOrder">
       {{ submitting ? $t('checkout.processing') : $t('checkout.submitOrder') }}
     </button>
@@ -275,7 +288,7 @@ import { useUIStore } from '../../stores/ui';
 import { getActiveOrder, getEligibleShippingMethods, getOrderByCode } from '../../api/queries/order';
 import { getActiveCustomer, getEligiblePaymentMethods } from '../../api/queries/user';
 import { getPickupLocations } from '../../api/queries/pickup';
-import { setOrderShippingAddress, setOrderShippingMethod, transitionOrderToState, addPaymentToOrder, setOrderPickupLocation, cancelPayment } from '../../api/mutations/checkout';
+import { setOrderShippingAddress, setOrderShippingMethod, transitionOrderToState, addPaymentToOrder, setOrderPickupLocation, cancelPayment, setOrderCustomFields } from '../../api/mutations/checkout';
 import { setDeliveryTarget, fetchZones, fetchBuildings, fetchSlots } from '../../api/mutations/campus';
 import { createCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from '../../api/mutations/address';
 import { handlePayment, type PaymentMethod } from '../../composables/usePayment';
@@ -302,6 +315,7 @@ const paymentMethods = ref<any[]>([]);
 const selectedShipping = ref('');
 const selectedPayment = ref('');
 const submitting = ref(false);
+const orderNote = ref(''); // 整单备注（给商家留言，≤200 字）
 const showAddressPicker = ref(false);
 const customerAddresses = ref<any[]>([]);
 const selectedAddress = ref<any>(null);
@@ -1040,6 +1054,8 @@ async function submitOrder() {
         ui.showLoading();
         const ok = await prepareOrderAddressAndShipping();
         if (!ok) return;
+        // 整单备注：transition 前写入（总是调用，空值清残留）
+        await setOrderCustomFields({ note: orderNote.value.trim() ? orderNote.value.trim().slice(0, 200) : null });
         // Transition to ArrangingPayment
         await transitionOrderToState('ArrangingPayment');
         const pay = await payCurrentOrder(selectedPayment.value);
@@ -1080,6 +1096,10 @@ onLoad((q: any) => {
 .radio-item { display: flex; justify-content: space-between; align-items: center; padding: 20rpx; border: 1rpx solid $border-color; border-radius: $radius-md; margin-bottom: 16rpx; font-size: 26rpx; &.active { border-color: $brand-color; background: $brand-color-light; } &__left { display: flex; align-items: center; gap: 12rpx; } &__icon { font-size: 32rpx; } &__balance { font-size: 24rpx; color: $text-color-secondary; } }
 .checkout-page__summary { background: $surface; border-radius: $radius-md; padding: 24rpx; margin-bottom: 20rpx; }
 .summary-row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; color: $text-color-secondary; &--total { border-top: 1rpx solid $border-color; margin-top: 8rpx; padding-top: 16rpx; color: $text-color; font-size: 28rpx; } }
+.note-card { background: #fff; border-radius: 16rpx; padding: 20rpx 24rpx; margin-top: 20rpx;
+  .note-card__label { font-size: 26rpx; font-weight: 600; color: $text-color; }
+  .note-card__input { margin-top: 12rpx; width: 100%; min-height: 100rpx; font-size: 26rpx; color: $text-color; line-height: 1.6; }
+  .note-card__count { text-align: right; font-size: 22rpx; color: $text-color-secondary; } }
 .checkout-page__total { color: $price-color; font-size: 36rpx; font-weight: bold; }
 // plan 3.2 满X免配送费（方案A：运费行内减免）
 .ship-orig { color: $text-color-placeholder; text-decoration: line-through; font-size: 24rpx; margin-right: 8rpx; }

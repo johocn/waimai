@@ -391,6 +391,8 @@
         "couponsAvailable": "{n} available",
         "noCoupon": "None available",
         "payable": "Total",
+        "noteLabel": "Order Note",
+        "notePlaceholder": "Taste preferences, allergies, message to merchant (optional)",
         "processing": "Processing...",
         "submitOrder": "Place Order",
         "couponSheetTitle": "Select Coupon",

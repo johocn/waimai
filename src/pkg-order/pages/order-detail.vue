@@ -169,15 +169,50 @@
         <button class="invoice-sheet__btn" @click="submitInvoice">{{ $t('orderDetail.submitInvoiceBtn') }}</button>
       </view>
     </view>
+
+    <!-- 再来一单确认弹层：跨渠道定位原店铺 → 校验在售 → 一键加购进店 -->
+    <view class="reorder-mask" v-if="reorderOpen" @click.self="closeReorder">
+      <view class="reorder-sheet">
+        <view class="reorder-head">
+          <text class="reorder-title">{{ $t('orderDetail.reorderTitle') }}</text>
+          <text class="reorder-close" @click="closeReorder">✕</text>
+        </view>
+        <view v-if="reorderLoading" class="reorder-loading">{{ $t('orderDetail.reorderLocating') }}</view>
+        <template v-else>
+          <text class="reorder-shop">{{ reorderShop?.name }}</text>
+          <scroll-view scroll-y class="reorder-list">
+            <view v-for="l in reorderLines" :key="l.variantId" class="reorder-line" :class="{ off: !l.available }">
+              <VImage v-if="l.image" :src="l.image" width="80rpx" height="80rpx" class="reorder-img" />
+              <view v-else class="reorder-img reorder-img--ph"></view>
+              <view class="reorder-info">
+                <text class="reorder-name">{{ l.name }}</text>
+                <text v-if="!l.available" class="reorder-off">{{ $t('orderDetail.reorderUnavailable') }}</text>
+              </view>
+              <text class="reorder-qty">×{{ l.quantity }}</text>
+            </view>
+            <view v-if="reorderSkippedCount" class="reorder-hint">
+              {{ $t('orderDetail.reorderSkipHint').replace('{n}', String(reorderSkippedCount)) }}
+            </view>
+          </scroll-view>
+          <button class="reorder-btn" :disabled="reorderPlacing || !reorderAvailableCount" @click="confirmReorder">
+            {{ reorderPlacing ? $t('orderDetail.reorderLoading') : $t('orderDetail.reorderConfirm') }}
+          </button>
+        </template>
+      </view>
+    </view>
   </view>
   <LoadingSkeleton v-else type="card" :count="2" />
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { getOrderByCode } from '../../api/queries/order';
+import { getOrderByCode, getOrdersForChannel } from '../../api/queries/order';
+import { addItemToOrder } from '../../api/mutations/cart';
+import { useTenantStore } from '../../stores/tenant';
+import { useCartStore } from '../../stores/cart';
+import { useAuthStore } from '../../stores/auth';
 import { getGraphQLClient } from '../../api/client';
 import { fetchOrderRider, fetchR2Relay, markArrived, urgeOrder } from '../../api/mutations/campus';
-import { fetchStoreList } from '../../api/queries/waimai';
+import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
 import type { AfterSaleRequest } from '../../api/queries/afterSale';
 import { getActiveCustomer } from '../../api/queries/user';
@@ -190,6 +225,9 @@ import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
 const locale = useLocaleStore();
+const tenant = useTenantStore();
+const cart = useCartStore();
+const auth = useAuthStore();
 const order = ref<any>(null);
 const trackingNo = ref('');
 const rider = ref<{ realName: string; credit: number; location?: { lat: number; lng: number } | null } | null>(null);
@@ -512,8 +550,113 @@ function goTracking() {
     if (!order.value?.code) return;
     uni.navigateTo({ url: `/pkg-order/pages/rider-tracking?code=${order.value.code}` });
 }
-// 再来一单：shop-api 的 Order 无 channelToken，无法精确回店，回首页店铺列表重选
-function reorder() { uni.switchTab({ url: '/pages/home/index' }); }
+// ─── 再来一单 ───────────────────────────────────────────────
+// shop-api 的 Order 无 channelToken：用店铺列表的每个 token 并发查本单号，命中即原店铺。
+// 命中后拉该渠道商品校验变体在售/有库存，跳过下架行，再加购并直达店铺菜单。
+const reorderOpen = ref(false);
+const reorderLoading = ref(false);
+const reorderPlacing = ref(false);
+const reorderShop = ref<any>(null);
+const reorderLines = ref<Array<{ variantId: string; name: string; quantity: number; image?: string; available: boolean }>>([]);
+const reorderSkippedCount = computed(() => reorderLines.value.filter(l => !l.available).length);
+const reorderAvailableCount = computed(() => reorderLines.value.filter(l => l.available).length);
+
+function closeReorder() {
+    if (reorderPlacing.value) return;
+    reorderOpen.value = false;
+}
+
+async function reorder() {
+    if (reorderLoading.value) return;
+    if (!auth.isLoggedIn) {
+        uni.navigateTo({ url: '/pages/login/index?redirect=' + encodeURIComponent('/pages/profile/index') });
+        return;
+    }
+    const code = order.value?.code;
+    if (!code) return;
+    reorderOpen.value = true;
+    reorderLoading.value = true;
+    reorderLines.value = [];
+    reorderShop.value = null;
+    try {
+        const stores = await fetchStoreList();
+        const hit = await Promise.any(
+            stores.map(async (s: any) => {
+                const res: any = await getOrdersForChannel(s.channelToken, { take: 1, filter: { code: { eq: code } } });
+                if (res?.myOrders?.items?.length) return s;
+                throw new Error('miss');
+            }),
+        ).catch(() => null);
+        if (!hit) {
+            reorderOpen.value = false;
+            uni.showToast({ title: locale.t('orderDetail.reorderNoShop'), icon: 'none' });
+            return;
+        }
+        reorderShop.value = hit;
+        const products = await fetchProductListForChannel(hit.channelToken);
+        const variantMap = new Map<string, any>();
+        for (const p of products) {
+            for (const v of p.variants ?? []) variantMap.set(String(v.id), v);
+        }
+        // shop-api 的 stockLevel 是枚举（IN_STOCK / LOW_STOCK / OUT_OF_STOCK / null=不跟踪库存）
+        const inStock = (v: any) => v.stockLevel == null || v.stockLevel === 'IN_STOCK' || v.stockLevel === 'LOW_STOCK';
+        reorderLines.value = (order.value?.lines ?? []).map((l: any) => {
+            const vid = String(l.productVariant?.id ?? '');
+            const v = variantMap.get(vid);
+            return {
+                variantId: vid,
+                name: l.productVariant?.name || l.productVariant?.productName || '',
+                quantity: l.quantity,
+                image: l.featuredAsset?.preview,
+                available: !!v && v.enabled !== false && inStock(v),
+            };
+        });
+    } catch {
+        reorderOpen.value = false;
+        uni.showToast({ title: locale.t('orderDetail.reorderNoShop'), icon: 'none' });
+    } finally {
+        reorderLoading.value = false;
+    }
+}
+
+async function confirmReorder() {
+    const shop = reorderShop.value;
+    const lines = reorderLines.value.filter(l => l.available);
+    if (!shop || !lines.length || reorderPlacing.value) return;
+    reorderPlacing.value = true;
+    try {
+        await tenant.switchTenant(shop.channelToken);
+        let failed = 0;
+        for (const l of lines) {
+            try {
+                const res: any = await addItemToOrder(l.variantId, l.quantity);
+                if (res?.addItemToOrder?.errorCode) { failed++; continue; }
+                cart.setOrder(res.addItemToOrder);
+            } catch { failed++; }
+        }
+        const added = lines.length - failed;
+        if (!added) {
+            await tenant.backToDefault();
+            uni.showToast({ title: locale.t('orderDetail.reorderAllSkipped'), icon: 'none' });
+            return;
+        }
+        const skipped = reorderLines.value.length - added;
+        uni.showToast({
+            title: skipped
+                ? locale.t('orderDetail.reorderSkipped').replace('{n}', String(skipped))
+                : locale.t('orderDetail.reorderAdded'),
+            icon: 'none',
+        });
+        reorderOpen.value = false;
+        const routes = (shop.routesEnabled || []).join(',');
+        const cid = shop.channelId != null ? `&cid=${shop.channelId}` : '';
+        uni.navigateTo({
+            url: `/pages/shop/menu?token=${shop.channelToken}&name=${encodeURIComponent(shop.name ?? '')}&routes=${encodeURIComponent(routes)}${cid}`,
+        });
+    } finally {
+        reorderPlacing.value = false;
+    }
+}
 </script>
 <style lang="scss" scoped>
 .order-detail { padding-bottom: 40rpx; }
@@ -550,4 +693,24 @@ function reorder() { uni.switchTab({ url: '/pages/home/index' }); }
 .r2-hint { font-size: 26rpx; color: $text-color-secondary; display: block; margin-top: 8rpx; }
 .r2-actions { display: flex; gap: 16rpx; margin-top: 16rpx; }
 .code-text { font-size: 48rpx; font-weight: bold; letter-spacing: 8rpx; text-align: center; display: block; padding: 16rpx 0; color: $text-color; }
+/* 再来一单确认弹层 */
+.reorder-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 1000; display: flex; align-items: flex-end; }
+.reorder-sheet { width: 100%; max-height: 78vh; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 28rpx 28rpx calc(28rpx + env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
+.reorder-head { display: flex; align-items: center; justify-content: space-between; }
+.reorder-title { font-size: 32rpx; font-weight: 600; color: $text-color; }
+.reorder-close { font-size: 30rpx; color: $text-color-secondary; padding: 8rpx; }
+.reorder-loading { padding: 60rpx 0; text-align: center; font-size: 26rpx; color: $text-color-secondary; }
+.reorder-shop { font-size: 26rpx; color: $text-color-secondary; margin: 12rpx 0 16rpx; display: block; }
+.reorder-list { max-height: 46vh; }
+.reorder-line { display: flex; align-items: center; gap: 16rpx; padding: 14rpx 0; border-bottom: 1rpx solid #f2f2f5; }
+.reorder-line.off { opacity: .45; }
+.reorder-img { width: 80rpx; height: 80rpx; border-radius: 10rpx; flex-shrink: 0; background: #f4f4f6; }
+.reorder-img--ph { background: #f4f4f6; }
+.reorder-info { flex: 1; min-width: 0; }
+.reorder-name { font-size: 26rpx; color: $text-color; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reorder-off { font-size: 22rpx; color: #d4380d; margin-top: 4rpx; display: block; }
+.reorder-qty { font-size: 24rpx; color: $text-color-secondary; }
+.reorder-hint { font-size: 22rpx; color: #c47b00; background: #fff7e6; border-radius: 10rpx; padding: 12rpx 16rpx; margin-top: 16rpx; }
+.reorder-btn { margin-top: 24rpx; height: 88rpx; line-height: 88rpx; border-radius: 999rpx; background: $brand-color; color: #fff; font-size: 30rpx; font-weight: 600; }
+.reorder-btn[disabled] { opacity: .5; }
 </style>

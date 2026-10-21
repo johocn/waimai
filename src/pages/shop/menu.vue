@@ -9,6 +9,10 @@
                     <text class="sname">{{ shopName }}</text>
                     <text class="smeta">{{ routesText }}</text>
                 </view>
+                <view class="fav-btn" :class="{ on: isFav, disabled: favChannelId == null }" @tap.stop="toggleFav">
+                    <text class="fav-ico">{{ isFav ? '♥' : '♡' }}</text>
+                    <text class="fav-txt">{{ isFav ? $t('menu.favRemove') : $t('menu.favAdd') }}</text>
+                </view>
             </view>
             <view class="tags" v-if="promoText">
                 <text class="tag">🔥 {{ promoText }}</text>
@@ -159,6 +163,7 @@ import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
+import { useFavoritesStore } from '../../stores/favorites';
 import { useLocaleStore } from '../../stores/locale';
 import { fetchProductList, fetchStoreList } from '../../api/queries/waimai';
 import { getProductCoupons } from '../../api/queries/coupon';
@@ -176,6 +181,7 @@ import SkuSheet from '../../components/SkuSheet.vue';
 const tenant = useTenantStore();
 const cart = useCartStore();
 const authStore = useAuthStore();
+const favorites = useFavoritesStore();
 const locale = useLocaleStore();
 const shopToken = ref('');
 const shopRoutes = ref('');
@@ -192,6 +198,19 @@ const skuProduct = ref<any>(null);
 
 const cartCount = computed(() => cart.totalQuantity);
 const cartTotal = computed(() => cart.totalPrice);
+// 收藏（店铺 = 渠道）：storeInfo 由 fetchStoreList 按 token 匹配后才有 channelId
+const favChannelId = computed(() => storeInfo.value?.channelId ?? null);
+const isFav = computed(() => favorites.isFavorite(favChannelId.value));
+
+async function toggleFav() {
+    if (favChannelId.value == null) return;
+    try {
+        const on = await favorites.toggle(favChannelId.value);
+        uni.showToast({ title: on ? locale.t('menu.favAddOk') : locale.t('menu.favRemoveOk'), icon: 'none' });
+    } catch {
+        uni.showToast({ title: locale.t('menu.favFail'), icon: 'none' });
+    }
+}
 const routeDetailText = computed(() =>
     routeDetail(shopRoutes.value.split(',').filter(Boolean)).join('、') || locale.t('menu.noDelivery')
 );
@@ -296,9 +315,18 @@ onLoad(async (q: any) => {
     shopName.value = decodeURIComponent(q?.name ?? '') || locale.t('menu.defaultShop');
     routesText.value = routeText(shopRoutes.value.split(',').filter(Boolean));
     promoText.value = decodeURIComponent(q?.promo ?? '');
+    // 常买店铺：首页会带 cid 直接记；直接进店时等 storeInfo 匹配到 channelId 再记（下方 then）
+    const cid = q?.cid ? String(q.cid) : '';
+    if (cid) {
+        favorites.touchRecent({ channelId: cid, channelToken: shopToken.value, name: shopName.value, routes: shopRoutes.value });
+    }
     // 店铺配置（地址/电话/公告/时长）：waimaiStoreList 按渠道 token 找本店；无配置行 → null 走页面兜底
     fetchStoreList().then((list: any[]) => {
-        storeInfo.value = list.find((s: any) => s.channelToken === shopToken.value) ?? null;
+        const hit = list.find((s: any) => s.channelToken === shopToken.value) ?? null;
+        storeInfo.value = hit;
+        if (hit) {
+            favorites.touchRecent({ channelId: hit.channelId, channelToken: shopToken.value, name: shopName.value, routes: shopRoutes.value });
+        }
     }).catch(() => { storeInfo.value = null; });
     uni.setNavigationBarTitle({ title: shopName.value });
     // 关键：切到店铺渠道（activeOrder 随 session+渠道隔离 = 每店独立购物车）
@@ -477,6 +505,12 @@ function goCheckout() {
 .shop-main { flex: 1; min-width: 0; }
 .sname { display: block; font-size: 32rpx; font-weight: 600; color: var(--w-text); line-height: 1.3; }
 .smeta { display: block; font-size: 22rpx; color: var(--w-brand-text); margin-top: 8rpx; }
+.fav-btn { display: flex; flex-direction: column; align-items: center; gap: 4rpx; padding: 4rpx 8rpx; flex-shrink: 0; }
+.fav-btn.disabled { opacity: 0.4; }
+.fav-ico { font-size: 40rpx; line-height: 1; color: var(--w-text-muted); }
+.fav-btn.on .fav-ico { color: #ff4d6d; }
+.fav-txt { font-size: 20rpx; color: var(--w-text-muted); }
+.fav-btn.on .fav-txt { color: #ff4d6d; }
 .smeta em { font-style: normal; color: var(--w-text-muted); }
 .tags { display: flex; gap: 12rpx; margin-top: 16rpx; flex-wrap: wrap; }
 .tag { font-size: 20rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 8rpx; padding: 4rpx 12rpx; }

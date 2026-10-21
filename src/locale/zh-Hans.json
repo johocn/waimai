@@ -186,7 +186,22 @@
         "favAdded": "已收藏",
         "favRemoved": "已取消收藏",
         "favFail": "收藏失败，请稍后重试",
-        "freeDeliveryTag": "免配送费"
+        "freeDeliveryTag": "免配送费",
+        "searchHistory": "搜索历史",
+        "clearHistory": "清空",
+        "hotSearch": "热搜",
+        "searchProducts": "商品",
+        "searchLoading": "搜索中…",
+        "noProductHit": "没有找到相关商品",
+        "hotStores": "热销店铺推荐",
+        "favoriteProducts": "收藏商品",
+        "recentProducts": "常买商品",
+        "itemPlaceholder": "商品",
+        "deliveryTo": "送至",
+        "switchTarget": "切换",
+        "targetTitle": "选择配送楼栋",
+        "saveTarget": "保存",
+        "noTargetOptions": "暂无可选楼栋，请在结算页选择"
     },
     "menu": {
         "tabGoods": "商品",
@@ -242,7 +257,13 @@
         "claimFail": "领取失败",
         "addFail": "加购失败",
         "added": "已加购",
-        "shopNotFound": "店铺不存在"
+        "shopNotFound": "店铺不存在",
+        "favProductAddOk": "已收藏商品",
+        "favProductRemoveOk": "已取消收藏商品",
+        "searchChip": "搜索：{q}",
+        "minOrderGap": "还差 ¥{d} 起送",
+        "promoGap": "再买 ¥{d} 可减 ¥{y}",
+        "promoReached": "已满 ¥{t} 减 ¥{y}"
     },
     "orders": {
         "tabAll": "全部",
@@ -253,7 +274,16 @@
         "totalItems": "共{n}件",
         "noMore": "没有更多了",
         "empty": "暂无订单",
-        "platform": "平台"
+        "platform": "平台",
+        "searchPh": "搜索订单号 / 店铺 / 商品",
+        "searchEmpty": "未找到相关订单",
+        "afterSaleProcessing": "售后处理中",
+        "afterSaleRefunded": "已退款",
+        "afterSaleOnly": "只看售后",
+        "afterSaleAll": "查看全部",
+        "afterSaleBar": "售后处理中 {n} 单",
+        "deliverySlot": "送达时段：{t}",
+        "exceptionTag": "配送异常"
     },
     "profile": {
         "guest": "客",
@@ -442,6 +472,12 @@
         "addrRequired": "请填写收货地址",
         "pickupRequired": "请选择自提点",
         "minOrderWarn": "商品未满起送价 ¥{c}，请确认后再下单",
+        "minOrderGap": "还差 ¥{d} 起送",
+        "minOrderBlockTitle": "还差一点就起送",
+        "goAddMore": "去加购",
+        "thinkAgain": "再想想",
+        "promoGap": "再买 ¥{d} 可减 ¥{y}",
+        "promoReached": "已满 ¥{t} 减 ¥{y}",
         "payIncomplete": "支付未完成，请重试或更换支付方式",
         "payFail": "支付失败"
     },

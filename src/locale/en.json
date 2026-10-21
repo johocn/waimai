@@ -186,7 +186,22 @@
         "favAdded": "Added to favorites",
         "favRemoved": "Removed from favorites",
         "favFail": "Failed to update favorite",
-        "freeDeliveryTag": "Free delivery"
+        "freeDeliveryTag": "Free delivery",
+        "searchHistory": "Search history",
+        "clearHistory": "Clear",
+        "hotSearch": "Trending",
+        "searchProducts": "Items",
+        "searchLoading": "Searching…",
+        "noProductHit": "No matching items",
+        "hotStores": "Popular shops",
+        "favoriteProducts": "Favorite items",
+        "recentProducts": "Frequently bought",
+        "itemPlaceholder": "Item",
+        "deliveryTo": "Deliver to",
+        "switchTarget": "Change",
+        "targetTitle": "Choose delivery building",
+        "saveTarget": "Save",
+        "noTargetOptions": "No buildings available. Please choose at checkout."
     },
     "menu": {
         "tabGoods": "Goods",
@@ -242,7 +257,13 @@
         "claimFail": "Failed to claim",
         "addFail": "Failed to add to cart",
         "added": "Added to cart",
-        "shopNotFound": "Shop not found"
+        "shopNotFound": "Shop not found",
+        "favProductAddOk": "Item added to favorites",
+        "favProductRemoveOk": "Item removed from favorites",
+        "searchChip": "Search: {q}",
+        "minOrderGap": "¥{d} away from min. order",
+        "promoGap": "Add ¥{d} to save ¥{y}",
+        "promoReached": "¥{t} reached: ¥{y} off"
     },
     "orders": {
         "tabAll": "All",
@@ -253,7 +274,16 @@
         "totalItems": "{n} items",
         "noMore": "No more orders",
         "empty": "No orders yet",
-        "platform": "Platform"
+        "platform": "Platform",
+        "searchPh": "Search order no. / shop / item",
+        "searchEmpty": "No matching orders",
+        "afterSaleProcessing": "After-sale in progress",
+        "afterSaleRefunded": "Refunded",
+        "afterSaleOnly": "After-sale only",
+        "afterSaleAll": "Show all",
+        "afterSaleBar": "{n} after-sale request(s) in progress",
+        "deliverySlot": "Delivery slot: {t}",
+        "exceptionTag": "Delivery issue"
     },
     "profile": {
         "guest": "Guest",
@@ -442,6 +472,12 @@
         "addrRequired": "Please fill in the shipping address",
         "pickupRequired": "Please select a pickup point",
         "minOrderWarn": "Order is below the ¥{c} minimum, please confirm",
+        "minOrderGap": "¥{d} away from min. order",
+        "minOrderBlockTitle": "Almost there",
+        "goAddMore": "Add more",
+        "thinkAgain": "Not now",
+        "promoGap": "Add ¥{d} to save ¥{y}",
+        "promoReached": "¥{t} reached: ¥{y} off",
         "payIncomplete": "Payment not completed, please retry or switch method",
         "payFail": "Payment failed"
     },

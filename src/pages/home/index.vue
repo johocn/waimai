@@ -8,7 +8,15 @@
                     <text class="hlink" @tap="goOrders">{{ $t('home.myOrders') }}</text>
                 </view>
             </view>
-            <input class="search" v-model="keyword" :placeholder="$t('home.searchPh')" confirm-type="search" />
+            <!-- 当前配送楼栋：取结算页最近保存的配送目标，点击可快捷切换 -->
+            <view class="target-row" v-if="deliveryTarget" @tap="openTargetSheet">
+                <text class="target-row__txt">📍 {{ deliveryTarget.zoneName }} · {{ deliveryTarget.buildingName }}</text>
+                <text class="target-row__sw">{{ $t('home.switchTarget') }} ▸</text>
+            </view>
+            <input
+                class="search" v-model="keyword" :placeholder="$t('home.searchPh')" confirm-type="search"
+                @focus="onSearchFocus" @blur="onSearchBlur" @input="onKeywordInput" @confirm="submitSearch(keyword)"
+            />
         </view>
         <view class="body">
             <view class="quick">
@@ -33,6 +41,26 @@
                     <text class="qtxt">江湖</text>
                 </view>
             </view>
+            <!-- 搜索面板：聚焦且关键词为空时展示（历史 + 热搜），不发请求 -->
+            <view v-if="showSearchPanel" class="search-panel">
+                <view v-if="searchHistory.length" class="sp-group">
+                    <view class="sp-head">
+                        <text class="sp-title">{{ $t('home.searchHistory') }}</text>
+                        <text class="sp-clear" @tap.stop="clearHistory">{{ $t('home.clearHistory') }}</text>
+                    </view>
+                    <view class="sp-chips">
+                        <view v-for="h in searchHistory" :key="'h-' + h" class="sp-chip" @tap="pickWord(h)">{{ h }}</view>
+                    </view>
+                </view>
+                <view v-if="hotWords.length" class="sp-group">
+                    <view class="sp-head"><text class="sp-title">{{ $t('home.hotSearch') }}</text></view>
+                    <view class="sp-chips">
+                        <view v-for="w in hotWords" :key="'w-' + w" class="sp-chip sp-chip--hot" @tap="pickWord(w)">🔥 {{ w }}</view>
+                    </view>
+                </view>
+                <view v-if="!searchHistory.length && !hotWords.length" class="sp-tip">{{ $t('home.emptySearch') }}</view>
+            </view>
+            <template v-if="!showSearchPanel">
             <scroll-view scroll-x class="pills" v-if="!keyword">
                 <view
                     v-for="t in tagList" :key="t"
@@ -65,13 +93,70 @@
                     </view>
                 </scroll-view>
             </view>
+            <!-- 收藏商品：收藏的 variant 按店铺进店定位（本地元数据，登录后远端同步） -->
+            <view v-if="favoriteProducts.length" class="recent">
+                <view class="sec"><text class="sec-t">{{ $t('home.favoriteProducts') }}</text></view>
+                <scroll-view scroll-x class="recent-row">
+                    <view v-for="p in favoriteProducts" :key="'favp-' + p.variantId" class="item-card" @tap="openFavoriteProduct(p)">
+                        <image v-if="p.image" class="item-img" :src="p.image" mode="aspectFill" />
+                        <view v-else class="item-img item-img--text">{{ (p.name || '?').slice(0, 1) }}</view>
+                        <text class="item-name">{{ p.name || $t('home.itemPlaceholder') }}</text>
+                        <text class="item-price" v-if="p.price != null">¥{{ fenText(p.price) }}</text>
+                        <text class="item-store">{{ p.storeName || '' }}</text>
+                    </view>
+                </scroll-view>
+            </view>
+            <!-- 常买商品：下单成功后记录，点一下进店并自动加购 -->
+            <view v-if="recentProducts.length" class="recent">
+                <view class="sec"><text class="sec-t">{{ $t('home.recentProducts') }}</text></view>
+                <scroll-view scroll-x class="recent-row">
+                    <view v-for="it in recentProducts" :key="'item-' + it.variantId" class="item-card" @tap="openRecentProduct(it)">
+                        <image v-if="it.image" class="item-img" :src="it.image" mode="aspectFill" />
+                        <view v-else class="item-img item-img--text">{{ it.name.slice(0, 1) }}</view>
+                        <text class="item-name">{{ it.name }}</text>
+                        <text class="item-price">¥{{ fenText(it.price) }}</text>
+                        <text class="item-store">{{ it.storeName || '' }}</text>
+                    </view>
+                </scroll-view>
+            </view>
+            <!-- 跨店商品搜索结果（仅在提交搜索后展示） -->
+            <view v-if="searchKeyword && searching" class="sp-loading">{{ $t('home.searchLoading') }}</view>
+            <template v-if="searchKeyword && searchProductHits.length">
+                <view class="sec">
+                    <text class="sec-t">{{ $t('home.searchProducts') }}</text>
+                    <text class="sec-n">{{ searchProductHits.length }}</text>
+                </view>
+                <view class="phits">
+                    <view v-for="hit in searchProductHits" :key="'hit-' + hit.store.channelId + '-' + hit.product.id" class="phit" @tap="openProductHit(hit)">
+                        <image v-if="hit.product.featuredAsset?.preview" class="phit-img" :src="hit.product.featuredAsset.preview" mode="aspectFill" />
+                        <view v-else class="phit-img phit-img--text">{{ hit.product.name.slice(0, 1) }}</view>
+                        <view class="phit-info">
+                            <text class="phit-name">{{ hit.product.name }}</text>
+                            <text class="phit-store">{{ hit.store.name }}</text>
+                        </view>
+                        <text class="phit-price" v-if="hit.variant">¥{{ fenText(hit.variant.priceWithTax) }}</text>
+                    </view>
+                </view>
+            </template>
+            <!-- 无结果：热销店铺推荐兜底 -->
+            <view v-if="searchKeyword && !searching && !shown.length && !searchProductHits.length && hotStores.length" class="recent">
+                <view class="sec"><text class="sec-t">{{ $t('home.hotStores') }}</text></view>
+                <scroll-view scroll-x class="recent-row">
+                    <view v-for="s in hotStores" :key="'hot-' + s.channelId" class="recent-card" @tap="enterStore(s)">
+                        <image v-if="s.logo" class="recent-logo" :src="s.logo" mode="aspectFill" />
+                        <view v-else class="recent-logo recent-logo--text">{{ s.name.slice(0, 1) }}</view>
+                        <text class="recent-name">{{ s.name }}</text>
+                        <text class="recent-meta">{{ $t('home.monthlySales').replace('{n}', String(s.monthlySales)) }}</text>
+                    </view>
+                </scroll-view>
+            </view>
             <LoadingSkeleton v-if="loading" />
             <template v-else>
                 <view class="sec" v-if="shown.length">
                     <text class="sec-t">{{ secTitle }}</text>
                     <text class="sec-n">{{ $t('home.nearbyCount').replace('{n}', String(shown.length)) }}</text>
                 </view>
-                <EmptyState v-if="!shown.length" :text="emptyText" />
+                <EmptyState v-if="!shown.length && !(searchKeyword && searching)" :text="emptyText" />
                 <view v-else class="cards">
                     <view v-for="s in shown" :key="s.channelId" class="card" @tap="enterStore(s)">
                         <image v-if="s.logo" class="logo" :src="s.logo" mode="aspectFill" />
@@ -94,6 +179,7 @@
                         <text class="chev">›</text>
                     </view>
                 </view>
+            </template>
             </template>
         </view>
         <!-- 筛选弹层：即时生效，点「完成」关闭 -->
@@ -124,13 +210,43 @@
                 </view>
             </view>
         </view>
+        <!-- 配送楼栋快捷切换（数据源：结算页缓存的 zones/buildings，缺省回退渠道接口） -->
+        <view v-if="targetOpen" class="target-mask" @tap.self="targetOpen = false">
+            <view class="target-sheet">
+                <view class="fs-head">
+                    <text class="fs-title">{{ $t('home.targetTitle') }}</text>
+                    <text class="fs-close" @tap="targetOpen = false">✕</text>
+                </view>
+                <view v-if="targetLoading" class="sp-tip">{{ $t('home.searchLoading') }}</view>
+                <template v-else>
+                    <view class="fs-group" v-if="targetZones.length">
+                        <text class="fs-label">{{ $t('checkout.pickZone') }}</text>
+                        <view class="fs-chips">
+                            <view v-for="z in targetZones" :key="'tz-' + z.id" class="fs-chip" :class="{ on: String(targetZoneId) === String(z.id) }" @tap="pickTargetZone(z.id)">{{ z.name }}</view>
+                        </view>
+                    </view>
+                    <view class="fs-group" v-if="targetBuildings.length">
+                        <text class="fs-label">{{ $t('checkout.pickBuilding') }}</text>
+                        <view class="fs-chips">
+                            <view v-for="b in targetBuildings" :key="'tb-' + b.id" class="fs-chip" :class="{ on: String(targetBuildingId) === String(b.id) }" @tap="targetBuildingId = String(b.id)">{{ b.name }}</view>
+                        </view>
+                    </view>
+                    <view v-if="!targetZones.length" class="sp-tip">{{ $t('home.noTargetOptions') }}</view>
+                    <view class="fs-actions">
+                        <view class="fs-apply" @tap="saveTarget">{{ $t('home.saveTarget') }}</view>
+                    </view>
+                </template>
+            </view>
+        </view>
     </view>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { fetchStoreList } from '../../api/queries/waimai';
+import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
+import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
+import { readSearchHistory, pushSearchHistory, clearSearchHistory, buildHotWords, matchesProduct } from '../../utils/search';
 import { filterStores, applyStoreFilters, sortStores, type StoreSort, type StoreFilterOptions } from '../../utils/store-filter';
 import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
@@ -151,6 +267,196 @@ const stores = ref<any[]>([]);
 const sortBy = ref<StoreSort>('default');
 const filterOpen = ref(false);
 const filters = ref<StoreFilterOptions>({});
+
+// ── 搜索：焦点面板（历史/热搜）+ 提交后跨店商品搜索 ──
+const searchFocused = ref(false);
+const searchHistory = ref<string[]>(readSearchHistory());
+const searchKeyword = ref('');
+const searching = ref(false);
+const searchProductHits = ref<Array<{ store: any; product: any; variant: any }>>([]);
+const showSearchPanel = computed(() => searchFocused.value && !keyword.value.trim());
+const hotWords = computed(() => buildHotWords(stores.value, 6));
+/** 无结果兜底：热销店铺（月售降序前 4，含休息中的店，点进去有休息提示） */
+const hotStores = computed(() => [...stores.value].sort((a: any, b: any) => (b.monthlySales || 0) - (a.monthlySales || 0)).slice(0, 4));
+let blurTimer: any = null;
+
+function onSearchFocus() {
+    if (blurTimer) clearTimeout(blurTimer);
+    searchFocused.value = true;
+}
+/** 延迟收起：让面板里的点击先命中，避免 blur 先关面板 */
+function onSearchBlur() {
+    blurTimer = setTimeout(() => { searchFocused.value = false; }, 200);
+}
+function onKeywordInput(e: any) {
+    const val = String(e?.detail?.value ?? '').trim();
+    if (!val) {
+        searchKeyword.value = '';
+        searchProductHits.value = [];
+    }
+}
+function pickWord(w: string) {
+    keyword.value = w;
+    submitSearch(w);
+}
+function clearHistory() {
+    clearSearchHistory();
+    searchHistory.value = [];
+}
+
+/** 提交搜索：写历史 → 店铺即时过滤（keyword）→ 跨店并发搜商品 */
+async function submitSearch(raw: string) {
+    const kw = String(raw ?? '').trim();
+    keyword.value = kw;
+    searchFocused.value = false;
+    if (!kw) return;
+    searchHistory.value = pushSearchHistory(kw);
+    searchKeyword.value = kw;
+    searchProductHits.value = [];
+    searching.value = true;
+    try {
+        const targets = stores.value.filter((s: any) => !s.paused && s.channelToken);
+        const results = await Promise.allSettled(targets.map((s: any) =>
+            fetchProductListForChannel(s.channelToken).then((list: any[]) => {
+                const hits: Array<{ store: any; product: any; variant: any }> = [];
+                for (const p of list) {
+                    if (!matchesProduct(p, kw)) continue;
+                    hits.push({ store: s, product: p, variant: p.variants?.[0] });
+                    if (hits.length >= 6) break;
+                }
+                return hits;
+            }),
+        ));
+        // 关键词在 await 期间被改掉：丢弃过期结果
+        if (searchKeyword.value !== kw) return;
+        const merged: Array<{ store: any; product: any; variant: any }> = [];
+        for (const r of results) {
+            if (r.status === 'fulfilled') merged.push(...r.value);
+            if (merged.length >= 24) break;
+        }
+        searchProductHits.value = merged.slice(0, 24);
+    } finally {
+        searching.value = false;
+    }
+}
+
+/** 分 → 元字符串（整数不带小数） */
+function fenText(fen?: number | null): string {
+    const v = Math.max(0, Number(fen) || 0) / 100;
+    return Number.isInteger(v) ? String(v) : v.toFixed(2);
+}
+
+function openProductHit(hit: { store: any; product: any }) {
+    const s = hit.store;
+    const cid = s.channelId != null ? `&cid=${s.channelId}` : '';
+    const routes = (s.routesEnabled || []).join(',');
+    uni.navigateTo({ url: `/pages/shop/menu?token=${s.channelToken}&name=${encodeURIComponent(s.name)}&routes=${encodeURIComponent(routes)}${cid}&q=${encodeURIComponent(hit.product.name)}` });
+}
+
+/** 收藏商品：补齐渠道后带 q 进店定位；缺 token 时静默忽略（关机/下线店） */
+const favoriteProducts = computed(() => favorites.variantItems.filter(v => !!v.name).slice(0, 8));
+const recentProducts = computed(() => (keyword.value || searchKeyword.value ? [] : favorites.recentItems.slice(0, 8)));
+
+function storeOfVariant(v: any): any {
+    return stores.value.find((s: any) =>
+        (v.channelToken && s.channelToken === v.channelToken) ||
+        (v.channelId != null && String(s.channelId) === String(v.channelId)));
+}
+
+function openFavoriteProduct(p: any) {
+    const s = storeOfVariant(p);
+    const token = p.channelToken || s?.channelToken;
+    if (!token) return uni.showToast({ title: locale.t('home.shopPaused'), icon: 'none' });
+    const cidVal = p.channelId ?? s?.channelId;
+    const cid = cidVal != null ? `&cid=${cidVal}` : '';
+    const routes = (s?.routesEnabled || []).join(',');
+    uni.navigateTo({ url: `/pages/shop/menu?token=${token}&name=${encodeURIComponent(s?.name || p.storeName || '')}&routes=${encodeURIComponent(routes)}${cid}&q=${encodeURIComponent(p.name || '')}` });
+}
+
+function openRecentProduct(it: any) {
+    const s = storeOfVariant(it);
+    const token = it.channelToken || s?.channelToken;
+    if (!token) return uni.showToast({ title: locale.t('home.shopPaused'), icon: 'none' });
+    const cidVal = it.channelId ?? s?.channelId;
+    const cid = cidVal != null ? `&cid=${cidVal}` : '';
+    const routes = (s?.routesEnabled || it.routes || '').toString();
+    uni.navigateTo({ url: `/pages/shop/menu?token=${token}&name=${encodeURIComponent(s?.name || it.storeName || '')}&routes=${encodeURIComponent(routes)}${cid}&add=${it.variantId}` });
+}
+
+// ── 当前配送楼栋（结算页保存）与快捷切换 ──
+interface DeliveryTargetLocal { zoneId: string; zoneName: string; buildingId: string; buildingName: string; at?: number }
+function readLocalJSON(key: string): any {
+    try {
+        const raw = uni.getStorageSync(key);
+        if (!raw) return null;
+        return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch { return null; }
+}
+const deliveryTarget = ref<DeliveryTargetLocal | null>(readLocalJSON('delivery_target'));
+const targetOpen = ref(false);
+const targetLoading = ref(false);
+const targetZones = ref<any[]>([]);
+const targetBuildings = ref<any[]>([]);
+const targetZoneId = ref('');
+const targetBuildingId = ref('');
+let targetOptionsCache: { zones: any[]; buildings: any[] } = { zones: [], buildings: [] };
+
+async function openTargetSheet() {
+    targetOpen.value = true;
+    const opts = readLocalJSON('delivery_target_options');
+    targetOptionsCache = {
+        zones: Array.isArray(opts?.zones) ? opts.zones : [],
+        buildings: Array.isArray(opts?.buildings) ? opts.buildings : [],
+    };
+    if (targetOptionsCache.zones.length) {
+        targetZones.value = targetOptionsCache.zones;
+        await pickTargetZone(deliveryTarget.value?.zoneId || targetZones.value[0].id);
+        return;
+    }
+    targetLoading.value = true;
+    try {
+        targetZones.value = await fetchZones();
+        await pickTargetZone(deliveryTarget.value?.zoneId || targetZones.value[0]?.id);
+    } catch {
+        targetZones.value = [];
+        targetBuildings.value = [];
+    }
+    targetLoading.value = false;
+}
+
+async function pickTargetZone(zoneId: string | number) {
+    if (zoneId == null || zoneId === '') return;
+    targetZoneId.value = String(zoneId);
+    const local = targetOptionsCache.buildings.filter((b: any) => String(b.zoneId ?? '') === String(zoneId));
+    if (local.length) {
+        targetBuildings.value = local;
+    } else {
+        try {
+            targetBuildings.value = await fetchBuildings(String(zoneId));
+        } catch {
+            targetBuildings.value = [];
+        }
+    }
+    const prefer = deliveryTarget.value?.buildingId;
+    targetBuildingId.value = targetBuildings.value.some((b: any) => String(b.id) === String(prefer))
+        ? String(prefer)
+        : String(targetBuildings.value[0]?.id ?? '');
+}
+
+function saveTarget() {
+    const z = targetZones.value.find((x: any) => String(x.id) === targetZoneId.value);
+    const b = targetBuildings.value.find((x: any) => String(x.id) === targetBuildingId.value);
+    if (!z || !b) {
+        uni.showToast({ title: locale.t('home.noTargetOptions'), icon: 'none' });
+        return;
+    }
+    const target: DeliveryTargetLocal = {
+        zoneId: String(z.id), zoneName: z.name, buildingId: String(b.id), buildingName: b.name, at: Date.now(),
+    };
+    uni.setStorageSync('delivery_target', JSON.stringify(target));
+    deliveryTarget.value = target;
+    targetOpen.value = false;
+}
 
 const tagList = computed(() => {
     // 店铺未配置 tag 时不出现空类目：固定类目里只保留有店铺的
@@ -235,11 +541,14 @@ async function load() {
     try {
         const list = await fetchStoreList();
         stores.value = list.map((s: any) => ({ ...s, name: storeDisplayName(s.name) }));
+        // 远端商品收藏只存 id：用渠道商品列表回填名称/图/价（失败静默，不阻塞首页）
+        void favorites.hydrateVariantMeta(stores.value);
     } finally { loading.value = false; }
 }
 
 function enterStore(s: any) {
     if (s.paused) return uni.showToast({ title: locale.t('home.shopPaused'), icon: 'none' });
+    favorites.touchRecent({ channelId: s.channelId, channelToken: s.channelToken, name: s.name, routes: (s.routesEnabled || []).join(',') });
     const routes = (s.routesEnabled || []).join(',');
     const cid = s.channelId != null ? `&cid=${s.channelId}` : '';
     uni.navigateTo({ url: `/pages/shop/menu?token=${s.channelToken}&name=${encodeURIComponent(s.name)}&routes=${encodeURIComponent(routes)}${cid}` });
@@ -250,8 +559,11 @@ onMounted(() => {
     void favorites.loadRemote();
     load();
 });
-// 登录/退出后回到首页：同步云端收藏（登录时会把游客收藏补写到云端）
-onShow(() => { void favorites.loadRemote(); });
+// 登录/退出后回到首页：同步云端收藏（登录时会把游客收藏补写到云端）；同时刷新结算页刚保存的楼栋
+onShow(() => {
+    void favorites.loadRemote();
+    deliveryTarget.value = readLocalJSON('delivery_target');
+});
 onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.stopPullDownRefresh(); });
 </script>
 
@@ -357,4 +669,39 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .fs-actions { display: flex; gap: 20rpx; margin-top: 32rpx; }
 .fs-reset { flex: 1; height: 84rpx; line-height: 84rpx; text-align: center; border-radius: 999rpx; font-size: 28rpx; color: var(--w-text-muted); background: var(--w-surface-muted); }
 .fs-apply { flex: 2; height: 84rpx; line-height: 84rpx; text-align: center; border-radius: 999rpx; font-size: 28rpx; font-weight: 600; color: #fff; background: $brand; }
+/* 当前配送楼栋条（头部品牌底色上） */
+.target-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16rpx; padding: 8rpx 20rpx; border-radius: 999rpx; background: rgba(255, 255, 255, .18); }
+.target-row__txt { font-size: 24rpx; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.target-row__sw { flex-shrink: 0; margin-left: 12rpx; font-size: 22rpx; color: #fff; opacity: .92; }
+/* 搜索面板（历史 / 热搜） */
+.search-panel { margin-top: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 8rpx 24rpx 24rpx; }
+.sp-group { padding-top: 20rpx; }
+.sp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16rpx; }
+.sp-title { font-size: 26rpx; font-weight: 600; color: var(--w-text); }
+.sp-clear { font-size: 22rpx; color: var(--w-text-muted); padding: 4rpx 8rpx; }
+.sp-chips { display: flex; flex-wrap: wrap; gap: 14rpx; }
+.sp-chip { max-width: 100%; padding: 10rpx 24rpx; border-radius: 999rpx; font-size: 24rpx; color: var(--w-text); background: var(--w-bg); border: 1rpx solid var(--w-border); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-chip--hot { color: var(--w-brand-text); background: var(--w-brand-soft); border-color: transparent; }
+.sp-tip { padding: 28rpx 0 8rpx; font-size: 24rpx; color: var(--w-text-muted); text-align: center; }
+.sp-loading { padding: 20rpx 4rpx; font-size: 24rpx; color: var(--w-text-muted); }
+/* 商品横排（收藏商品 / 常买商品） */
+.item-card { display: inline-flex; flex-direction: column; width: 168rpx; margin-right: 16rpx; background: var(--w-surface); border-radius: $radius-card; padding: 12rpx; vertical-align: top; }
+.item-img { width: 144rpx; height: 144rpx; border-radius: $radius; }
+.item-img--text { display: flex; align-items: center; justify-content: center; background: var(--w-brand-soft); color: var(--w-brand-text); font-size: 48rpx; }
+.item-name { width: 100%; margin-top: 10rpx; font-size: 22rpx; color: var(--w-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-price { margin-top: 4rpx; font-size: 24rpx; font-weight: 600; color: var(--w-brand-text); }
+.item-store { width: 100%; margin-top: 2rpx; font-size: 20rpx; color: var(--w-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 跨店商品搜索结果 */
+.phits { background: var(--w-surface); border-radius: $radius-card; padding: 0 20rpx; }
+.phit { display: flex; align-items: center; gap: 16rpx; padding: 18rpx 0; border-bottom: 1rpx solid var(--w-border); }
+.phit:last-child { border-bottom: none; }
+.phit-img { width: 96rpx; height: 96rpx; border-radius: $radius; flex-shrink: 0; }
+.phit-img--text { display: flex; align-items: center; justify-content: center; background: var(--w-brand-soft); color: var(--w-brand-text); font-size: 36rpx; }
+.phit-info { flex: 1; min-width: 0; }
+.phit-name { display: block; font-size: 26rpx; color: var(--w-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phit-store { display: block; margin-top: 4rpx; font-size: 22rpx; color: var(--w-text-muted); }
+.phit-price { flex-shrink: 0; font-size: 26rpx; font-weight: 600; color: var(--w-brand-text); }
+/* 楼栋切换弹层（z-index 高于 tabbar 998） */
+.target-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 1000; display: flex; align-items: flex-end; }
+.target-sheet { width: 100%; max-height: 70vh; overflow-y: auto; background: var(--w-surface); border-radius: 28rpx 28rpx 0 0; padding: 28rpx 28rpx calc(28rpx + env(safe-area-inset-bottom)); }
 </style>

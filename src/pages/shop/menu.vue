@@ -34,6 +34,11 @@
                     </view>
                 </scroll-view>
                 <scroll-view scroll-y class="goods">
+                    <!-- 首页搜索/收藏/常买商品带 q 进店：只筛当前分类商品，可一键清除 -->
+                    <view v-if="productQuery" class="good-search">
+                        <text class="good-search__txt">{{ $t('menu.searchChip').replace('{q}', productQuery) }}</text>
+                        <text class="good-search__x" @tap="clearProductQuery">✕</text>
+                    </view>
                     <view v-for="g in goodsOf(activeCat)" :key="g.id" class="good" @tap="pickSku(g)">
                         <VImage :src="g.featuredAsset?.preview" width="140rpx" height="140rpx" class="good-img" />
                         <view class="good-info">
@@ -54,6 +59,7 @@
                         </view>
                         <view class="add-btn spec" v-if="(g.variants?.length ?? 0) > 1" @tap.stop="pickSku(g)">{{ $t('menu.pickSpec') }}</view>
                         <view class="add-btn" v-else @tap.stop="addToCart(g)">+</view>
+                        <view class="good-fav" :class="{ on: isGoodFav(g) }" @tap.stop="toggleGoodFav(g)">{{ isGoodFav(g) ? '♥' : '♡' }}</view>
                     </view>
                     <view class="scroll-pad"></view>
                     <EmptyState v-if="!goodsOf(activeCat).length" :text="$t('menu.emptyCat')" />
@@ -149,9 +155,12 @@
                 <text class="empty-hint" v-if="!cartCount">{{ $t('menu.cartEmpty') }}</text>
                 <block v-else>
                     <text class="sum">{{ $t('menu.total').replace('{v}', cart.formatPrice(cartTotal)) }}</text>
+                    <text v-if="cartPromoText" class="cart-promo">{{ cartPromoText }}</text>
                 </block>
             </view>
-            <view class="checkout-btn" :class="{ disabled: !cartCount }">{{ $t('menu.checkout') }}</view>
+            <view class="checkout-btn" :class="{ disabled: !cartCount || belowMinOrder }">
+                {{ belowMinOrder ? $t('menu.minOrderGap').replace('{d}', minGapYuan) : $t('menu.checkout') }}
+            </view>
         </view>
         <SkuSheet v-model:visible="skuOpen" :product="skuProduct" @action="onSkuAction" />
     </view>
@@ -169,6 +178,8 @@ import { fetchProductList, fetchStoreList } from '../../api/queries/waimai';
 import { getProductCoupons } from '../../api/queries/coupon';
 import { getChannelReviews, getChannelReviewStats } from '../../api/queries/review';
 import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
+import { matchesProduct } from '../../utils/search';
+import { nextPromoHint, yuan } from '../../utils/promo';
 import { theme, initTheme } from '../../utils/theme';
 import { addItemToOrder } from '../../api/mutations/cart';
 import { claimProductCoupon } from '../../api/mutations/coupon';
@@ -195,12 +206,65 @@ const activeCat = ref('all');
 const products = ref<any[]>([]);
 const skuOpen = ref(false);
 const skuProduct = ref<any>(null);
+// 首页搜索/收藏商品带 q 进店：仅筛商品（不改分类），✕ 可清除
+const productQuery = ref('');
 
 const cartCount = computed(() => cart.totalQuantity);
 const cartTotal = computed(() => cart.totalPrice);
 // 收藏（店铺 = 渠道）：storeInfo 由 fetchStoreList 按 token 匹配后才有 channelId
 const favChannelId = computed(() => storeInfo.value?.channelId ?? null);
 const isFav = computed(() => favorites.isFavorite(favChannelId.value));
+
+// 起送价（后端配置单位为分）与满减凑单提示
+const minOrderFen = computed(() => {
+    const n = Number(storeInfo.value?.minOrderAmount);
+    return storeInfo.value?.minOrderAmount == null || !Number.isFinite(n) || n <= 0 ? null : Math.round(n);
+});
+const belowMinOrder = computed(() => !!cartCount.value && minOrderFen.value != null && cartTotal.value < minOrderFen.value);
+const minGapYuan = computed(() => (minOrderFen.value == null ? '' : yuan(minOrderFen.value - cartTotal.value)));
+const cartPromoText = computed(() => {
+    if (!cartCount.value) return '';
+    const hint = nextPromoHint(storeInfo.value?.promoText || promoText.value, cartTotal.value);
+    if (!hint) return '';
+    return hint.reached
+        ? locale.t('menu.promoReached').replace('{t}', yuan(hint.thresholdFen)).replace('{y}', yuan(hint.discountFen))
+        : locale.t('menu.promoGap').replace('{d}', yuan(hint.gapFen)).replace('{y}', yuan(hint.discountFen));
+});
+
+/** 商品收藏：任一 variant 已收藏即显示实心（多规格商品用首个 variant 作为代表） */
+function isGoodFav(g: any): boolean {
+    return (g.variants ?? []).some((v: any) => favorites.isVariantFavorite(v.id));
+}
+
+async function toggleGoodFav(g: any) {
+    const variants = g.variants ?? [];
+    if (!variants.length) return;
+    const recorded = variants.filter((v: any) => favorites.isVariantFavorite(v.id));
+    const willAdd = !recorded.length;
+    const channelId = favChannelId.value != null ? String(favChannelId.value) : undefined;
+    try {
+        if (willAdd) {
+            const target = variants[0];
+            await favorites.toggleVariant({
+                variantId: String(target.id),
+                channelId,
+                channelToken: shopToken.value,
+                productId: String(g.id),
+                name: g.name,
+                image: g.featuredAsset?.preview,
+                price: target?.priceWithTax,
+                storeName: shopName.value,
+            });
+        } else {
+            for (const v of recorded) {
+                await favorites.toggleVariant({ variantId: String(v.id), channelId });
+            }
+        }
+        uni.showToast({ title: willAdd ? locale.t('menu.favProductAddOk') : locale.t('menu.favProductRemoveOk'), icon: 'none' });
+    } catch {
+        uni.showToast({ title: locale.t('menu.favFail'), icon: 'none' });
+    }
+}
 
 async function toggleFav() {
     if (favChannelId.value == null) return;
@@ -315,6 +379,8 @@ onLoad(async (q: any) => {
     shopName.value = decodeURIComponent(q?.name ?? '') || locale.t('menu.defaultShop');
     routesText.value = routeText(shopRoutes.value.split(',').filter(Boolean));
     promoText.value = decodeURIComponent(q?.promo ?? '');
+    productQuery.value = decodeURIComponent(q?.q ?? '');
+    const pendingAdd = q?.add ? String(q.add) : '';
     // 常买店铺：首页会带 cid 直接记；直接进店时等 storeInfo 匹配到 channelId 再记（下方 then）
     const cid = q?.cid ? String(q.cid) : '';
     if (cid) {
@@ -338,6 +404,11 @@ onLoad(async (q: any) => {
         products.value = await fetchProductList();
         cats.value = buildCats(products.value);
         loadProductCoupons(goodsOf(activeCat.value));
+        // 首页「常买商品」点进来的 add 参数：加载完成后自动加购 1 件（仅消费一次）
+        if (pendingAdd) {
+            const ok = await doAddItem(pendingAdd, 1);
+            uni.showToast({ title: ok ? locale.t('menu.added') : locale.t('menu.addFail'), icon: 'none' });
+        }
     } catch (e: any) {
         // 切渠道失败（token 无效）→ 提示并返回首页
         uni.showToast({ title: locale.t('menu.shopNotFound'), icon: 'none' });
@@ -361,8 +432,14 @@ function buildCats(list: any[]) {
 }
 
 function goodsOf(catId: string) {
-    if (catId === 'all') return products.value;
-    return products.value.filter(p => p.collections?.some((c: any) => c.name === catId));
+    let list = catId === 'all' ? products.value : products.value.filter(p => p.collections?.some((c: any) => c.name === catId));
+    if (productQuery.value) list = list.filter(p => matchesProduct(p, productQuery.value));
+    return list;
+}
+
+function clearProductQuery() {
+    productQuery.value = '';
+    loadProductCoupons(goodsOf(activeCat.value));
 }
 
 // ===== 商品专属券 chip：按当前分类商品拉绑定，productId → 绑定（取首个启用项） =====
@@ -455,10 +532,16 @@ function callStore() {
 
 function goCheckout() {
     if (!cartCount.value) return;
+    if (belowMinOrder.value) {
+        uni.showToast({ title: locale.t('menu.minOrderGap').replace('{d}', minGapYuan.value), icon: 'none' });
+        return;
+    }
     const routes = encodeURIComponent(shopRoutes.value);
     const mo = storeInfo.value?.minOrderAmount ?? '';
     const fee = storeInfo.value?.deliveryFee ?? '';
-    uni.navigateTo({ url: `/pkg-order/pages/checkout?routes=${routes}&minOrder=${mo}&dfee=${fee}` });
+    const cid = favChannelId.value != null ? `&cid=${favChannelId.value}` : '';
+    const shop = `&shop=${encodeURIComponent(shopName.value)}`;
+    uni.navigateTo({ url: `/pkg-order/pages/checkout?routes=${routes}&minOrder=${mo}&dfee=${fee}${cid}${shop}` });
 }
 </script>
 
@@ -540,6 +623,12 @@ function goCheckout() {
 .good-coupon__action { font-size: 20rpx; color: #fff; background: #ff6600; border-radius: 4rpx; padding: 0 8rpx; }
 .add-btn { position: absolute; right: 0; bottom: 20rpx; min-width: 56rpx; height: 56rpx; border-radius: 999rpx; background: $brand; color: #fff; font-size: 36rpx; display: flex; align-items: center; justify-content: center; }
 .add-btn.spec { font-size: 22rpx; padding: 0 20rpx; font-weight: 600; }
+/* 商品收藏心标 + 搜索定位 chip（复用 --w-* 主题 token） */
+.good-fav { position: absolute; right: 0; top: 16rpx; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; font-size: 36rpx; color: var(--w-text-muted); }
+.good-fav.on { color: #ff4d6d; }
+.good-search { display: flex; align-items: center; gap: 12rpx; margin: 16rpx 0 0; padding: 10rpx 20rpx; background: var(--w-brand-soft); border-radius: 999rpx; }
+.good-search__txt { flex: 1; min-width: 0; font-size: 22rpx; color: var(--w-brand-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.good-search__x { font-size: 24rpx; color: var(--w-text-muted); padding: 0 8rpx; }
 .scroll-pad { height: 150rpx; }
 /* ── 评论 / 商家面板 ── */
 .solo { padding-bottom: 160rpx; box-sizing: border-box; }
@@ -587,6 +676,7 @@ function goCheckout() {
 .cart-total { flex: 1; padding-left: 20rpx; min-width: 0; }
 .empty-hint { font-size: 26rpx; color: rgba(255, 255, 255, 0.75); }
 .sum { display: block; font-size: 32rpx; font-weight: 600; color: #fff; }
+.cart-promo { display: block; font-size: 20rpx; color: #ffd08a; margin-top: 2rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .checkout-btn { background: $brand; color: #fff; border-radius: 999rpx; padding: 20rpx 44rpx; font-size: 26rpx; font-weight: 600; flex-shrink: 0; }
 .checkout-btn.disabled { opacity: 0.4; }
 </style>

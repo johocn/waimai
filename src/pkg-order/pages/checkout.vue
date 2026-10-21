@@ -223,6 +223,10 @@
         <text v-else>¥{{ shipDisplayYuan }}</text>
       </view>
       <view class="ship-free-hint" v-if="freeShipShortYuan">{{ $t('checkout.freeShipHint').replace('{a}', freeShipYuan).replace('{b}', freeShipShortYuan) }}</view>
+      <!-- 满减凑单提示：promoText 解析「满X减Y」，未达标给差额，已达标给优惠 -->
+      <view class="promo-hint" v-if="promoNotice">{{ promoNotice }}</view>
+      <!-- 起送价硬校验提示（提交会被阻断，后端 min-order process 兜底） -->
+      <view class="min-order-hint" v-if="belowMinOrder">{{ $t('checkout.minOrderGap').replace('{d}', minOrderGapYuan) }}</view>
       <view class="summary-row summary-row--coupon" @click="openCouponSheet">
         <text>{{ $t('checkout.couponTitle') }}</text>
         <text :class="{ 'coupon-val': attachedCoupon }">
@@ -298,6 +302,8 @@ import { filterCampusRoutes } from '../../utils/errand';
 import { pickDefaultCampusAddress, isValidCampusTarget } from '../../utils/profile-mapping';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
+import { useFavoritesStore } from '../../stores/favorites';
+import { nextPromoHint, yuan } from '../../utils/promo';
 import { getMyCoupons } from '../../api/queries/coupon';
 import { applyCouponToOrder, clearCouponFromOrder } from '../../api/mutations/coupon';
 import { estimateDiscountFen, pickBestCoupon, couponUnavailableReason, type CouponTemplateLike } from '../../utils/coupon-estimate';
@@ -310,6 +316,7 @@ const ui = useUIStore();
 const tenantStore = useTenantStore();
 const authStore = useAuthStore();
 const locale = useLocaleStore();
+const favorites = useFavoritesStore();
 const shippingMethods = ref<any[]>([]);
 const paymentMethods = ref<any[]>([]);
 const selectedShipping = ref('');
@@ -352,7 +359,10 @@ const zonesLoading = ref(false);
 const minOrderFen = ref<number | null>(null);   // 起送价（分，URL 透传；null=未配置）
 const deliveryFeeFen = ref<number | null>(null); // 配送费（分，仅展示）
 const freeShipFen = ref<number | null>(null);    // 满X元免配送费门槛（分；null/0=不启用，plan 3.2）
+const promoText = ref('');                       // 店铺满减活动文案（promoText，解析「满X减Y」）
 const defaultAddressSummary = ref('');           // 默认校园地址摘要（Task 10，可点击改选）
+// 店铺标识（menu 透传 cid/shop）：下单成功后写「常买商品」，并按渠道隔离记录
+const storeMeta = ref<{ channelId?: string; storeName?: string; channelToken?: string; routes?: string }>({});
 
 // checkout 可选路线（R1/R2/R3 保序）；R2 二期加入轮换
 const campusRouteOptions = computed(() => filterCampusRoutes(campusRoutes.value));
@@ -397,6 +407,11 @@ async function loadStoreRoutes() {
         const stores = await fetchStoreList();
         const store = stores.find((s: any) => s.channelToken === tenantStore.token);
         freeShipFen.value = store?.freeShippingThreshold ?? null;
+        promoText.value = store?.promoText ?? '';
+        // URL 未透传起送价时回填店铺配置（单位：分）
+        if (store?.minOrderAmount != null && minOrderFen.value == null) {
+            minOrderFen.value = Number(store.minOrderAmount);
+        }
         const routes = filterCampusRoutes(store?.routesEnabled);
         if (routes.length) {
             campusRoutes.value = routes;
@@ -433,6 +448,23 @@ async function chooseZone(z: any) {
         buildings.value = await fetchBuildings(z.id);
         if (buildings.value.length) buildingId.value = buildings.value[0].id;
     } catch (e) { buildings.value = []; }
+    saveTargetOptions();
+}
+
+// ── 配送楼栋本地偏好（首页快捷切换用；zone/building 仍须属于当前店铺才生效） ──
+function readLocalJSON(key: string): any {
+    try {
+        const raw = uni.getStorageSync(key);
+        if (!raw) return null;
+        return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch { return null; }
+}
+
+function saveTargetOptions() {
+    uni.setStorageSync('delivery_target_options', JSON.stringify({
+        zones: zones.value.map((z: any) => ({ id: String(z.id), name: z.name })),
+        buildings: buildings.value.map((b: any) => ({ id: String(b.id), name: b.name, zoneId: String(zoneId.value) })),
+    }));
 }
 
 async function loadCampusData() {
@@ -440,12 +472,18 @@ async function loadCampusData() {
     try {
         zones.value = await fetchZones();
         if (zones.value.length) {
-            // Task 10：默认校园地址预选——命中当前店铺分区时，初始选中从 zones[0] 切到默认地址的 zone/building
-            const hit = await applyDefaultAddress();
-            const target = (hit && zones.value.find((z: any) => String(z.id) === String(hit.zoneId))) || zones.value[0];
+            // 预选优先级：本地最近选的楼栋（命中本店配置）→ 默认校园地址 → 第一分区/首楼
+            const local = readLocalJSON('delivery_target');
+            const localZone = local?.zoneId
+                ? zones.value.find((z: any) => String(z.id) === String(local.zoneId))
+                : null;
+            const hit = localZone
+                ? { zoneId: String(local.zoneId), buildingId: String(local.buildingId ?? '') }
+                : await applyDefaultAddress();
+            const target = localZone || zones.value[0];
             await chooseZone(target);
             if (hit && buildings.value.some((b: any) => String(b.id) === String(hit.buildingId))) {
-                buildingId.value = hit.buildingId; // chooseZone 默认选首楼，纠正回默认地址楼栋
+                buildingId.value = hit.buildingId; // chooseZone 默认选首楼，纠正回偏好/默认地址楼栋
             }
         }
         slots.value = await fetchSlots();
@@ -469,6 +507,17 @@ async function saveCampusTarget(): Promise<boolean> {
         route: routeChoice.value,
         slotId: slotId.value ? Number(slotId.value) : undefined,
     });
+    // 落本地偏好：首页「当前配送楼栋」条与快捷切换复用
+    const zone = zones.value.find((z: any) => String(z.id) === String(zoneId.value));
+    const building = buildings.value.find((b: any) => String(b.id) === String(buildingId.value));
+    uni.setStorageSync('delivery_target', JSON.stringify({
+        zoneId: String(zoneId.value),
+        zoneName: zone?.name ?? '',
+        buildingId: String(buildingId.value),
+        buildingName: building?.name ?? '',
+        at: Date.now(),
+    }));
+    saveTargetOptions();
     return true;
 }
 
@@ -484,6 +533,17 @@ const selectedZoneFeeFen = computed(() => {
     return z ? Number(z.fee) : null;   // 分区运费（campusZones 出价，提交前预估口径）
 });
 const goodsFen = computed(() => cart.order?.subTotalWithTax || 0);
+// 起送价硬拦截：未达标禁止提交（后端 campusMinOrderProcess 兜底同口径）
+const belowMinOrder = computed(() => activeTab.value === 'campus' && minOrderFen.value != null && goodsFen.value < minOrderFen.value);
+const minOrderGapYuan = computed(() => (minOrderFen.value == null ? '0' : yuan(minOrderFen.value - goodsFen.value)));
+// 满减凑单提示（解析 store.promoText）
+const promoNotice = computed(() => {
+    const hint = nextPromoHint(promoText.value, goodsFen.value);
+    if (!hint) return '';
+    return hint.reached
+        ? locale.t('checkout.promoReached').replace('{t}', yuan(hint.thresholdFen)).replace('{y}', yuan(hint.discountFen))
+        : locale.t('checkout.promoGap').replace('{d}', yuan(hint.gapFen)).replace('{y}', yuan(hint.discountFen));
+});
 const freeShipOn = computed(() =>
     campusRouteSel.value && freeShipFen.value != null && freeShipFen.value > 0
     && goodsFen.value >= freeShipFen.value);
@@ -1044,10 +1104,16 @@ async function payCurrentOrder(method: string): Promise<{ code: string; status: 
 
 async function submitOrder() {
     if (submitting.value) return;
-    // 起送价软校验：未达标仅 toast 提示，不阻断（硬校验二期后端化）
-    if (activeTab.value === 'campus' && minOrderFen.value != null
-        && (cart.order?.subTotalWithTax || 0) < minOrderFen.value) {
-        ui.showToast(locale.t('checkout.minOrderWarn').replace('{c}', (minOrderFen.value / 100).toFixed(2)));
+    // 起送价硬拦截：未达标弹窗阻断（后端 min-order 硬校验同口径兜底）
+    if (belowMinOrder.value) {
+        uni.showModal({
+            title: locale.t('checkout.minOrderBlockTitle'),
+            content: locale.t('checkout.minOrderGap').replace('{d}', minOrderGapYuan.value),
+            confirmText: locale.t('checkout.goAddMore'),
+            cancelText: locale.t('checkout.thinkAgain'),
+            success: (r) => { if (r.confirm) uni.navigateBack(); },
+        });
+        return;
     }
     submitting.value = true;
     try {
@@ -1061,10 +1127,33 @@ async function submitOrder() {
         const pay = await payCurrentOrder(selectedPayment.value);
         // fail = 支付未完成（取消/失败/addPaymentToOrder 报错），不得伪装成功
         if (pay.status === 'fail' || !pay.code) { ui.showToast(locale.t('checkout.payIncomplete')); return; }
+        recordRecentItems();
         uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(pay.code)}&status=${pay.status}` });
     } catch (e: any) { ui.showToast(e?.response?.errors?.[0]?.message || e.message); }
     ui.hideLoading();
     submitting.value = false;
+}
+
+/** 下单成功（含已调起待回调）：把本单商品写入「常买商品」，首页可一键加购 */
+function recordRecentItems() {
+    const lines = cart.order?.lines ?? [];
+    const channelToken = storeMeta.value.channelToken || tenantStore.token || '';
+    if (!channelToken) return;
+    for (const line of lines) {
+        const v = line.productVariant;
+        if (!v?.id) continue;
+        favorites.touchRecentItem({
+            channelId: storeMeta.value.channelId,
+            channelToken,
+            variantId: String(v.id),
+            productId: v.productId != null ? String(v.productId) : undefined,
+            name: v.name,
+            price: Number(line.unitPriceWithTax ?? v.priceWithTax ?? 0),
+            image: v.featuredAsset?.preview,
+            storeName: storeMeta.value.storeName,
+            routes: storeMeta.value.routes,
+        });
+    }
 }
 
 // 页面参数：店铺 routesEnabled 透传（menu→checkout，决定校园配送 Tab 路线判定/切换）
@@ -1074,6 +1163,12 @@ onLoad((q: any) => {
     if (!routes.includes('R3') && routes.includes('R1')) routeChoice.value = 'R1';
     minOrderFen.value = q?.minOrder ? Number(q.minOrder) : null;
     deliveryFeeFen.value = q?.dfee ? Number(q.dfee) : null;
+    storeMeta.value = {
+        channelId: q?.cid ? String(q.cid) : undefined,
+        storeName: q?.shop ? decodeURIComponent(String(q.shop)) : undefined,
+        channelToken: tenantStore.token || '',
+        routes: routes.join(','),
+    };
     // 「去使用」预挂券（my-coupons 写入）：购物车就绪后消费（onMounted consumePrefillCoupon）
     prefillCouponCode.value = String(uni.getStorageSync('checkout_prefill_coupon') || '');
     loadStoreRoutes();
@@ -1105,6 +1200,8 @@ onLoad((q: any) => {
 .ship-orig { color: $text-color-placeholder; text-decoration: line-through; font-size: 24rpx; margin-right: 8rpx; }
 .ship-tag { margin-left: 12rpx; font-size: 20rpx; color: $brand-color; background: $brand-color-light; border-radius: 6rpx; padding: 2rpx 10rpx; }
 .ship-free-hint { padding: 4rpx 0 8rpx; font-size: 22rpx; color: $brand-color; }
+.promo-hint { padding: 4rpx 0 8rpx; font-size: 22rpx; color: $price-color; }
+.min-order-hint { padding: 8rpx 16rpx; margin: 4rpx 0 8rpx; font-size: 22rpx; color: #d93025; background: #fdecea; border-radius: $radius-sm; }
 .checkout-page__submit { position: fixed; left: 20rpx; right: 20rpx; bottom: calc(20rpx + env(safe-area-inset-bottom)); height: 88rpx; line-height: 88rpx; background: $brand-color; color: #fff; font-size: 30rpx; border-radius: 999rpx; border: none; &[disabled] { opacity: 0.6; } }
 // ===== 校园配送面板 =====
 .campus-empty { text-align: center; padding: 30rpx 0; color: $text-color-secondary; font-size: 26rpx; &__hint { display: block; font-size: 22rpx; color: $text-color-placeholder; margin-top: 8rpx; } }

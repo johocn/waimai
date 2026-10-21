@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import {
     jianghuDailyRank,
+    jianghuDemands,
     jianghuEventContent,
     jianghuEventCurrent,
     jianghuEventDetail,
@@ -9,13 +10,19 @@ import {
     jianghuIntelMarket,
     jianghuProfile,
     jianghuRankLadder,
+    jianghuStory,
     jianghuTaskDetail,
-    jianghuMyRecords
+    jianghuMyRecords,
+    jianghuVoices
 } from '../api/queries/jianghu';
-import { jianghuCollectClue, jianghuReleaseTask, jianghuResetDemo, jianghuSubmitRumor, jianghuTakeTask, jianghuUnlockIntel, jianghuVerify } from '../api/mutations/jianghu';
+import { jianghuAdoptVoice, jianghuCollectClue, jianghuDeadDropDeliver, jianghuDeadDropFastForward, jianghuDeadDropInspect, jianghuDeadDropPickup, jianghuDeadDropPlace, jianghuDeadDropReset, jianghuReleaseTask, jianghuResetDemo, jianghuSubmitRumor, jianghuSubmitVoice, jianghuTakeTask, jianghuUnlockIntel, jianghuVerify } from '../api/mutations/jianghu';
 import type {
     ClueInput,
+    DeadDropMarker,
+    JianghuChapter,
     JianghuClue,
+    JianghuDeadDrop,
+    JianghuDemand,
     JianghuEvent,
     JianghuEventContent,
     JianghuEventDetail,
@@ -26,7 +33,9 @@ import type {
     JianghuTask,
     JianghuVerifyResult,
     RankTier,
-    RumorInput
+    RumorInput,
+    VoiceInput,
+    JianghuVoice
 } from '../types/jianghu';
 import { jianghuListClues } from '../api/admin/jianghu';
 
@@ -51,6 +60,15 @@ export const useJianghuStore = defineStore('jianghu', () => {
     const eventClues = ref<JianghuClue[]>([]);
     /** 当前查看中的密信（详情页用） */
     const currentTask = ref<JianghuTask | null>(null);
+    /** 江湖志章节（按段位门槛解锁） */
+    const chapters = ref<JianghuChapter[]>([]);
+    /** 玩家心声流 */
+    const voices = ref<JianghuVoice[]>([]);
+    /** 沉淀的客户需求 */
+    const demands = ref<JianghuDemand[]>([]);
+    /** 死信箱（虚拟暗点投递）当前暗点 + 当前（快进后）时钟 */
+    const deadDrop = ref<JianghuDeadDrop | null>(null);
+    const ddNowIso = ref<string>(new Date().toISOString());
     const loading = ref(false);
     /** 骑手最近一次定位（用于大厅 distanceKm）；拿不到则留空，距离态隐藏 */
     const location = ref<{ lat: number; lng: number } | null>(null);
@@ -174,6 +192,14 @@ export const useJianghuStore = defineStore('jianghu', () => {
         event.value = await jianghuEventCurrent().catch(() => null);
     }
 
+    /** 江湖志：章节 + 玩家心声 + 沉淀需求 一并拉取 */
+    async function loadStory() {
+        const [ch, vs, ds] = await Promise.all([jianghuStory(), jianghuVoices(), jianghuDemands()]);
+        chapters.value = ch;
+        voices.value = vs;
+        demands.value = ds;
+    }
+
     async function loadEventDetail() {
         eventDetail.value = await jianghuEventDetail().catch(() => null);
         // 文案源（Strapi）与实体内联文案并行拉取；文案源为空时前端回退到实体字段
@@ -247,6 +273,65 @@ export const useJianghuStore = defineStore('jianghu', () => {
         return res;
     }
 
+    /** 提交玩家心声（期待 / 玩法 / 建议），落库后刷新江湖志 */
+    async function submitVoice(input: VoiceInput) {
+        const res = await jianghuSubmitVoice(input);
+        await loadStory();
+        return res;
+    }
+
+    /** 运营采纳心声，沉淀为需求 */
+    async function adoptVoice(id: string) {
+        await jianghuAdoptVoice(id);
+        await loadStory();
+    }
+
+    /* ── 死信箱（虚拟暗点投递） ── */
+    /** 查看暗点 + 同步当前时钟（阶段由服务端时间锁裁决，前端只渲染） */
+    async function loadDeadDrop() {
+        const r = await jianghuDeadDropInspect();
+        deadDrop.value = r.drop;
+        ddNowIso.value = r.nowIso;
+    }
+
+    /** 投放情报（自动加密，明文不回传前端） */
+    async function placeDeadDrop(input: { topic: string; plainText: string; marker: DeadDropMarker }) {
+        const d = await jianghuDeadDropPlace(input);
+        deadDrop.value = d;
+        await loadProfile();
+        return d;
+    }
+
+    /** 上线错时取件，取走后明文下发并结算声望 */
+    async function pickupDeadDrop() {
+        const r = await jianghuDeadDropPickup();
+        deadDrop.value = r.drop;
+        await loadProfile();
+        return r;
+    }
+
+    /** 取件后情报流转至交通站 → 总舵核验 */
+    async function deliverDeadDrop() {
+        const r = await jianghuDeadDropDeliver();
+        await loadProfile();
+        return r;
+    }
+
+    /** 演示用时间快进（分钟） */
+    async function fastForwardDeadDrop(min: number) {
+        const r = await jianghuDeadDropFastForward(min);
+        deadDrop.value = r.drop;
+        ddNowIso.value = r.nowIso;
+        return r;
+    }
+
+    /** 重置暗点（清空当前暗点） */
+    async function resetDeadDrop() {
+        await jianghuDeadDropReset();
+        deadDrop.value = null;
+        ddNowIso.value = new Date().toISOString();
+    }
+
     async function unlockIntel(intelId: string) {
         const it = await jianghuUnlockIntel(intelId);
         await loadMarket();
@@ -280,9 +365,9 @@ export const useJianghuStore = defineStore('jianghu', () => {
     }
 
     return {
-        profile, ladder, tasks, bounties, market, records, rankRows, event, eventDetail, eventContent, eventClues, currentTask, loading, location,
+        profile, ladder, tasks, bounties, market, records, rankRows, event, eventDetail, eventContent, eventClues, currentTask, chapters, voices, demands, deadDrop, ddNowIso, loading, location,
         currentTier, nextTier, prevTier, progressPct, gapRep, etaDays, frozen, frozenReason,
-        ensureLocation, restoreCache, loadProfile, loadLadder, loadHall, loadBounties, loadMarket, loadEvent, loadEventDetail, loadEventClues, collectClue, loadRecords, loadRankRows, loadAll,
-        openTask, takeTask, releaseTask, verify, submitRumor, unlockIntel, reset, resetDemo
+        ensureLocation, restoreCache, loadProfile, loadLadder, loadHall, loadBounties, loadMarket, loadEvent, loadEventDetail, loadEventClues, collectClue, loadRecords, loadRankRows, loadAll, loadStory, loadDeadDrop,
+        openTask, takeTask, releaseTask, verify, submitRumor, submitVoice, adoptVoice, unlockIntel, reset, resetDemo, placeDeadDrop, pickupDeadDrop, deliverDeadDrop, fastForwardDeadDrop, resetDeadDrop
     };
 });

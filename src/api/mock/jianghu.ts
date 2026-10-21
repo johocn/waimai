@@ -10,7 +10,13 @@
  */
 import type {
     ClueInput,
+    DeadDropMarker,
+    DeadDropPhase,
+    DeadDropPlaceInput,
+    JianghuChapter,
     JianghuClue,
+    JianghuDeadDrop,
+    JianghuDemand,
     JianghuEvent,
     JianghuEventContent,
     JianghuEventDetail,
@@ -23,8 +29,10 @@ import type {
     JianghuTask,
     JianghuTaskType,
     JianghuVerifyResult,
+    JianghuVoice,
     RankTier,
-    RumorInput
+    RumorInput,
+    VoiceInput
 } from '../../types/jianghu';
 
 /** 九级段位（与后端 JianghuRankConfig 保持一致，真实环境由 jianghuRankLadder 下发） */
@@ -74,9 +82,9 @@ const state = {
     } as JianghuProfile,
 
     tasks: [
-        { id: 't1', type: 'LETTER', level: 'SECRET', title: '老槐树下的第三次叩门', brief: '密文待启封', plainText: '今夜子时，东门老槐树下，有人等你', campusCode: 'EAST', buildingCode: '文渊阁', targetNick: '柳三眠', targetBuilding: '文渊阁三层东侧', rewardRep: 60, verifyMode: 'CODE', status: 'OPEN', distanceKm: 1.2, expireInSec: 8040 },
+        { id: 't1', type: 'LETTER', level: 'SECRET', title: '老槐树下的第三次叩门', brief: '密文待启封', plainText: '今夜子时，东门老槐树下，有人等你', campusCode: 'EAST', buildingCode: '文渊阁', targetNick: '柳三眠', targetBuilding: '文渊阁三层东侧', rewardRep: 60, verifyMode: 'CODE', status: 'OPEN', distanceKm: 1.2, expireInSec: 8040, storyRef: 'ch2' },
         { id: 't2', type: 'LETTER', level: 'URGENT', title: '南门豆浆已凉', brief: '密文待启封', plainText: '豆浆凉了，趁热的人还在等你一句话', campusCode: 'EAST', buildingCode: '6 号楼阁', targetNick: '阿七', targetBuilding: '6 号楼阁一层', rewardRep: 25, verifyMode: 'ORDER_BIND', boundOrderId: 'ORD-20871', status: 'OPEN', distanceKm: 0.4, expireInSec: 1680 },
-        { id: 't3', type: 'LETTER', level: 'NORMAL', title: '把这句话带给我同桌', brief: '密文待启封', plainText: '明天的课，我替你点名', campusCode: 'EAST', buildingCode: '二教 305', targetNick: '青禾', targetBuilding: '二教 305', rewardRep: 10, verifyMode: 'CODE', status: 'OPEN', distanceKm: 0.6, expireInSec: 3120 },
+        { id: 't3', type: 'LETTER', level: 'NORMAL', title: '把这句话带给我同桌', brief: '密文待启封', plainText: '明天的课，我替你点名', campusCode: 'EAST', buildingCode: '二教 305', targetNick: '青禾', targetBuilding: '二教 305', rewardRep: 10, verifyMode: 'CODE', status: 'OPEN', distanceKm: 0.6, expireInSec: 3120, storyRef: 'ch2' },
         { id: 't4', type: 'LETTER', level: 'URGENT', title: '图书馆四楼有人等你', brief: '密文待启封', plainText: '书在四楼，人在窗边', campusCode: 'EAST', buildingCode: '图书馆', targetNick: '墨羽小舟', targetBuilding: '图书馆四层窗边', rewardRep: 25, verifyMode: 'CODE', status: 'OPEN', distanceKm: 0.9, expireInSec: 2460 },
         { id: 't5', type: 'LETTER', level: 'NORMAL', title: '社团招新的暗号', brief: '密文待启封', plainText: '报名表藏在最后一页', campusCode: 'EAST', buildingCode: '大礼堂', targetNick: '一苇', targetBuilding: '大礼堂前厅', rewardRep: 10, verifyMode: 'CODE', status: 'OPEN', distanceKm: 1.5, expireInSec: 4800 }
     ] as JianghuTask[],
@@ -110,7 +118,91 @@ const state = {
         { id: 'c2', eventId: 'e1', customerId: 'u3', nickname: '墨羽小舟', content: '二教公告栏贴着半张残信，墨迹未干，落款是一枚朱砂印记。', sourceNote: '二教公告栏', campusCode: 'EAST', likes: 2, status: 'SHOWN', createdAt: '2026-10-08T20:40:00+08:00' },
         { id: 'c3', eventId: 'e1', customerId: 'u4', nickname: '一苇渡江', content: '食堂后门今夜提前落锁，但排水窗未关，风里有桂花酿的气味。', sourceNote: '食堂后门', campusCode: 'EAST', likes: 1, status: 'SHOWN', createdAt: '2026-10-08T21:05:00+08:00' },
         { id: 'c4', eventId: 'e1', customerId: 'u5', nickname: '城南快脚', content: '图书馆四楼出借登记簿上，有一笔被人用指甲划掉的名字。', sourceNote: '图书馆四楼登记簿', campusCode: 'EAST', likes: 2, status: 'SHOWN', createdAt: '2026-10-08T21:30:00+08:00' }
-    ] as JianghuClue[]
+    ] as JianghuClue[],
+
+    /* 江湖志：以段位为解锁门槛的剧情线，渐进交代设计目的与玩法（不强制切入） */
+    chapters: [
+        {
+            no: 1, id: 'ch1', title: '入江湖 · 第一封密信', unlockRank: 'L1', unlockRankName: '布衣闲人',
+            subtitle: '为什么外卖骑手要有一个「江湖」？',
+            paragraphs: [
+                '你接的第一单，也许是份还冒着热气的麻辣烫。但总有些东西，外卖盒装不下——一句想当面说出口的话，一张不便落字的纸条。',
+                '「拾光传信者」把跑腿包装成有温度的「传信江湖」：你送的每一封密信，背后都是一个真实同学的牵挂。设计目的很朴素——让履约不再只是跑腿，而是一段被人记得的相遇。',
+                '玩法：在「江湖密信」里接信 → 找到收信人 → 当面说出密语 → 双向暗号核销。声望随之累积，段位从布衣一路走向百晓生。'
+            ],
+            takeaway: '设计目的：用「传信」叙事提升骑手履约幸福感与留存；声望只记荣誉，永不兑现金。',
+            foreshadow: '师傅在卷二等你：密语背后，是一个个有名字的人。'
+        },
+        {
+            no: 2, id: 'ch2', title: '青羽信童 · 密语背后', unlockRank: 'L3', unlockRankName: '青羽信童',
+            subtitle: '收信人，都是真实来去的同学',
+            paragraphs: [
+                '青禾、阿七、柳三眠……你在密信里见过的名字，都是园区里真实来去的同学。密语只可当面口述，是为了把「温度」留在相遇里。',
+                '你接过的「老槐树下的第三次叩门」，收信人正是柳三眠——她总在文渊阁三层东侧窗边等人。这一章，江湖开始有了熟悉的脸。'
+            ],
+            takeaway: '玩法提示：收信人只显示楼阁与代号，绝不暴露真实姓名与具体位置，合规且安全。',
+            foreshadow: '到了墨羽信使，你会带教新人——江湖不止你一个人在跑。'
+        },
+        {
+            no: 3, id: 'ch3', title: '疾影信使 · 带教', unlockRank: 'L5', unlockRankName: '疾影信使',
+            subtitle: '一个人跑，不如一队人传',
+            paragraphs: [
+                '疾影信使的标志，是「可发江湖召集令、师徒系统开启」。你带的第一个新人，会从布衣走到见习——这段路你刚走过。',
+                '带教不是任务，是把「传信的温度」传下去。真实环境里，每带成 1 名 L2，师者得一份现实权益（如提现手续费折扣）。'
+            ],
+            takeaway: '玩法提示：师徒是留存飞轮——新人越快上手，你越受益。',
+            foreshadow: '再往上，你的一线观察能变成「情报」，反哺整个园区。'
+        },
+        {
+            no: 4, id: 'ch4', title: '飞鸿驿丞 · 情报阁', unlockRank: 'L6', unlockRankName: '飞鸿驿丞',
+            subtitle: '把一线观察，变成同学用得上的情报',
+            paragraphs: [
+                '飞鸿驿丞解锁「情报阁」：你跑腿时看见的——三食堂新窗口、图书馆空座、社团彩排时间——都能写成情报，挂上集市。',
+                '这就是虚实双轨的闭环：真实配送产生观察，观察沉淀为情报，情报反哺同学。声望之外，你攒的是「百晓」的名声。'
+            ],
+            takeaway: '设计目的：情报是骑手一线视角的产品化，让配送数据有了人情味。',
+            foreshadow: '等你成了「包打听」，江湖事件会请你出手拼图。'
+        },
+        {
+            no: 5, id: 'ch5', title: '包打听 · 江湖事件', unlockRank: 'L7', unlockRankName: '包打听',
+            subtitle: '多人拼图，集齐线索解锁大案',
+            paragraphs: [
+                '「书院异动」正在发生：六条线索散落各处，需四名以上传信者分头搜集。你已见过的 c1~c4 就是其中四条，还差两条由「你」补齐。',
+                '江湖事件把单机传信升级成协作叙事——这也是 P2 的重点方向。'
+            ],
+            takeaway: '玩法提示：事件线索需实地观察 + 来源留痕，拼图完成均分声望池。',
+            foreshadow: '更高处，传信者能结盟、共创内容——江湖由你写。'
+        },
+        {
+            no: 6, id: 'ch6', title: '百晓生 · 内容共创', unlockRank: 'L9', unlockRankName: '百晓生',
+            subtitle: '玩家心声，就是江湖的下一卷',
+            paragraphs: [
+                '百晓生不是终点，而是「由玩家共建」的起点。你在本页留下的期待、玩法、建议，会被沉淀为需求池，写进未来的版本。',
+                '比如「师徒奖励想兑实物」「情报想覆盖更多校区」「密信想要剧情分支」——这些都来自真实心声，是江湖要走的方向。'
+            ],
+            takeaway: '设计目的闭环：玩家心声 → 沉淀需求 → 未来游戏发展方向。',
+            foreshadow: '下一卷，由你提笔。'
+        }
+    ] as JianghuChapter[],
+
+    /* 玩家心声（期待 / 玩法 / 建议），其中部分已沉淀为需求 */
+    voices: [
+        { id: 'v0', kind: 'SUGGEST', kindText: '建议', content: '希望能在江湖志里看到自己带教新人的进度', createdAt: '2026-10-07T19:20:00+08:00', precipitated: true },
+        { id: 'v1', kind: 'EXPECT', kindText: '期待', content: '绝密卷宗能不能有更复杂的谜面，像真在解密', createdAt: '2026-10-08T10:05:00+08:00', precipitated: false }
+    ] as JianghuVoice[],
+
+    /* 沉淀的客户需求：玩家心声聚合 → 未来游戏发展方向 */
+    demands: [
+        { id: 'd1', text: '师徒奖励希望可兑换实物周边（贴纸 / 挂绳）', votes: 38, tag: '权益' },
+        { id: 'd2', text: '情报希望覆盖更多校区与夜宵时段', votes: 27, tag: '情报' },
+        { id: 'd3', text: '密信想要剧情分支选择，影响声望走向', votes: 21, tag: '剧情' },
+        { id: 'd4', text: '江湖活动希望有线下见面 / 同城局', votes: 19, tag: '活动' },
+        { id: 'd5', text: '暗号希望更有江湖设定（诗谜 / 手势）', votes: 15, tag: '玩法' }
+    ] as JianghuDemand[],
+
+    /** 死信箱（虚拟暗点投递） demo 态：当前暗点 + 演示时间快进（分钟） */
+    deadDrop: null as JianghuDeadDrop | null,
+    clockOffsetMin: 0
 };
 
 /* ────────────────── 持久化（演示态落本地存储，刷新不丢） ────────────────── */
@@ -129,7 +221,7 @@ function hydrate() {
     try {
         const saved = (uni as any).getStorageSync(STORAGE_KEY);
         if (saved && typeof saved === 'object') {
-            for (const k of ['profile', 'tasks', 'records', 'bounties', 'market', 'event', 'clues'] as const) {
+            for (const k of ['profile', 'tasks', 'records', 'bounties', 'market', 'event', 'clues', 'chapters', 'voices', 'demands', 'deadDrop', 'clockOffsetMin'] as const) {
                 if (saved[k] !== undefined) (state as any)[k] = saved[k];
             }
         }
@@ -203,6 +295,24 @@ export async function jianghuIntelMarket(): Promise<JianghuIntel[]> {
 export async function jianghuEventCurrent(): Promise<JianghuEvent> {
     await delay(150);
     return clone(state.event);
+}
+
+/** 江湖志：全部章节（前端按当前段位门槛决定解锁/锁定） */
+export async function jianghuStory(): Promise<JianghuChapter[]> {
+    await delay(150);
+    return clone(state.chapters);
+}
+
+/** 玩家心声流（期待 / 玩法 / 建议） */
+export async function jianghuVoices(): Promise<JianghuVoice[]> {
+    await delay(120);
+    return clone(state.voices);
+}
+
+/** 沉淀的客户需求（玩家心声聚合 → 未来方向） */
+export async function jianghuDemands(): Promise<JianghuDemand[]> {
+    await delay(120);
+    return clone(state.demands);
 }
 
 /**
@@ -469,6 +579,41 @@ export async function jianghuSubmitRumor(input: RumorInput): Promise<{ id: strin
     return { id: 'rm' + Date.now(), status: 'PENDING' };
 }
 
+const VOICE_KIND_TEXT: Record<VoiceKind, string> = { EXPECT: '期待', PLAY: '玩法', SUGGEST: '建议' };
+
+/** 玩家心声：期待 / 玩法 / 建议，提交后进入心声流，可沉淀为需求 */
+export async function jianghuSubmitVoice(input: VoiceInput): Promise<{ id: string }> {
+    await delay(300);
+    if (!input.content || input.content.trim().length < 2) throw new Error('请至少写两个字');
+    const id = 'v' + Date.now();
+    state.voices.unshift({
+        id,
+        kind: input.kind,
+        kindText: VOICE_KIND_TEXT[input.kind] || '建议',
+        content: input.content.trim(),
+        createdAt: new Date().toISOString(),
+        precipitated: false
+    });
+    persist();
+    return { id };
+}
+
+/** 运营采纳某条心声，沉淀为需求（同向措辞自动合并票数，否则新增） */
+export async function jianghuAdoptVoice(id: string): Promise<JianghuDemand> {
+    await delay(200);
+    const v = state.voices.find((x) => x.id === id);
+    if (!v) throw new Error('心声不存在');
+    v.precipitated = true;
+    const exist = state.demands.find((d) => d.text === v.content);
+    if (exist) {
+        exist.votes += 1;
+    } else {
+        state.demands.push({ id: 'd' + Date.now(), text: v.content, votes: 1, tag: v.kindText });
+    }
+    persist();
+    return exist || state.demands[state.demands.length - 1];
+}
+
 export async function jianghuUnlockIntel(intelId: string): Promise<JianghuIntel> {
     await delay(280);
     const it = state.market.find((x) => x.id === intelId);
@@ -477,4 +622,118 @@ export async function jianghuUnlockIntel(intelId: string): Promise<JianghuIntel>
     state.profile.intel = Math.max(0, state.profile.intel - it.priceIntel);
     persist();
     return clone(it);
+}
+
+/* ────────────────── 死信箱（虚拟暗点投递） demo ────────────────── */
+const MARKER_TEXT: Record<DeadDropMarker, string> = { E: '石子朝东', W: '石子朝西', S: '石子朝南', N: '石子朝北' };
+const DD_PICKABLE_DELAY_MS = 2 * 60_000;   // 投放后 2 分钟才到可取窗（演示用，真实更长）
+const DD_WINDOW_MS = 30 * 60_000;          // 可取窗 30 分钟，超时巡查截获
+
+/** 模拟 AES：仅用于演示「未解密只见密文」，非真实加密（真实环境后端 AES 落库，明文不落前端） */
+function fakeCipher(plain: string): string {
+    try {
+        return 'AES·' + btoa(unescape(encodeURIComponent('密封·' + plain + '·封')));
+    } catch {
+        return 'AES·' + Buffer.from('密封·' + plain + '·封').toString('base64');
+    }
+}
+function fakeDecipher(cipher: string): string {
+    const body = cipher.replace(/^AES·/, '');
+    try {
+        return decodeURIComponent(escape(atob(body))).replace(/^密封·/, '').replace(/·封$/, '');
+    } catch {
+        return '（密文已损坏）';
+    }
+}
+
+function effectiveNow(): number {
+    return Date.now() + state.clockOffsetMin * 60_000;
+}
+
+/** 依据时钟重算阶段；PICKED / SEIZED 为终态，不再回退 */
+function recomputeDeadDrop(d: JianghuDeadDrop): JianghuDeadDrop {
+    if (d.phase === 'PICKED' || d.phase === 'SEIZED') return d;
+    const now = effectiveNow();
+    const from = new Date(d.pickableFrom).getTime();
+    const to = new Date(d.pickableTo).getTime();
+    let phase: DeadDropPhase = 'PLACED';
+    if (now >= to) phase = 'SEIZED';
+    else if (now >= from) phase = 'PICKABLE';
+    return { ...d, phase };
+}
+
+/** 查看暗点：返回当前暗点 + 当前（快进后的）时钟 */
+export async function jianghuDeadDropInspect(): Promise<{ drop: JianghuDeadDrop | null; nowIso: string }> {
+    await delay(60);
+    const d = state.deadDrop ? recomputeDeadDrop(state.deadDrop) : null;
+    if (d) state.deadDrop = d; // 固化阶段，避免回退
+    persist();
+    return { drop: d ? clone(d) : null, nowIso: new Date(effectiveNow()).toISOString() };
+}
+
+/** 投放情报：自动加密、记录标记与可取窗口，投放后玩家不可再查看明文 */
+export async function jianghuDeadDropPlace(input: DeadDropPlaceInput): Promise<JianghuDeadDrop> {
+    await delay(320);
+    if (!input.topic?.trim()) throw new Error('请填写情报主题');
+    if (!input.plainText?.trim()) throw new Error('请录入情报原文');
+    const now = effectiveNow();
+    const drop: JianghuDeadDrop = {
+        id: 'dd' + Date.now(),
+        topic: input.topic.trim(),
+        cipher: fakeCipher(input.plainText.trim()),
+        marker: input.marker,
+        markerText: MARKER_TEXT[input.marker],
+        placedAt: new Date(now).toISOString(),
+        pickableFrom: new Date(now + DD_PICKABLE_DELAY_MS).toISOString(),
+        pickableTo: new Date(now + DD_PICKABLE_DELAY_MS + DD_WINDOW_MS).toISOString(),
+        phase: 'PLACED'
+    };
+    state.deadDrop = drop;
+    persist();
+    return clone(drop);
+}
+
+/** 上线错时取件：仅在 PICKABLE 可取，取走后明文下发，取件人声望 + */
+export async function jianghuDeadDropPickup(): Promise<{ drop: JianghuDeadDrop; plainText: string; rewardRep: number }> {
+    await delay(320);
+    const d = state.deadDrop ? recomputeDeadDrop(state.deadDrop) : null;
+    if (!d) throw new Error('暗点空空如也');
+    if (d.phase !== 'PICKABLE') throw new Error('尚不可取件（未到可取窗口或已失效）');
+    const upd: JianghuDeadDrop = { ...d, phase: 'PICKED', pickedBy: '上线·云中君' };
+    state.deadDrop = upd;
+    const rewardRep = 18;
+    state.profile.rep += rewardRep;
+    state.profile.repToday = Math.min(state.profile.repDailyCap, state.profile.repToday + rewardRep);
+    persist();
+    return { drop: clone(upd), plainText: fakeDecipher(d.cipher), rewardRep };
+}
+
+/** 取件后情报流转至交通站 → 总舵译信核验，投放人与取件人双方声望入账 */
+export async function jianghuDeadDropDeliver(): Promise<{ rewardRep: number }> {
+    await delay(320);
+    const d = state.deadDrop;
+    if (!d || d.phase !== 'PICKED') throw new Error('情报尚未取走，无法流转');
+    const rewardRep = 22;
+    state.profile.rep += rewardRep;
+    state.profile.repToday = Math.min(state.profile.repDailyCap, state.profile.repToday + rewardRep);
+    persist();
+    return { rewardRep };
+}
+
+/** 演示用时间快进（分钟）：让单人即可体验错时取件 / 超时截获 */
+export async function jianghuDeadDropFastForward(min: number): Promise<{ drop: JianghuDeadDrop | null; nowIso: string }> {
+    await delay(80);
+    state.clockOffsetMin += min;
+    const d = state.deadDrop ? recomputeDeadDrop(state.deadDrop) : null;
+    if (d) state.deadDrop = d;
+    persist();
+    return { drop: d ? clone(d) : null, nowIso: new Date(effectiveNow()).toISOString() };
+}
+
+/** 重置暗点（清空当前暗点与时钟偏移） */
+export async function jianghuDeadDropReset(): Promise<void> {
+    await delay(80);
+    state.deadDrop = null;
+    state.clockOffsetMin = 0;
+    persist();
 }

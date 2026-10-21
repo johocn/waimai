@@ -21,6 +21,18 @@
             </view>
         </view>
 
+        <!-- 心声采纳回声：让玩家感知到自己的建议被听到了 -->
+        <view v-if="adoptedVoices.length" class="echo" @tap="go('/pkg-jianghu/pages/jh-story')">
+            <view class="echo-l">
+                <text class="echo-i">🌟</text>
+                <view class="echo-t">
+                    <text class="echo-h">你的 {{ adoptedVoices.length }} 条心声已被采纳</text>
+                    <text class="echo-p">将进入下个版本的江湖方向 · 点此回江湖志查看</text>
+                </view>
+            </view>
+            <text class="echo-go">›</text>
+        </view>
+
         <view v-if="frozen" class="frozen">{{ frozenReason }}</view>
 
         <!-- 今日三宫格 -->
@@ -33,7 +45,7 @@
         <!-- 三方向入口 -->
         <view class="sec"><text class="sec-h">江湖去处</text><text class="sec-m">虚实双轨</text></view>
         <view class="entries">
-            <view class="entry wide" @tap="go('/pkg-jianghu/pages/jh-letter-detail')">
+            <view class="entry" @tap="go('/pkg-jianghu/pages/jh-letter-detail')">
                 <view class="ico cin">信</view>
                 <view class="entry-t">
                     <text class="entry-h">江湖密信传递</text>
@@ -51,6 +63,18 @@
                 <text class="entry-h">江湖事件簿</text>
                 <text class="entry-p">剧本 · 组队拼图破案</text>
                 <text class="entry-lock">多人协作 · 均分声望池</text>
+            </view>
+            <view class="entry" @tap="go('/pkg-jianghu/pages/jh-story')">
+                <view class="ico gold">志</view>
+                <text class="entry-h">江湖志 · 剧情</text>
+                <text class="entry-p">设计目的 · 玩法 · 心声</text>
+                <text class="entry-lock">随段位解锁</text>
+            </view>
+            <view class="entry" @tap="go('/pkg-jianghu/pages/jh-deaddrop')">
+                <view class="ico cin">箱</view>
+                <text class="entry-h">北山老树 · 死信箱</text>
+                <text class="entry-p">暗点投递 · 错时取件 · 不可回看</text>
+                <text class="entry-lock">情景演绎 · 单人可测</text>
             </view>
         </view>
 
@@ -120,6 +144,7 @@ const tierName = computed(() => jh.currentTier?.name || '布衣闲人');
 const realm = computed(() => jh.currentTier?.realm || '行脚境');
 const nextName = computed(() => jh.nextTier?.name || '');
 const repLeft = computed(() => Math.max(0, (p.value?.repDailyCap ?? 300) - (p.value?.repToday ?? 0)));
+const adoptedVoices = computed(() => jh.voices.filter((v) => v.precipitated));
 
 const levelMap: Record<JianghuLevel, string> = { NORMAL: '普通信', URGENT: '加急密函', SECRET: '绝密卷宗' };
 function levelText(l: JianghuLevel) { return levelMap[l] || '密信'; }
@@ -133,6 +158,7 @@ function fmtLeft(sec: number) {
 onShow(async () => {
     jh.restoreCache();
     try { await jh.loadAll(); } catch { uni.showToast({ title: '江湖暂未开放', icon: 'none' }); }
+    jh.loadStory().catch(() => {});
 });
 
 function go(url: string) { uni.navigateTo({ url }); }
@@ -176,6 +202,17 @@ function resetDemo() {
     margin-top: 20rpx; padding: 20rpx 24rpx; border-radius: 16rpx; font-size: 26rpx;
     color: $jh-cinnabar; background: rgba(178, 58, 46, .1); border: 1rpx solid rgba(178, 58, 46, .25);
 }
+.echo {
+    display: flex; align-items: center; justify-content: space-between; margin-top: 20rpx; padding: 22rpx 24rpx;
+    border-radius: 18rpx; background: linear-gradient(135deg, rgba(200, 162, 74, .18), rgba(200, 162, 74, .08));
+    border: 1rpx solid rgba(200, 162, 74, .3);
+}
+.echo-l { display: flex; align-items: center; gap: 14rpx; flex: 1; }
+.echo-i { font-size: 36rpx; }
+.echo-t { display: flex; flex-direction: column; flex: 1; }
+.echo-h { font-size: 26rpx; font-weight: 700; color: $jh-ink; }
+.echo-p { font-size: 20rpx; color: $jh-ink-2; margin-top: 4rpx; }
+.echo-go { font-size: 40rpx; color: $jh-gold; margin-left: 12rpx; }
 .trio { display: flex; gap: 16rpx; margin-top: 20rpx; }
 .cell {
     flex: 1; background: $surface; border-radius: 20rpx; padding: 24rpx 8rpx; text-align: center;

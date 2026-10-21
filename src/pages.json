@@ -58,7 +58,9 @@
                 { "path": "pages/jh-intel-hall", "style": { "navigationBarTitleText": "情报阁" } },
                 { "path": "pages/jh-rank", "style": { "navigationBarTitleText": "段位晋升" } },
                 { "path": "pages/jh-event", "style": { "navigationBarTitleText": "江湖事件簿" } },
-                { "path": "pages/jh-admin", "style": { "navigationBarTitleText": "江湖运营后台" } }
+                { "path": "pages/jh-story", "style": { "navigationBarTitleText": "江湖志" } },
+                { "path": "pages/jh-admin", "style": { "navigationBarTitleText": "江湖运营后台" } },
+                { "path": "pages/jh-deaddrop", "style": { "navigationBarTitleText": "北山老树·死信箱" } }
             ]
         },
         {

@@ -6,6 +6,7 @@
             <view class="lv">
                 <text class="pill" :class="pillCls(task.level)">{{ levelText(task.level) }}</text>
                 <text class="lv-d">{{ task.verifyMode === 'ORDER_BIND' ? '绑定真实急单 · 送达即核销' : '当面核销 · 暗号 60 秒有效' }}</text>
+                <text class="lv-story" v-if="storyHint" @tap="openStory">江湖志 · {{ storyHint }} ›</text>
             </view>
 
             <!-- 密函：未接取显示密文，接取后可翻转看明文 -->
@@ -116,6 +117,8 @@ const verifyBtnText = computed(() => {
     const r = task.value?.rewardRep ?? 0;
     return (isOrderBind.value ? '模拟送达核销' : '确认核销') + ' · 声望 +' + r;
 });
+const STORY_REF: Record<string, string> = { ch2: '卷二 · 青羽信童', ch3: '卷三 · 疾影信使', ch5: '卷五 · 包打听' };
+const storyHint = computed(() => (task.value?.storyRef ? STORY_REF[task.value.storyRef] : '') || '');
 
 const levelMap: Record<JianghuLevel, string> = { NORMAL: '普通信', URGENT: '加急密函', SECRET: '绝密卷宗' };
 function levelText(l: JianghuLevel) { return levelMap[l] || '密信'; }
@@ -223,12 +226,14 @@ function closeSettle() {
 }
 
 function back() { uni.navigateBack({ delta: 1 }); }
+function openStory() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-story' }); }
 </script>
 
 <style scoped lang="scss">
 .jh { padding: 24rpx; padding-bottom: 60rpx; }
 .lv { display: flex; align-items: center; gap: 16rpx; margin-bottom: 20rpx; }
 .lv-d { font-size: 22rpx; color: $jh-ink-2; }
+.lv-story { font-size: 20rpx; color: $jh-gold; margin-left: 4rpx; }
 .pill { font-size: 22rpx; padding: 6rpx 16rpx; border-radius: 999rpx; font-weight: 600; }
 .p-jade { background: rgba(31, 111, 92, .12); color: $jh-jade; }
 .p-cin { background: rgba(178, 58, 46, .12); color: $jh-cinnabar; }

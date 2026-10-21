@@ -3,6 +3,7 @@ import { riderClient } from './rider';
 import { JIANGHU_MOCK } from '../jianghu-env';
 import * as mock from '../mock/jianghu';
 import type {
+    JianghuChapter,
     JianghuEvent,
     JianghuEventContent,
     JianghuEventDetail,
@@ -143,6 +144,25 @@ export async function jianghuIntelMarket(campusCode?: string, cursor?: string, l
 export async function jianghuEventCurrent(campusCode?: string): Promise<JianghuEvent> {
     if (JIANGHU_MOCK) return mock.jianghuEventCurrent();
     return riderClient().request(JH_EVENT_CURRENT, { campusCode }).then((r: any) => r.jianghuEventCurrent);
+}
+
+/** 江湖志章节：按当前段位门槛前端决定解锁/锁定（后端 JH_STORY 待接入） */
+export async function jianghuStory(): Promise<JianghuChapter[]> {
+    if (JIANGHU_MOCK) return mock.jianghuStory();
+    // TODO(backend): 后端 campus-jianghu-plugin 提供 jianghuStory 查询后替换
+    return [];
+}
+
+/** 玩家心声流（期待 / 玩法 / 建议） */
+export async function jianghuVoices(): Promise<JianghuVoice[]> {
+    if (JIANGHU_MOCK) return mock.jianghuVoices();
+    return [];
+}
+
+/** 沉淀的客户需求（玩家心声聚合 → 未来方向） */
+export async function jianghuDemands(): Promise<JianghuDemand[]> {
+    if (JIANGHU_MOCK) return mock.jianghuDemands();
+    return [];
 }
 
 /** P2 事件详情：拼图进度 + 线索墙 + 贡献者排行 + 我的状态 */

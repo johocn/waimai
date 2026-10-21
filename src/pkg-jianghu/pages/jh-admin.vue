@@ -76,6 +76,33 @@
                 <button class="submit" :disabled="creating" @tap="create">{{ creating ? '发布中…' : '发布江湖事件' }}</button>
             </view>
         </template>
+
+        <!-- 玩家心声 & 沉淀需求：运营侧看见玩家提交的期待/玩法/建议，并可采纳为方向 -->
+        <view class="sec"><text class="sec-h">玩家心声</text><text class="sec-m">{{ voices.length }} 条 · 可采纳</text></view>
+        <view class="voice-list">
+            <view v-for="v in voices" :key="v.id" class="voice-item" :class="{ done: v.precipitated }">
+                <view class="vi-top">
+                    <text class="vi-tag" :class="'t-' + v.kind">{{ v.kindText }}</text>
+                    <text class="vi-t">{{ fmt(v.createdAt) }}</text>
+                </view>
+                <text class="vi-c">{{ v.content }}</text>
+                <view class="vi-act">
+                    <button v-if="!v.precipitated" class="vi-adopt" :disabled="adopting" @tap="adopt(v.id)">采纳为需求</button>
+                    <text v-else class="vi-done">已沉淀 ✓</text>
+                </view>
+            </view>
+        </view>
+
+        <view class="sec"><text class="sec-h">沉淀的需求</text><text class="sec-m">未来游戏方向</text></view>
+        <view class="demand-list">
+            <view v-for="dm in demands" :key="dm.id" class="demand">
+                <view class="dm-b">
+                    <text class="dm-tag">{{ dm.tag }}</text>
+                    <text class="dm-t">{{ dm.text }}</text>
+                </view>
+                <text class="dm-votes">{{ dm.votes }} 人同感</text>
+            </view>
+        </view>
     </view>
 </template>
 
@@ -91,6 +118,17 @@ const jh = useJianghuStore();
 const loading = ref(false);
 const acting = ref(false);
 const creating = ref(false);
+const adopting = ref(false);
+
+const voices = computed(() => jh.voices);
+const demands = computed(() => jh.demands);
+
+function fmt(iso: string): string {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 const d = computed(() => jh.eventDetail);
 /** 审核用线索列表：来自 admin 专属查询（含 PENDING 待审），玩家侧不可见 PENDING */
@@ -122,7 +160,7 @@ const form = ref<JianghuEventInput>({ name: '', desc: '', total: undefined, perP
 onShow(async () => {
     loading.value = true;
     try {
-        await Promise.all([jh.loadEventDetail(), jh.loadEventClues()]);
+        await Promise.all([jh.loadEventDetail(), jh.loadEventClues(), jh.loadStory()]);
     } catch {
         uni.showToast({ title: '江湖事件暂未开放', icon: 'none' });
     } finally {
@@ -164,6 +202,18 @@ async function create() {
         uni.showToast({ title: (e?.message || '发布失败').slice(0, 30), icon: 'none' });
     } finally {
         creating.value = false;
+    }
+}
+
+async function adopt(id: string) {
+    adopting.value = true;
+    try {
+        await jh.adoptVoice(id);
+        uni.showToast({ title: '已沉淀为需求', icon: 'none' });
+    } catch (e: any) {
+        uni.showToast({ title: (e?.message || '操作失败').slice(0, 30), icon: 'none' });
+    } finally {
+        adopting.value = false;
     }
 }
 </script>
@@ -260,4 +310,35 @@ async function create() {
     font-size: 30rpx; font-weight: 700; border-radius: 16rpx; padding: 18rpx 0;
 }
 .submit[disabled] { opacity: .5; }
+
+.voice-list { display: flex; flex-direction: column; gap: 12rpx; }
+.voice-item {
+    background: $surface; border-radius: 18rpx; padding: 22rpx 24rpx; box-shadow: 0 2rpx 8rpx rgba(31, 27, 22, .05);
+    display: flex; flex-direction: column; gap: 10rpx;
+}
+.voice-item.done { opacity: .72; }
+.vi-top { display: flex; align-items: center; justify-content: space-between; }
+.vi-tag { font-size: 20rpx; padding: 4rpx 14rpx; border-radius: 999rpx; font-weight: 600; }
+.t-EXPECT { background: rgba(31, 111, 92, .14); color: $jh-jade; }
+.t-PLAY { background: rgba(200, 162, 74, .2); color: #8a6b1f; }
+.t-SUGGEST { background: rgba(178, 58, 46, .12); color: $jh-cinnabar; }
+.vi-t { font-size: 20rpx; color: $jh-ink-2; }
+.vi-c { font-size: 27rpx; color: $jh-ink; line-height: 1.6; }
+.vi-act { display: flex; justify-content: flex-end; }
+.vi-adopt {
+    font-size: 22rpx; font-weight: 700; color: #fff; background: linear-gradient(140deg, $jh-cinnabar, #8a2c22);
+    border-radius: 999rpx; padding: 10rpx 28rpx; margin: 0;
+}
+.vi-adopt[disabled] { opacity: .5; }
+.vi-done { font-size: 22rpx; color: $jh-jade; align-self: flex-end; }
+
+.demand-list { display: flex; flex-direction: column; gap: 12rpx; }
+.demand {
+    background: $surface; border-radius: 16rpx; padding: 22rpx 24rpx; display: flex; justify-content: space-between; align-items: center;
+    box-shadow: 0 2rpx 8rpx rgba(31, 27, 22, .05);
+}
+.dm-b { flex: 1; display: flex; flex-direction: column; gap: 8rpx; padding-right: 16rpx; }
+.dm-tag { font-size: 20rpx; color: $jh-jade; font-weight: 700; }
+.dm-t { font-size: 26rpx; color: $jh-ink; line-height: 1.6; }
+.dm-votes { font-size: 22rpx; color: $jh-cinnabar; flex-shrink: 0; }
 </style>

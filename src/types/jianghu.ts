@@ -51,6 +51,8 @@ export interface JianghuTask {
     codeExpireAt?: string;
     /** 已试错次数，上限 3 */
     tryCount?: number;
+    /** 剧情伏笔：关联的江湖志章节 id（仅作铺垫提示，不强制切入） */
+    storyRef?: string;
     distanceKm?: number;
     /** 接取后剩余有效时间（秒） */
     expireInSec?: number;
@@ -281,4 +283,93 @@ export interface RumorInput {
     /** 信息来源（必填，合规留痕） */
     sourceNote: string;
     photos?: string[];
+}
+
+/** 江湖志章节：以段位为解锁门槛，渐进式交代设计目的与玩法（不强制切入） */
+export interface JianghuChapter {
+    /** 卷号，从 1 递增 */
+    no: number;
+    id: string;
+    title: string;
+    /** 解锁所需段位编码（profile.rankCode >= unlockRank 即解锁） */
+    unlockRank: string;
+    unlockRankName: string;
+    /** 副标题 / 一句话点题 */
+    subtitle: string;
+    /** 正文（多段） */
+    paragraphs: string[];
+    /** 本章落点：沉淀的设计目的或玩法提示 */
+    takeaway?: string;
+    /** 伏笔：指向下一章或某个玩法 */
+    foreshadow?: string;
+}
+
+/** 玩家心声类别：期待 / 玩法 / 建议 */
+export type VoiceKind = 'EXPECT' | 'PLAY' | 'SUGGEST';
+
+/** 玩家心声：从期待、玩法、建议中沉淀需求，成为未来方向 */
+export interface JianghuVoice {
+    id: string;
+    kind: VoiceKind;
+    kindText: string;
+    content: string;
+    createdAt: string;
+    /** 是否已沉淀为需求 */
+    precipitated?: boolean;
+}
+
+/** 沉淀的客户需求（玩家心声聚合 → 未来游戏发展方向） */
+export interface JianghuDemand {
+    id: string;
+    text: string;
+    /** 来源心声数（演示用） */
+    votes: number;
+    /** 归属方向标签 */
+    tag: string;
+}
+
+/** 玩家心声提交入参 */
+export interface VoiceInput {
+    kind: VoiceKind;
+    content: string;
+}
+
+/* ── 死信箱（虚拟暗点投递） demo：线下树洞 → 线上错时取件 ── */
+
+/** 石子标记方向（投放人留下的取件指引） */
+export type DeadDropMarker = 'E' | 'W' | 'S' | 'N';
+
+/** 死信箱阶段机：
+ * IDLE 无情报 · PLACED 已投放未到可取窗 · PICKABLE 可取窗开启
+ * PICKED 已被取走 · SEIZED 超时被巡查截获 */
+export type DeadDropPhase = 'IDLE' | 'PLACED' | 'PICKABLE' | 'PICKED' | 'SEIZED';
+
+/** 死信箱实体：明文落库即丢弃，前端只持密文 */
+export interface JianghuDeadDrop {
+    id: string;
+    /** 情报主题（取件人确认用） */
+    topic: string;
+    /** 密文（AES 模拟，仅展示乱码） */
+    cipher: string;
+    /** 石子标记方向 */
+    marker: DeadDropMarker;
+    /** 标记可读文案 */
+    markerText: string;
+    /** 放置时间（ISO） */
+    placedAt: string;
+    /** 可拾取窗口开始（ISO） */
+    pickableFrom: string;
+    /** 可拾取窗口结束（ISO） */
+    pickableTo: string;
+    /** 当前阶段 */
+    phase: DeadDropPhase;
+    /** 取件人（上线）名号，取走后填写 */
+    pickedBy?: string;
+}
+
+/** 死信箱投放入参 */
+export interface DeadDropPlaceInput {
+    topic: string;
+    plainText: string;
+    marker: DeadDropMarker;
 }

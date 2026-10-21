@@ -76,6 +76,17 @@
                 <text v-else-if="ended">事件已截止，无法再提交</text>
                 <text v-else-if="d.myContributed >= d.perPersonLimit">你本期限额已用完（{{ d.perPersonLimit }} 条）</text>
             </view>
+            <!-- 我的线索：玩家自己提交的状态（待审/已上墙/已下线），让提交有回声 -->
+            <view v-if="myClues.length" class="sec"><text class="sec-h">我的线索</text><text class="sec-m">{{ myClues.length }}/{{ d.perPersonLimit }} 条</text></view>
+            <view v-for="c in myClues" :key="c.id" class="my-clue" :class="c.status">
+                <view class="mc-h">
+                    <text class="mc-n">{{ c.nickname || '我' }}</text>
+                    <text class="mc-tag" :class="c.status">{{ clueStatus(c.status) }}</text>
+                </view>
+                <text class="mc-c">{{ c.content }}</text>
+                <text class="mc-s">来源：{{ c.sourceNote }}</text>
+            </view>
+
             <text class="tip">多人拼图破案：线索由传信者协作搜集，集齐即均分奖励池，贡献计入「组队破大案」晋升条件</text>
         </template>
     </view>
@@ -103,6 +114,7 @@ const rewardText = computed(() => copy.value?.rewardText ?? null);
 const me = computed(() => jh.profile?.customerId);
 // 公共线索墙仅展示已上墙(SHOWN)；PENDING 待审 / REJECTED 下线 对玩家不可见
 const wallClues = computed(() => (d.value?.clues ?? []).filter((c) => c.status === 'SHOWN'));
+const myClues = computed(() => d.value?.myClues ?? []);
 const pct = computed(() => (d.value ? Math.round((d.value.collected / d.value.total) * 100) : 0));
 const need = computed(() => (d.value ? Math.max(0, d.value.total - d.value.collected) : 0));
 const ended = computed(() => !!d.value?.endAt && new Date(d.value.endAt).getTime() < Date.now());
@@ -121,6 +133,9 @@ const endText = computed(() => {
 const cn = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖', '拾'];
 function numCn(i: number) {
     return cn[i] || String(i);
+}
+function clueStatus(s?: string) {
+    return s === 'SHOWN' ? '已上墙' : s === 'REJECTED' ? '已下线' : '待审';
 }
 
 onShow(async () => {
@@ -251,5 +266,19 @@ async function submit() {
     background: $surface; border-radius: 20rpx; padding: 32rpx; text-align: center;
     font-size: 26rpx; color: $jh-ink-2; box-shadow: 0 2rpx 10rpx rgba(31, 27, 22, .06);
 }
+.my-clue {
+    background: $surface; border-radius: 18rpx; padding: 22rpx 24rpx; margin-bottom: 12rpx;
+    box-shadow: 0 2rpx 8rpx rgba(31, 27, 22, .05); border-left: 8rpx solid $jh-gold;
+}
+.my-clue.SHOWN { border-left-color: $jh-jade; }
+.my-clue.REJECTED { border-left-color: $jh-ink-2; opacity: .7; }
+.mc-h { display: flex; justify-content: space-between; align-items: center; }
+.mc-n { font-size: 26rpx; font-weight: 700; color: $jh-ink; }
+.mc-tag { font-size: 20rpx; padding: 4rpx 14rpx; border-radius: 999rpx; }
+.mc-tag.SHOWN { background: rgba(31, 111, 92, .12); color: $jh-jade; }
+.mc-tag.REJECTED { background: rgba(120, 120, 120, .14); color: $jh-ink-2; }
+.mc-tag.PENDING { background: rgba(200, 162, 74, .2); color: #8a6b1f; }
+.mc-c { display: block; font-size: 28rpx; color: $jh-ink; line-height: 1.7; margin: 12rpx 0; }
+.mc-s { display: block; font-size: 22rpx; color: $jh-ink-2; }
 .tip { display: block; text-align: center; font-size: 22rpx; color: $jh-ink-2; margin-top: 24rpx; line-height: 1.6; }
 </style>

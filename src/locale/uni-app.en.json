@@ -35,6 +35,8 @@
         "nav.riderTracking": "Courier Tracking",
         "nav.messages": "Messages",
         "nav.cart": "Cart",
-        "nav.favorites": "My Favorites"
+        "nav.favorites": "My Favorites",
+        "nav.afterSales": "After-sales",
+        "nav.help": "Help & Support"
     }
 }

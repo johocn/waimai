@@ -168,10 +168,17 @@
       <view class="info__row"><text>{{ $t('orderDetail.orderTime') }}</text><text>{{ formatTime(order.createdAt) }}</text></view>
       <view class="info__row" v-if="order.payments?.length"><text>{{ $t('orderDetail.payMethod') }}</text><text>{{ order.payments[0]?.method }}</text></view>
     </view>
-    <!-- 发票：已提交开票申请只读条（Task 11） -->
-    <view class="invoice-done" v-if="order.customFields?.invoiceApplied">
-      <text class="invoice-done__tag">{{ $t('orderDetail.invoiceApplied') }}</text>
-      <text class="invoice-done__txt">{{ invoiceSummary(order.customFields.invoiceInfo) }}</text>
+    <!-- 发票：已提交开票申请展示完整抬头/邮箱/申请时间，可复制 -->
+    <view class="invoice-card" v-if="order.customFields?.invoiceApplied">
+      <view class="invoice-card__head">
+        <text class="invoice-card__tag">{{ $t('orderDetail.invoiceApplied') }}</text>
+        <text class="invoice-card__copy" @click="copyInvoiceInfo">{{ $t('orderDetail.copyInvoice') }}</text>
+      </view>
+      <view class="invoice-card__row" v-for="row in invoiceRows" :key="row.label">
+        <text class="invoice-card__label">{{ row.label }}</text>
+        <text class="invoice-card__val">{{ row.value }}</text>
+      </view>
+      <text class="invoice-card__hint">{{ $t('orderDetail.invoiceMailHint') }}</text>
     </view>
     <view class="order-detail__actions">
       <button v-if="canReceive" class="action-btn action-btn--primary" @click="confirmReceive">{{ $t('orderDetail.receiveBtn') }}</button>
@@ -192,6 +199,7 @@
           <text>{{ t.name }}（{{ t.type === 'company' ? $t('orderDetail.titleCompany') : $t('orderDetail.titlePersonal') }}）</text>
         </view>
         <input class="invoice-sheet__ipt" v-model="invoiceEmail" :placeholder="$t('orderDetail.emailPh')" />
+        <text class="invoice-sheet__manage" @click="manageTitles">{{ $t('orderDetail.manageTitles') }}</text>
         <button class="invoice-sheet__btn" @click="submitInvoice">{{ $t('orderDetail.submitInvoiceBtn') }}</button>
       </view>
     </view>
@@ -599,11 +607,33 @@ async function submitInvoice() {
     }
 }
 
-function invoiceSummary(raw: unknown): string {
-    try {
-        const o = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        return `${o?.titleName || ''} · ${o?.email || ''}`;
-    } catch { return ''; }
+// 发票信息卡：解析下单时留存的快照（titleType/titleName/taxNo/email/appliedAt）
+const invoiceRows = computed(() => {
+    const raw = order.value?.customFields?.invoiceInfo;
+    let o: any = {};
+    try { o = typeof raw === 'string' ? JSON.parse(raw) : (raw || {}); } catch { o = {}; }
+    const rows: Array<{ label: string; value: string }> = [
+        { label: locale.t('orderDetail.invoiceType'), value: o.titleType === 'company' ? locale.t('orderDetail.titleCompany') : (o.titleType ? locale.t('orderDetail.titlePersonal') : '') },
+        { label: locale.t('orderDetail.invoiceName'), value: o.titleName || '' },
+        { label: locale.t('orderDetail.invoiceTaxNo'), value: o.taxNo || '' },
+        { label: locale.t('orderDetail.invoiceEmailLabel'), value: o.email || '' },
+        { label: locale.t('orderDetail.invoiceTime'), value: o.appliedAt ? formatTime(o.appliedAt) : '' },
+    ];
+    return rows.filter(r => r.value);
+});
+
+function copyInvoiceInfo() {
+    const text = invoiceRows.value.map(r => `${r.label}：${r.value}`).join('\n');
+    uni.setClipboardData({
+        data: text,
+        success: () => uni.showToast({ title: locale.t('orderDetail.copyOk'), icon: 'none' }),
+    });
+}
+
+/** 开票弹层 → 抬头管理（新增/编辑后返回，重新打开弹层即刷新） */
+function manageTitles() {
+    invoiceShow.value = false;
+    uni.navigateTo({ url: '/pkg-user/pages/invoice-titles' });
 }
 // 售后：入口创建页 / 状态卡详情页
 function goAfterSale() {
@@ -755,9 +785,18 @@ async function confirmReorder() {
 // 售后状态卡
 .as-card { &__row { display: flex; justify-content: space-between; align-items: center; } &__title { font-size: 28rpx; font-weight: bold; } &__amount { font-size: 28rpx; color: $price-color; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; margin-top: 8rpx; display: block; } }
 // 开发票（Task 11）：已申请只读条 + 底部弹层
-.invoice-done { background: $surface; border-radius: $radius-md; padding: 24rpx 30rpx; margin: 20rpx; &__tag { font-size: 26rpx; color: $brand-color; font-weight: bold; display: block; } &__txt { font-size: 24rpx; color: $text-color-placeholder; margin-top: 8rpx; display: block; } }
+.invoice-card {
+  background: $surface; border-radius: $radius-md; padding: 24rpx 30rpx; margin: 20rpx;
+  &__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+  &__tag { font-size: 26rpx; color: $brand-color; font-weight: bold; }
+  &__copy { font-size: 24rpx; color: $text-color-secondary; }
+  &__row { display: flex; justify-content: space-between; gap: 24rpx; padding: 8rpx 0; }
+  &__label { font-size: 24rpx; color: $text-color-placeholder; flex-shrink: 0; }
+  &__val { font-size: 24rpx; color: $text-color; text-align: right; word-break: break-all; }
+  &__hint { display: block; font-size: 22rpx; color: $text-color-placeholder; margin-top: 12rpx; }
+}
 .invoice-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; z-index: 9; }
-.invoice-sheet { width: 100%; background: $surface; border-radius: 24rpx 24rpx 0 0; padding: 40rpx 30rpx calc(40rpx + env(safe-area-inset-bottom)); &__title { font-size: 32rpx; font-weight: bold; display: block; margin-bottom: 24rpx; } &__opt { border: 1rpx solid $border-color; border-radius: $radius-md; padding: 20rpx; margin-bottom: 16rpx; font-size: 26rpx; &.on { border-color: $brand-color; color: $brand-color; background: #fff3e6; } } &__ipt { border-bottom: 1rpx solid $border-color; height: 80rpx; font-size: 28rpx; margin: 16rpx 0 24rpx; } &__btn { background: $brand-color; color: #fff; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; } }
+.invoice-sheet { width: 100%; background: $surface; border-radius: 24rpx 24rpx 0 0; padding: 40rpx 30rpx calc(40rpx + env(safe-area-inset-bottom)); &__title { font-size: 32rpx; font-weight: bold; display: block; margin-bottom: 24rpx; } &__opt { border: 1rpx solid $border-color; border-radius: $radius-md; padding: 20rpx; margin-bottom: 16rpx; font-size: 26rpx; &.on { border-color: $brand-color; color: $brand-color; background: #fff3e6; } } &__ipt { border-bottom: 1rpx solid $border-color; height: 80rpx; font-size: 28rpx; margin: 16rpx 0 8rpx; } &__manage { display: block; text-align: right; font-size: 24rpx; color: $brand-color; padding: 8rpx 0 24rpx; } &__btn { background: $brand-color; color: #fff; border-radius: $radius-md; height: 88rpx; font-size: 30rpx; } }
 .action-btn { flex: 1; min-width: 200rpx; height: 80rpx; font-size: 28rpx; border-radius: $radius-md; border: none; display: flex; align-items: center; justify-content: center; &--primary { background: $brand-color; color: #fff; } &--ghost { background: $surface; color: $text-color-placeholder; border: 1rpx solid $border-color; } }
 .r2-hint { font-size: 26rpx; color: $text-color-secondary; display: block; margin-top: 8rpx; }
 .r2-actions { display: flex; gap: 16rpx; margin-top: 16rpx; }

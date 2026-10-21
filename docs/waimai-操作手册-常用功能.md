@@ -635,3 +635,102 @@
 - 购物车页按店铺数逐店请求（并行），店铺较多时首屏请求数相应增加；
 - 备注自定义模板上限 8 条、本机存储；备注总长 200 字由前端截断；
 - 收藏商品卡片的价格/名称是收藏时的本地快照，实时价格以进店后为准；已下架商品仍会展示快照，点进店后由店铺页面兜底。
+
+---
+
+# 第七轮常用功能（售后中心 / 开票闭环 / 评价增强 / 帮助中心）
+
+> 上线日期：2026-10-21（第七轮）
+> 截图脚本：`node .secrets/common-features-v7-shots.cjs`（Playwright 390×844 dpr=2，输出 `docs/screenshots/common-features-v7/`）
+> 新增页面：`src/pkg-order/pages/after-sales.vue`、`src/pkg-user/pages/help.vue`
+> 修改文件：`src/pkg-order/pages/order-detail.vue`、`src/pkg-order/pages/my-reviews.vue`、`src/pages/profile/index.vue`、`src/pages.json`、`src/locale/zh-Hans.json`、`src/locale/en.json`、`src/locale/uni-app.zh-Hans.json`、`src/locale/uni-app.en.json`
+> 后端：无改动，复用 `myAfterSalesRequests` / `orderByCode` / `activeCustomer(invoiceTitles)` / `myReviews`
+
+## 37. 售后中心（我的售后）
+
+### 37.1 入口与角标
+
+- 「我的 → 我的售后」；菜单右侧红色角标 = 处理中单量（`Pending / Approved / Received / Appealed`），失败静默不展示；
+- 进入页面即刷新，按 `createdAt` 倒序展示最近 20 条（与 `fetchMyAfterSales` 的 take 一致）。
+
+### 37.2 状态筛选
+
+| Tab | 口径 |
+|---|---|
+| 全部 | 全部售后单 |
+| 处理中 | `Pending / Approved / Received / Appealed` |
+| 已退款 | `Refunded` |
+| 已结束 | `Rejected / Closed / RefundFailed` |
+
+- 每个 tab 带计数；空列表文案区分「还没有售后申请」与「该状态下暂无记录」。
+
+### 37.3 卡片信息
+
+- 状态标签（商家审核中 / 已同意 / 已收货 / 已退款 / 商家已拒绝 / 申诉中 / 已关闭）、申请时间；
+- 「仅退款」类型、退款原因、关联订单号、申请描述首行（超 26 字截断）；
+- 退款金额、沟通条数；有凭证时展示前 3 张缩略图；
+- 已退款卡片显示「退款完成于 {时间}」；点击整卡进售后详情。
+
+![我的页售后入口与角标](screenshots/common-features-v7/19-profile-after-sales-entry.png)
+![我的售后列表](screenshots/common-features-v7/20-after-sales-list.png)
+![已退款筛选](screenshots/common-features-v7/21-after-sales-filter-refunded.png)
+
+## 38. 订单开票闭环
+
+1. **申请入口**：订单详情底部「开发票」（未申请时）→ 弹层选择已存抬头、填写接收邮箱后提交，写回 `invoiceApplied / invoiceInfo`（沿用订单 customFields，无新接口）；
+2. **抬头来源**：`activeCustomer.customFields.invoiceTitles`（与「发票抬头」管理页同一份数据）；弹层内新增「管理抬头」入口，跳转抬头管理后返回可重新选择；
+3. **已申请展示**：订单详情新增发票信息卡，逐行展示发票类型（企业/个人）、抬头名称、税号、接收邮箱、申请时间，右上「复制」可一键复制整段信息；
+4. **完成态提示**：信息卡底部固定提示「电子发票将在 3 个工作日内发送至上述邮箱」；
+5. 兼容：历史订单 `invoiceInfo` 为 JSON 字符串或对象均可解析，缺字段自动隐藏对应行。
+
+![订单详情-已提交开票申请](screenshots/common-features-v7/22-order-invoice-applied.png)
+![开发票弹层-管理抬头](screenshots/common-features-v7/23-invoice-sheet-manage.png)
+
+## 39. 评价晒单增强（我的评价）
+
+1. 新增状态筛选：`全部 / 审核中 / 已通过 / 未通过`，带计数；
+2. 评价卡片增强：
+   - 匿名评价显示「匿名评价」标记；
+   - 新增标签行（如「口味赞 / 分量足 / 配送快」）；
+   - 图片最多展示 3 张，超出显示「+N 张」；点击图片调用 `uni.previewImage` 大图预览；
+   - 追评中的图片同样支持缩略图与预览；
+   - 保留商家回复、追评、删除评价（未删除且非追评才可删）。
+3. 评价创建页未改动，仍为星级 + 文案 + 图片 + 匿名开关。
+
+![我的评价-筛选与标签](screenshots/common-features-v7/24-my-reviews-filters.png)
+
+## 40. 帮助与客服中心
+
+1. 入口：「我的 → 帮助与客服」（登录与否均可访问）；原「联系客服」菜单项由本页替代；
+2. 顶部为客服区：
+   - 配置了 `VITE_SERVICE_PHONE` 时显示「客服热线 + 号码」，点击 `uni.makePhoneCall` 拨号；
+   - 未配置时展示兜底提示「如需紧急处理，请在订单详情联系商家或平台客服」，不显示空号码按钮；
+3. 四个快捷入口：我的售后 / 我的评价 / 发票抬头 / 我的订单；
+4. 常见问题 5 组共 10 条（支付与优惠、配送与订单、退款与售后、发票、账号），手风琴展开，单条展开互斥；
+5. 全部文案走 i18n（`help.*`），支持中英文切换。
+
+![帮助与客服](screenshots/common-features-v7/25-help-center.png)
+
+## 41. 验收记录与边界（第七轮，2026-10-21）
+
+| 项 | 结果 |
+|---|---|
+| 我的页入口 | `{"help":true,"afterSales":true,"badge":true}`，售后角标「1」，客服热线菜单已替换为「帮助与客服」 |
+| 售后列表 | tab 计数「全部 3 / 处理中 1 / 已退款 1 / 已结束 1」；三张卡片金额 `¥5.00 / ¥3.00 / ¥8.00`；凭证缩略图 2 张 |
+| 售后筛选 | 已退款 tab 仅剩「少送商品」卡片（`onlyRefunded=true`） |
+| 开票信息卡 | 类型/抬头/税号/邮箱/申请时间/复制全部命中，`{"applied":true,"title":true,"tax":true,"email":true,"copy":true}` |
+| 开发票弹层 | 弹层可见，含「管理抬头」，抬头列表含企业抬头与「个人」 |
+| 我的评价 | 四个筛选 tab 命中；标签、匿名标记、商家回复、追评图片均正常；图片超出显示「+N 张」 |
+| 帮助与客服 | 5 个 FAQ 分组命中，展开答案命中；四个快捷入口中文文案正常；未配置热线时展示兜底提示 |
+| i18n | `zh-Hans.json` / `en.json` / `uni-app.*.json` 补齐 `afterSalesList` / `help` / `myReviews` 新键 / `orderDetail` 发票键 / `profile.myAfterSales` / `nav.afterSales` / `nav.help` |
+| 前端构建/部署 | `pnpm build:h5` 通过（产物 2633 KB），`node .secrets/deploy-waimai.mjs` 部署成功 |
+| 手机视口截图 | 390×844 dpr=2，共 7 张（19–25） |
+
+边界与已知限制：
+- 售后列表只取最近 20 条，历史单需从订单详情进入；
+- 售后状态文案为前端映射，后端新增状态会原样显示英文枚举；
+- 开票仅记录申请（`invoiceApplied/invoiceInfo`），开票状态与发票文件仍由后台线下处理，前端不展示进度；
+- 抬头管理为跳转页面，返回后需重新打开开票弹层；
+- 「+N 张」只作提示，点击缩略图预览的是全部图片（含未展示的）；
+- 帮助中心 FAQ 为内置文案，后台暂不可配置；客服热线依赖构建期 `VITE_SERVICE_PHONE`；
+- 我的页用户名兜底：无 `firstName` 时显示邮箱前缀，避免已登录仍显示「未登录」。

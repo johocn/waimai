@@ -7,7 +7,7 @@
           <text v-else>{{ (customer?.firstName || $t('profile.guest'))[0] }}</text>
         </view>
         <view class="profile-page__id">
-          <text class="profile-page__name">{{ customer?.firstName || $t('profile.notLoggedIn') }} {{ customer?.lastName || '' }}</text>
+          <text class="profile-page__name">{{ displayName }} {{ customer?.lastName || '' }}</text>
           <text class="profile-page__phone">{{ customer?.phoneNumber || $t('profile.noPhone') }}</text>
         </view>
         <text class="profile-page__edit" v-if="logged">{{ $t('profile.editProfile') }}</text>
@@ -54,8 +54,15 @@
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/favorites')"><text>{{ $t('profile.favorites') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/cart')"><text>{{ $t('profile.cart') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/my-reviews')"><text>{{ $t('profile.myReviews') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-order/pages/after-sales')">
+        <view class="menu-item__lbl">
+          <text>{{ $t('profile.myAfterSales') }}</text>
+          <text class="menu-item__badge" v-if="afterSaleActive > 0">{{ afterSaleActive > 99 ? '99+' : afterSaleActive }}</text>
+        </view>
+        <text class="menu-arrow">></text>
+      </view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-campus/pages/errand/list')"><text>{{ $t('profile.myErrands') }}</text><text class="menu-arrow">></text></view>
-      <view class="menu-item" v-if="logged" @click="callService"><text>{{ $t('profile.contactService') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" @click="nav('/pkg-user/pages/help')"><text>{{ $t('profile.help') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="nav('/pkg-user/pages/about')"><text>{{ $t('profile.about') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="switchLang"><text>{{ $t('profile.language') }}</text><text class="menu-value">{{ langName }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="goRiderCenter"><text>{{ $t('profile.becomeRider') }}</text><text class="menu-arrow">></text></view>
@@ -72,6 +79,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { getActiveCustomer } from '../../api/queries/user';
 import { getMyCoupons } from '../../api/queries/coupon';
 import { getOrdersForChannel } from '../../api/queries/order';
+import { fetchMyAfterSales } from '../../api/queries/afterSale';
 import { getMyReviews } from '../../api/queries/review';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { useAuthStore } from '../../stores/auth';
@@ -88,7 +96,8 @@ const locale = useLocaleStore();
 const messages = useMessagesStore();
 const customer = ref<any>(null);
 const unusedCouponCount = ref(0);
-const SERVICE_PHONE = (import.meta.env.VITE_SERVICE_PHONE as string) || '';
+/** 处理中的售后单数（Pending/Approved/Received/Appealed），菜单红点用 */
+const afterSaleActive = ref(0);
 
 type OrderBadgeKey = 'waitPay' | 'waitReceive' | 'waitReview';
 const EMPTY_ORDER_BADGES: Record<OrderBadgeKey, number> = { waitPay: 0, waitReceive: 0, waitReview: 0 };
@@ -96,6 +105,13 @@ const orderBadges = ref<Record<OrderBadgeKey, number>>({ ...EMPTY_ORDER_BADGES }
 
 const logged = computed(() => !!(authStore.token || getSessionToken()));
 const avatarUrl = computed(() => customer.value?.customFields?.avatarUrl || '');
+// 无姓名的邮箱注册用户退回邮箱前缀，避免已登录仍显示「未登录」
+const displayName = computed(() => {
+    if (customer.value?.firstName) return customer.value.firstName;
+    const email = String(customer.value?.emailAddress || '');
+    if (email.includes('@')) return email.split('@')[0];
+    return locale.t('profile.notLoggedIn');
+});
 const langName = computed(() => locale.locale === 'en' ? locale.t('profile.langEn') : locale.t('profile.langZh'));
 
 const orderShortcuts: Array<{ ico: string; label: string; tab: string; badgeKey?: OrderBadgeKey }> = [
@@ -118,6 +134,7 @@ onShow(async () => {
     // 券角标与订单角标并行拉取，均不阻塞页面渲染
     loadCouponBadge();
     loadOrderBadges();
+    loadAfterSaleBadge();
     void messages.load();
     try { const res: any = await getActiveCustomer(); customer.value = res.activeCustomer; } catch (e) {}
 });
@@ -178,6 +195,17 @@ async function loadOrderBadges() {
     }
 }
 
+/** 售后角标：处理中单量（客服页与管理页共用口径）；失败静默 */
+async function loadAfterSaleBadge() {
+    if (!authStore.isLoggedIn) { afterSaleActive.value = 0; return; }
+    try {
+        const rows = await fetchMyAfterSales();
+        afterSaleActive.value = rows.filter(r => ['Pending', 'Approved', 'Received', 'Appealed'].includes(r.state)).length;
+    } catch {
+        afterSaleActive.value = 0;
+    }
+}
+
 function nav(url: string) {
     if (!logged.value) { authStore.requireLogin(); return; }
     uni.navigateTo({ url });
@@ -189,10 +217,6 @@ function goProfileEdit() {
 function goOrdersTab(tab: string) {
     uni.setStorageSync('orders_pending_tab', tab);
     uni.switchTab({ url: '/pages/orders/index' });
-}
-function callService() {
-    if (!SERVICE_PHONE) { uni.showToast({ title: locale.t('profile.servicePhoneMissing'), icon: 'none' }); return; }
-    uni.makePhoneCall({ phoneNumber: SERVICE_PHONE });
 }
 async function goRiderCenter() {
     if (!logged.value) { authStore.requireLogin(); return; }

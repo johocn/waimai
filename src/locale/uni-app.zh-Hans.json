@@ -35,6 +35,8 @@
         "nav.riderTracking": "骑手跟踪",
         "nav.messages": "消息中心",
         "nav.cart": "购物车",
-        "nav.favorites": "我的收藏"
+        "nav.favorites": "我的收藏",
+        "nav.afterSales": "我的售后",
+        "nav.help": "帮助与客服"
     }
 }

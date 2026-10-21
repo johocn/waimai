@@ -344,7 +344,9 @@
         "servicePhoneMissing": "客服电话未配置",
         "language": "语言",
         "langZh": "中文",
-        "langEn": "English"
+        "langEn": "English",
+        "myAfterSales": "我的售后",
+        "help": "帮助与客服"
     },
     "login": {
         "brand": "拾光达",
@@ -656,7 +658,16 @@
         "reorderSkipped": "已加入购物车（跳过 {n} 件）",
         "reorderAllSkipped": "商品均已下架，无法再来一单",
         "reorderNoShop": "店铺已下线，暂不支持再来一单",
-        "reorderLoading": "处理中…"
+        "reorderLoading": "处理中…",
+        "invoiceType": "发票类型",
+        "invoiceName": "抬头名称",
+        "invoiceTaxNo": "税号",
+        "invoiceEmailLabel": "接收邮箱",
+        "invoiceTime": "申请时间",
+        "copyInvoice": "复制",
+        "copyOk": "已复制发票信息",
+        "invoiceMailHint": "电子发票将在 3 个工作日内发送至上述邮箱",
+        "manageTitles": "管理抬头"
     },
     "riderTracking": {
         "title": "骑手跟踪",
@@ -813,7 +824,14 @@
         "delTitle": "删除评价",
         "delConfirm": "删除后不可恢复，确定删除？",
         "deleted": "已删除",
-        "delFail": "删除失败"
+        "delFail": "删除失败",
+        "filterAll": "全部",
+        "filterPending": "审核中",
+        "filterApproved": "已通过",
+        "filterRejected": "未通过",
+        "emptyFiltered": "该状态下暂无评价",
+        "anonymous": "匿名评价",
+        "moreImages": "+{n} 张"
     },
     "profileEdit": {
         "avatarLabel": "头像",
@@ -1041,5 +1059,56 @@
         "itemFallback": "商品",
         "minOrder": "起送 ¥{y}",
         "paused": "店铺休息中，暂不接单"
+    },
+    "afterSalesList": {
+        "tabAll": "全部",
+        "tabActive": "处理中",
+        "tabRefunded": "已退款",
+        "tabClosed": "已结束",
+        "empty": "还没有售后申请",
+        "emptyFiltered": "该状态下暂无记录",
+        "orderNo": "订单",
+        "msgs": "{n} 条沟通",
+        "viewDetail": "查看详情",
+        "refundedAt": "退款完成于 {t}",
+        "typeRefundOnly": "仅退款"
+    },
+    "help": {
+        "title": "帮助与客服",
+        "subtitle": "常见问题与联系方式",
+        "callBtn": "客服热线",
+        "phoneMissing": "客服电话未配置",
+        "faqTitle": "常见问题",
+        "quickAfterSales": "我的售后",
+        "quickReviews": "我的评价",
+        "quickInvoice": "发票抬头",
+        "quickOrders": "我的订单",
+        "faqPayTitle": "支付与优惠",
+        "q1": "支持哪些支付方式？",
+        "a1": "目前支持微信支付等主流方式，下单后在结算页选择即可。",
+        "q2": "优惠券为什么不能用？",
+        "a2": "券需满足使用门槛、有效期与适用店铺/品类，结算页会列出当前可用券。",
+        "faqDeliveryTitle": "配送与订单",
+        "q3": "配送需要多久？",
+        "q4": "可以修改配送地址吗？",
+        "a3": "可在店铺页与订单页查看预计送达时间；用餐高峰或恶劣天气可能延迟。",
+        "a4": "骑手接单前可在订单详情联系客服修改；已取餐需与商家或骑手协商。",
+        "faqAfterSaleTitle": "退款与售后",
+        "q5": "如何申请退款？",
+        "q6": "退款多久到账？",
+        "a5": "进入订单详情 → 申请售后，选择商品与原因并上传凭证后提交。",
+        "a6": "审核通过后 1-3 个工作日原路退回，实际到账以支付渠道为准。",
+        "faqInvoiceTitle": "发票",
+        "q7": "如何申请开发票？",
+        "q8": "发票多久能开出？",
+        "a7": "订单完成后在订单详情点「开发票」，填写抬头与接收邮箱提交申请。",
+        "a8": "申请后 3 个工作日内发送至邮箱，可在订单详情查看申请记录。",
+        "faqAccountTitle": "账号",
+        "q9": "如何修改手机号？",
+        "q10": "登录异常怎么办？",
+        "a9": "「我的 → 编辑资料」可修改；若号码已不可用，请联系客服协助处理。",
+        "a10": "可先尝试验证码登录；仍无法登录时请联系客服核验身份。",
+        "foot": "如问题仍未解决，请联系客服或店铺商家处理。",
+        "noPhoneHint": "如需紧急处理，请在订单详情联系商家或平台客服"
     }
 }

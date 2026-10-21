@@ -344,7 +344,9 @@
         "servicePhoneMissing": "Support phone not configured",
         "language": "Language",
         "langZh": "中文",
-        "langEn": "English"
+        "langEn": "English",
+        "myAfterSales": "After-sales",
+        "help": "Help & Support"
     },
     "login": {
         "brand": "Shiguangda",
@@ -656,7 +658,16 @@
         "reorderSkipped": "Added to cart ({n} skipped)",
         "reorderAllSkipped": "All items are unavailable",
         "reorderNoShop": "This shop is offline, cannot order again",
-        "reorderLoading": "Processing…"
+        "reorderLoading": "Processing…",
+        "invoiceType": "Invoice type",
+        "invoiceName": "Title",
+        "invoiceTaxNo": "Tax ID",
+        "invoiceEmailLabel": "Email",
+        "invoiceTime": "Requested at",
+        "copyInvoice": "Copy",
+        "copyOk": "Invoice info copied",
+        "invoiceMailHint": "The e-invoice will be emailed within 3 business days",
+        "manageTitles": "Manage titles"
     },
     "riderTracking": {
         "title": "Courier Tracking",
@@ -813,7 +824,14 @@
         "delTitle": "Delete Review",
         "delConfirm": "This cannot be undone. Delete?",
         "deleted": "Deleted",
-        "delFail": "Delete failed"
+        "delFail": "Delete failed",
+        "filterAll": "All",
+        "filterPending": "Pending",
+        "filterApproved": "Approved",
+        "filterRejected": "Rejected",
+        "emptyFiltered": "No reviews in this status",
+        "anonymous": "Anonymous",
+        "moreImages": "+{n} more"
     },
     "profileEdit": {
         "avatarLabel": "Avatar",
@@ -1041,5 +1059,56 @@
         "itemFallback": "Item",
         "minOrder": "Min ¥{y}",
         "paused": "Shop is closed now"
+    },
+    "afterSalesList": {
+        "tabAll": "All",
+        "tabActive": "In progress",
+        "tabRefunded": "Refunded",
+        "tabClosed": "Closed",
+        "empty": "No after-sales requests yet",
+        "emptyFiltered": "No records in this status",
+        "orderNo": "Order",
+        "msgs": "{n} messages",
+        "viewDetail": "Details",
+        "refundedAt": "Refunded at {t}",
+        "typeRefundOnly": "Refund only"
+    },
+    "help": {
+        "title": "Help & Support",
+        "subtitle": "FAQ and contact",
+        "callBtn": "Service hotline",
+        "phoneMissing": "Hotline not configured",
+        "faqTitle": "FAQ",
+        "quickAfterSales": "After-sales",
+        "quickReviews": "My reviews",
+        "quickInvoice": "Invoice titles",
+        "quickOrders": "My orders",
+        "faqPayTitle": "Payment & discounts",
+        "q1": "What payment methods are supported?",
+        "a1": "WeChat Pay and other major methods. Choose one on the checkout page.",
+        "q2": "Why is my coupon unusable?",
+        "a2": "The coupon must meet the threshold, validity and store/category limits. Checkout lists usable coupons.",
+        "faqDeliveryTitle": "Delivery & orders",
+        "q3": "How long does delivery take?",
+        "q4": "Can I change the delivery address?",
+        "a3": "See the ETA on the store and order pages. Peak hours or bad weather may cause delays.",
+        "a4": "Before a courier accepts the order you can contact support; after pickup, coordinate with the merchant or courier.",
+        "faqAfterSaleTitle": "Refunds & after-sales",
+        "q5": "How do I request a refund?",
+        "q6": "When will the refund arrive?",
+        "a5": "Open the order detail, tap After-sales, select items and reason, upload evidence and submit.",
+        "a6": "Once approved, refunds return to the original channel in 1-3 business days.",
+        "faqInvoiceTitle": "Invoices",
+        "q7": "How do I request an invoice?",
+        "q8": "How long does the invoice take?",
+        "a7": "After the order completes, tap Invoice on the order detail, fill in the title and email.",
+        "a8": "The invoice is emailed within 3 business days. The record is visible on the order detail.",
+        "faqAccountTitle": "Account",
+        "q9": "How do I change my phone number?",
+        "q10": "What if I cannot sign in?",
+        "a9": "Profile → Edit profile. If the number is no longer available, contact support.",
+        "a10": "Try signing in with a verification code first; contact support for identity verification.",
+        "foot": "If the issue persists, please contact support or the store.",
+        "noPhoneHint": "For urgent help, contact the merchant or platform from your order detail"
     }
 }

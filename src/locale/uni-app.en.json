@@ -31,6 +31,7 @@
         "tab.orders": "Orders",
         "tab.profile": "Profile",
         "nav.couponCentre": "Coupon Centre",
-        "nav.myCoupons": "My Coupons"
+        "nav.myCoupons": "My Coupons",
+        "nav.riderTracking": "Courier Tracking"
     }
 }

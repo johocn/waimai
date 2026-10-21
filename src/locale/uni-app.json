@@ -31,6 +31,7 @@
         "tab.orders": "订单",
         "tab.profile": "我的",
         "nav.couponCentre": "领券中心",
-        "nav.myCoupons": "我的优惠券"
+        "nav.myCoupons": "我的优惠券",
+        "nav.riderTracking": "骑手跟踪"
     }
 }

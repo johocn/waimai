@@ -30,7 +30,17 @@ export const CAMPUS_SHOP_SLOTS = gql`
 `;
 
 export const CAMPUS_ORDER_RIDER = gql`
-    query campusOrderRider($orderId: ID!) { campusOrderRider(orderId: $orderId) { realName credit location { lat lng } } }
+    query campusOrderRider($orderId: ID!) {
+        campusOrderRider(orderId: $orderId) {
+            realName
+            credit
+            deliveryStatus
+            distanceMeters
+            etaMinutes
+            location { lat lng }
+            destination { name detail lat lng }
+        }
+    }
 `;
 
 /** 我的骑手档案：riderStatus 为 null/PENDING/REJECTED/APPROVED（未登录时后端直接报未授权） */

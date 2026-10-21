@@ -13,6 +13,7 @@
             "pages": [
                 { "path": "pages/checkout", "style": { "navigationBarTitleText": "%nav.checkout%" } },
                 { "path": "pages/order-detail", "style": { "navigationBarTitleText": "%nav.orderTrack%" } },
+                { "path": "pages/rider-tracking", "style": { "navigationBarTitleText": "%nav.riderTracking%", "navigationStyle": "custom" } },
                 { "path": "pages/pay-result", "style": { "navigationBarTitleText": "%nav.payResult%" } },
                 { "path": "pages/review-create", "style": { "navigationBarTitleText": "%nav.review%" } },
                 { "path": "pages/after-sale-create", "style": { "navigationBarTitleText": "%nav.aftersaleCreate%" } },

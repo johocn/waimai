@@ -282,7 +282,12 @@
         "shareProductDesc": "Recommended by {s}",
         "shareCopied": "Link copied",
         "crossSellTitle": "Add more to save",
-        "crossSellAdded": "Added to cart"
+        "crossSellAdded": "Added to cart",
+        "searchInShop": "Search in this store",
+        "searchHistory": "Recent searches",
+        "hotSearch": "Popular",
+        "filterCoupon": "With offers",
+        "filterInStock": "In stock only"
     },
     "orders": {
         "tabAll": "All",
@@ -667,7 +672,10 @@
         "copyInvoice": "Copy",
         "copyOk": "Invoice info copied",
         "invoiceMailHint": "The e-invoice will be emailed within 3 business days",
-        "manageTitles": "Manage titles"
+        "manageTitles": "Manage titles",
+        "riderDistance": "{n} away",
+        "riderEta": "Arriving in ~{n} min",
+        "urgeHint": "The courier will be notified after urging"
     },
     "riderTracking": {
         "title": "Courier Tracking",
@@ -861,7 +869,14 @@
         "delTitle": "Delete address",
         "delConfirm": "Delete the address of \"{n}\"?",
         "deleted": "Deleted",
-        "delFail": "Delete failed"
+        "delFail": "Delete failed",
+        "tagHome": "Home",
+        "tagSchool": "School",
+        "tagCompany": "Work",
+        "tagClear": "Clear label",
+        "addLabel": "+ Label",
+        "copy": "Copy",
+        "copyOk": "Address copied"
     },
     "addressEdit": {
         "contactLabel": "Contact",
@@ -965,7 +980,10 @@
         "expiringSoon": "Expiring soon",
         "emptyUnused": "No available coupons",
         "emptyUsed": "No used coupons yet",
-        "emptyExpired": "No expired coupons"
+        "emptyExpired": "No expired coupons",
+        "expiringBanner": "{n} coupon(s) expire within 3 days",
+        "daysLeft": "{n} days left",
+        "todayExpire": "Expires today"
     },
     "errandCreate": {
         "myOrders": "My errand orders",

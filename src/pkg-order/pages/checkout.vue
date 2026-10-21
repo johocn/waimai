@@ -73,6 +73,7 @@
           <text class="address-block__name">{{ selectedAddress.fullName }}</text>
           <text class="address-block__phone">{{ selectedAddress.phoneNumber }}</text>
           <text v-if="selectedAddress.defaultShippingAddress" class="address-block__tag">{{ $t('checkout.defaultTag') }}</text>
+          <text v-if="addrLabel(selectedAddress.id)" class="address-block__label">{{ addrLabel(selectedAddress.id) }}</text>
         </view>
         <text class="address-block__detail">{{ selectedAddress.province }} {{ selectedAddress.city }} {{ selectedAddress.streetLine1 }}{{ selectedAddress.streetLine2 ? ' ' + selectedAddress.streetLine2 : '' }}</text>
         <text class="address-block__change">{{ $t('checkout.changeAddr') }}</text>
@@ -115,6 +116,7 @@
               <text class="addr-option__name">{{ addr.fullName }}</text>
               <text class="addr-option__phone">{{ addr.phoneNumber }}</text>
               <text v-if="addr.defaultShippingAddress" class="addr-option__tag">{{ $t('checkout.defaultTag') }}</text>
+              <text v-if="addrLabel(addr.id)" class="addr-option__label">{{ addrLabel(addr.id) }}</text>
             </view>
             <text class="addr-option__detail">{{ addr.province }} {{ addr.city }} {{ addr.streetLine1 }}{{ addr.streetLine2 ? ' ' + addr.streetLine2 : '' }}</text>
             <view class="addr-option__actions">
@@ -391,6 +393,7 @@ import { filterCampusRoutes } from '../../utils/errand';
 import { pickDefaultCampusAddress, isValidCampusTarget, parseInvoiceTitles, type InvoiceTitle } from '../../utils/profile-mapping';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
+import { ADDRESS_LABELS, addressLabelKey } from '../../utils/addressLabel';
 import { useFavoritesStore } from '../../stores/favorites';
 import { nextPromoHint, yuan } from '../../utils/promo';
 import { getMyCoupons } from '../../api/queries/coupon';
@@ -405,6 +408,13 @@ const ui = useUIStore();
 const tenantStore = useTenantStore();
 const authStore = useAuthStore();
 const locale = useLocaleStore();
+
+/** 地址标签文案（本地存储 address_labels，与地址簿页共用；无标签返回空串） */
+function addrLabel(addressId: string | number): string {
+    const key = addressLabelKey(addressId);
+    const hit = ADDRESS_LABELS.find(l => l.key === key);
+    return hit ? locale.t(hit.i18n) : '';
+}
 const favorites = useFavoritesStore();
 const shippingMethods = ref<any[]>([]);
 const paymentMethods = ref<any[]>([]);
@@ -1394,6 +1404,8 @@ onLoad((q: any) => {
 .input { width: 100%; height: 80rpx; background: $bg-color; border-radius: $radius-sm; padding: 0 20rpx; font-size: 26rpx; margin-bottom: 16rpx; box-sizing: border-box; }
 .region-row { display: flex; justify-content: space-between; align-items: center; height: 80rpx; background: $bg-color; border-radius: $radius-sm; padding: 0 20rpx; font-size: 26rpx; margin-bottom: 16rpx; &__placeholder { color: $text-color-placeholder; } &__arrow { color: $text-color-placeholder; } }
 .address-form { &__tip { font-size: 24rpx; color: $text-color-secondary; margin-bottom: 16rpx; } &__check { display: flex; justify-content: space-between; align-items: center; font-size: 26rpx; margin: 8rpx 0 16rpx; } &__save { height: 80rpx; line-height: 80rpx; background: $brand-color; color: #fff; font-size: 28rpx; border-radius: $radius-md; border: none; } }
+/* 地址标签（家/学校/公司）：与地址簿共用本地标签数据 */
+.address-block__label, .addr-option__label { font-size: 20rpx; color: #3b7ddd; border: 1rpx solid #3b7ddd; border-radius: 6rpx; padding: 2rpx 10rpx; }
 .address-block { position: relative; &__top { display: flex; align-items: center; gap: 16rpx; } &__name { font-size: 30rpx; font-weight: 600; } &__phone { font-size: 26rpx; color: $text-color-secondary; } &__tag { font-size: 20rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 6rpx; padding: 0 8rpx; } &__detail { display: block; font-size: 26rpx; color: $text-color-secondary; margin-top: 12rpx; line-height: 1.5; } &__change { display: block; text-align: right; font-size: 24rpx; color: $brand-color; margin-top: 8rpx; } }
 .addr-modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 300; display: flex; align-items: flex-end; }
 .addr-modal { width: 100%; max-height: 75vh; background: $surface; border-radius: 24rpx 24rpx 0 0; padding: 24rpx; box-sizing: border-box; display: flex; flex-direction: column; &__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; } &__title { font-size: 30rpx; font-weight: 600; } &__close { font-size: 32rpx; color: $text-color-placeholder; padding: 8rpx; } &__list { flex: 1; max-height: 55vh; } &__empty { text-align: center; padding: 60rpx 0; color: $text-color-placeholder; font-size: 26rpx; } &__fab { margin-top: 20rpx; height: 80rpx; line-height: 80rpx; text-align: center; border-radius: $radius-md; background: $brand-color-light; color: $brand-color; font-size: 28rpx; &--save { background: $brand-color; color: #fff; } } }

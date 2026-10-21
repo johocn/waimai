@@ -38,11 +38,42 @@
                     </view>
                 </scroll-view>
                 <scroll-view scroll-y class="goods">
+                    <!-- 店内搜索：实时本地过滤 + 历史/热门词（纯前端，无额外请求） -->
+                    <view class="shop-search">
+                        <text class="shop-search__ico">🔍</text>
+                        <input
+                            class="shop-search__ipt" v-model="keyword" :placeholder="$t('menu.searchInShop')"
+                            confirm-type="search" @confirm="commitKeyword"
+                        />
+                        <text v-if="keyword" class="shop-search__x" @tap="clearKeyword">✕</text>
+                    </view>
+                    <view class="suggest" v-if="!keyword && (searchHistory.length || hotWords.length)">
+                        <view class="suggest__group" v-if="searchHistory.length">
+                            <view class="suggest__head">
+                                <text>{{ $t('menu.searchHistory') }}</text>
+                                <text class="suggest__clear" @tap="clearSearchHistory">🗑</text>
+                            </view>
+                            <view class="suggest__chips">
+                                <text v-for="w in searchHistory" :key="'h-' + w" class="suggest__chip" @tap="applyKeyword(w)">{{ w }}</text>
+                            </view>
+                        </view>
+                        <view class="suggest__group" v-if="hotWords.length">
+                            <view class="suggest__head"><text>{{ $t('menu.hotSearch') }}</text></view>
+                            <view class="suggest__chips">
+                                <text v-for="w in hotWords" :key="'t-' + w" class="suggest__chip suggest__chip--hot" @tap="applyKeyword(w)">{{ w }}</text>
+                            </view>
+                        </view>
+                    </view>
                     <!-- 排序 chips：售罄始终置底，切换不重新请求接口 -->
                     <view class="good-sort">
                         <view class="sort-chip" :class="{ on: sortKey === 'default' }" @tap="setSort('default')">{{ $t('menu.sortDefault') }}</view>
                         <view class="sort-chip" :class="{ on: sortKey === 'sales' }" @tap="setSort('sales')">{{ $t('menu.sortSales') }}</view>
                         <view class="sort-chip" :class="{ on: sortKey === 'price' }" @tap="setSort('price')">{{ $t('menu.sortPrice') }} {{ priceAsc ? '↑' : '↓' }}</view>
+                    </view>
+                    <!-- 筛选 chips：与排序分行，避免 5 个 chip 挤在一起折行 -->
+                    <view class="good-filter">
+                        <view class="sort-chip" :class="{ on: onlyCoupon }" @tap="onlyCoupon = !onlyCoupon">{{ $t('menu.filterCoupon') }}</view>
+                        <view class="sort-chip" :class="{ on: hideSoldOut }" @tap="hideSoldOut = !hideSoldOut">{{ $t('menu.filterInStock') }}</view>
                     </view>
                     <!-- 首页搜索/收藏/常买商品带 q 进店：只筛当前分类商品，可一键清除 -->
                     <view v-if="productQuery" class="good-search">
@@ -209,7 +240,7 @@ import { fetchProductList, fetchStoreList } from '../../api/queries/waimai';
 import { getProductCoupons } from '../../api/queries/coupon';
 import { getChannelReviews, getChannelReviewStats } from '../../api/queries/review';
 import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
-import { matchesProduct } from '../../utils/search';
+import { matchesProduct, readSearchHistory, pushSearchHistory, clearSearchHistory as clearHistoryStorage } from '../../utils/search';
 import { nextPromoHint, yuan } from '../../utils/promo';
 import { theme, initTheme } from '../../utils/theme';
 import { sharePage } from '../../utils/share';
@@ -285,6 +316,41 @@ const crossSellHint = computed(() => {
         ? locale.t('menu.promoGap').replace('{d}', yuan(hint.gapFen)).replace('{y}', yuan(hint.discountFen))
         : '';
 });
+// —— 店内搜索 / 筛选（纯前端）——
+const keyword = ref('');
+const searchHistory = ref<string[]>(readSearchHistory());
+/** 热门搜索：取店内销量前 6 的商品名，名额不足用分类名补齐 */
+const hotWords = computed(() => {
+    const words: string[] = [];
+    const push = (w?: string) => {
+        const v = String(w ?? '').trim();
+        if (v && !words.includes(v)) words.push(v);
+    };
+    [...products.value]
+        .sort((a: any, b: any) => goodSales(b) - goodSales(a))
+        .forEach((p: any) => push(p.name));
+    cats.value.filter((c: any) => c.id !== 'all').forEach((c: any) => push(c.name));
+    return words.slice(0, 6);
+});
+const onlyCoupon = ref(false);
+const hideSoldOut = ref(false);
+
+function commitKeyword() {
+    if (!keyword.value.trim()) return;
+    searchHistory.value = pushSearchHistory(keyword.value);
+}
+function applyKeyword(w: string) {
+    keyword.value = w;
+    searchHistory.value = pushSearchHistory(w);
+}
+function clearKeyword() {
+    keyword.value = '';
+}
+function clearSearchHistory() {
+    clearHistoryStorage();
+    searchHistory.value = [];
+}
+
 const crossSellProducts = computed(() => {
     if (crossSellGapFen.value <= 0) return [];
     const inCart = new Set(cart.lines.map((l: any) => String(l.productVariant?.id ?? '')));
@@ -531,6 +597,9 @@ function buildCats(list: any[]) {
 function goodsOf(catId: string) {
     let list = catId === 'all' ? products.value : products.value.filter(p => p.collections?.some((c: any) => c.name === catId));
     if (productQuery.value) list = list.filter(p => matchesProduct(p, productQuery.value));
+    if (keyword.value.trim()) list = list.filter(p => matchesProduct(p, keyword.value));
+    if (onlyCoupon.value) list = list.filter(p => !!couponOf(p));
+    if (hideSoldOut.value) list = list.filter(p => !goodSoldOut(p));
     return sortGoods(list);
 }
 
@@ -809,8 +878,20 @@ function goCheckout() {
 .good-fav { position: absolute; right: 0; top: 16rpx; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; font-size: 36rpx; color: var(--w-text-muted); }
 .good-fav.on { color: #ff4d6d; }
 .good-sort { display: flex; gap: 12rpx; padding: 16rpx 0 0; flex-wrap: wrap; }
+.good-filter { display: flex; gap: 12rpx; padding: 12rpx 0 0; flex-wrap: wrap; }
 .sort-chip { font-size: 22rpx; line-height: 1; color: var(--w-text-muted); background: var(--w-surface-muted); border-radius: 999rpx; padding: 12rpx 22rpx; white-space: nowrap; }
 .sort-chip.on { color: var(--w-brand-text); background: var(--w-brand-soft); font-weight: 600; }
+.shop-search { display: flex; align-items: center; gap: 10rpx; margin-top: 16rpx; padding: 0 20rpx; height: 68rpx; border-radius: 999rpx; background: var(--w-surface-muted); }
+.shop-search__ico { font-size: 24rpx; }
+.shop-search__ipt { flex: 1; font-size: 24rpx; height: 68rpx; color: var(--w-text); }
+.shop-search__x { font-size: 24rpx; color: var(--w-text-muted); padding: 8rpx; }
+.suggest { margin-top: 16rpx; display: flex; flex-direction: column; gap: 14rpx; }
+.suggest__group { display: flex; flex-direction: column; gap: 10rpx; }
+.suggest__head { display: flex; justify-content: space-between; align-items: center; font-size: 22rpx; color: var(--w-text-muted); }
+.suggest__clear { font-size: 22rpx; padding: 4rpx 8rpx; }
+.suggest__chips { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.suggest__chip { font-size: 22rpx; color: var(--w-text); background: var(--w-surface-muted); border-radius: 999rpx; padding: 10rpx 20rpx; }
+.suggest__chip--hot { color: var(--w-brand-text); background: var(--w-brand-soft); }
 .good-search { display: flex; align-items: center; gap: 12rpx; margin: 16rpx 0 0; padding: 10rpx 20rpx; background: var(--w-brand-soft); border-radius: 999rpx; }
 .good-search__txt { flex: 1; min-width: 0; font-size: 22rpx; color: var(--w-brand-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .good-search__x { font-size: 24rpx; color: var(--w-text-muted); padding: 0 8rpx; }

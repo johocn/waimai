@@ -5,12 +5,15 @@
         <view class="ab-page__badges">
           <text class="ab-page__name">{{ a.fullName }}</text>
           <text class="ab-page__default" v-if="a.defaultShippingAddress">{{ $t('addressBook.defaultTag') }}</text>
+          <text class="ab-page__label" v-if="labelOf(a.id)" @click.stop="pickLabel(a)">{{ labelText(a.id) }}</text>
+          <text class="ab-page__label ab-page__label--add" v-else @click.stop="pickLabel(a)">{{ $t('addressBook.addLabel') }}</text>
           <text class="ab-page__invalid" v-if="a._invalid">{{ $t('addressBook.invalidTag') }}</text>
         </view>
         <text class="ab-page__phone">{{ a.phoneNumber }}</text>
         <text class="ab-page__addr">{{ a._addrText }}</text>
       </view>
       <view class="ab-page__ops">
+        <text class="ab-page__op" @click="copyAddr(a)">{{ $t('addressBook.copy') }}</text>
         <text class="ab-page__op" v-if="!a.defaultShippingAddress && !a._invalid" @click="setDefault(a)">{{ $t('addressBook.setDefault') }}</text>
         <text class="ab-page__op ab-page__op--danger" @click="del(a)">{{ $t('addressBook.del') }}</text>
       </view>
@@ -31,10 +34,40 @@ import { getActiveCustomer } from '../../api/queries/user';
 import { updateCustomerAddress, deleteCustomerAddress } from '../../api/mutations/user';
 import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
 import { useLocaleStore } from '../../stores/locale';
+import { ADDRESS_LABELS, readAddressLabels, writeAddressLabel } from '../../utils/addressLabel';
 
 const locale = useLocaleStore();
 const items = ref<any[]>([]);
 let zones: any[] = [];
+
+// 地址标签（家/学校/公司）：本地存储，跨设备不同步
+const labels = ref<Record<string, string>>(readAddressLabels());
+
+function labelOf(id: string) { return labels.value[String(id)] || ''; }
+function labelText(id: string) {
+    const hit = ADDRESS_LABELS.find(l => l.key === labelOf(id));
+    return hit ? locale.t(hit.i18n) : '';
+}
+function pickLabel(a: any) {
+    const names = [...ADDRESS_LABELS.map(l => locale.t(l.i18n)), locale.t('addressBook.tagClear')];
+    uni.showActionSheet({
+        itemList: names,
+        success: (res) => {
+            const picked = ADDRESS_LABELS[res.tapIndex];
+            writeAddressLabel(String(a.id), picked ? picked.key : null);
+            labels.value = readAddressLabels();
+        },
+    });
+}
+
+/** 复制「姓名 电话 地址」，便于发给骑手或填表 */
+function copyAddr(a: any) {
+    const text = `${a.fullName} ${a.phoneNumber} ${a._addrText}`.trim();
+    uni.setClipboardData({
+        data: text,
+        success: () => uni.showToast({ title: locale.t('addressBook.copyOk'), icon: 'none' }),
+    });
+}
 
 onShow(refresh);
 
@@ -104,6 +137,7 @@ function del(a: any) {
     &__badges { display: flex; align-items: center; gap: 12rpx; }
     &__name { font-size: 30rpx; font-weight: bold; }
     &__default { font-size: 20rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 6rpx; padding: 2rpx 10rpx; }
+    &__label { font-size: 20rpx; color: #3b7ddd; border: 1rpx solid #3b7ddd; border-radius: 6rpx; padding: 2rpx 10rpx; &--add { color: $text-color-placeholder; border: 1rpx dashed $border-color; } }
     &__invalid { font-size: 20rpx; color: #e8a23a; border: 1rpx solid #e8a23a; border-radius: 6rpx; padding: 2rpx 10rpx; }
     &__phone { display: block; font-size: 26rpx; color: $text-color-secondary; margin-top: 8rpx; }
     &__addr { display: block; font-size: 26rpx; color: $text-color-secondary; margin-top: 4rpx; }

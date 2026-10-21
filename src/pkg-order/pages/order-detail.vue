@@ -98,6 +98,11 @@
         <view class="rider__info">
           <text class="rider__name">{{ rider.realName }}</text>
           <text class="rider__sub">{{ $t('orderDetail.credit').replace('{n}', String(rider.credit ?? '—')) }}<text v-if="campusRoute === 'R1'">{{ $t('orderDetail.relayRider') }}</text></text>
+          <!-- 配送中补充实时距离与预计送达（后端 campusOrderRider 字段，缺失则不展示） -->
+          <view class="rider__meta" v-if="rider.distanceMeters != null || rider.etaMinutes != null">
+            <text v-if="rider.distanceMeters != null">{{ $t('orderDetail.riderDistance').replace('{n}', distanceText(rider.distanceMeters)) }}</text>
+            <text v-if="rider.etaMinutes != null">{{ $t('orderDetail.riderEta').replace('{n}', String(rider.etaMinutes)) }}</text>
+          </view>
         </view>
         <text class="rider__contact" @tap="callStore">{{ $t('orderDetail.contactStore') }}</text>
       </view>
@@ -109,6 +114,7 @@
       <view class="rider__urge" v-if="canUrge">
         <text v-if="urged" class="rider__urged-tag">{{ $t('orderDetail.urgedTag') }}</text>
         <button v-else class="rider__urge-btn" @tap="onUrge">{{ $t('orderDetail.urgeBtn') }}</button>
+        <text class="rider__urge-hint">{{ $t('orderDetail.urgeHint') }}</text>
       </view>
       <map
         v-if="rider?.location"
@@ -265,7 +271,7 @@ const cart = useCartStore();
 const auth = useAuthStore();
 const order = ref<any>(null);
 const trackingNo = ref('');
-const rider = ref<{ realName: string; credit: number; location?: { lat: number; lng: number } | null } | null>(null);
+const rider = ref<{ realName: string; credit: number; distanceMeters?: number | null; etaMinutes?: number | null; location?: { lat: number; lng: number } | null } | null>(null);
 // plan 2.2：骑手 Marker（callout 显示骑手姓名 + 送往楼栋，目标楼栋无经纬度以文字标注）
 const riderMarkers = computed(() => {
     const loc = rider.value?.location; if (!loc) return [];
@@ -394,6 +400,12 @@ const riderHint = computed(() => {
     if (dispatching.value) return locale.t('orderDetail.hintDispatching');
     return locale.t('orderDetail.hintWaiting');
 });
+/** 距离展示：<1km 用米（取整），否则公里保留 1 位 */
+function distanceText(meters: number): string {
+    const m = Number(meters);
+    if (!Number.isFinite(m) || m < 0) return '—';
+    return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+}
 // —— 催单/联系商家（plan 2.4）——
 const urged = computed(() => !!order.value?.customFields?.urged);
 const canUrge = computed(() => {
@@ -774,7 +786,7 @@ async function confirmReorder() {
 .tl { &__body { display: flex; flex-direction: column; } &__time { font-size: 22rpx; color: $text-color-placeholder; padding-bottom: 24rpx; } &__item { display: flex; align-items: flex-start; } &__rail { display: flex; flex-direction: column; align-items: center; margin-right: 20rpx; } &__dot { width: 32rpx; height: 32rpx; border-radius: 50%; background: #eee; color: #fff; font-size: 20rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; } &__label { font-size: 26rpx; color: $text-color-placeholder; padding: 4rpx 0 28rpx; } &__item:last-child &__label { padding-bottom: 4rpx; } &__item--done &__dot { background: $brand-color; } &__item--done &__label { color: $text-color; } &__item--active &__dot { background: $brand-color; box-shadow: 0 0 0 8rpx rgba(255, 102, 0, 0.15); } &__item--active &__label { color: $brand-color; font-weight: bold; } }
 .tl-meta { display: flex; flex-direction: column; gap: 6rpx; border-top: 1rpx solid $border-color; padding-top: 16rpx; font-size: 24rpx; color: $text-color-secondary; }
 // 骑手卡
-.rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__hint { font-size: 26rpx; color: $brand-color; } &__contact { font-size: 24rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 8rpx 20rpx; flex-shrink: 0; } &__urge { margin-top: 16rpx; display: flex; justify-content: center; } &__urge-btn { width: 240rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; border-radius: 999rpx; background: $surface; color: $brand-color; border: 1rpx solid $brand-color; padding: 0; margin: 0; } &__urged-tag { font-size: 24rpx; color: #e02020; background: #fdeaea; border-radius: 999rpx; padding: 8rpx 24rpx; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } &__track { margin-top: 16rpx; font-size: 26rpx; color: $brand-color; font-weight: bold; } }
+.rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__meta { display: flex; gap: 16rpx; font-size: 22rpx; color: $brand-color; } &__hint { font-size: 26rpx; color: $brand-color; } &__contact { font-size: 24rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 8rpx 20rpx; flex-shrink: 0; } &__urge { margin-top: 16rpx; display: flex; flex-direction: column; align-items: center; gap: 8rpx; } &__urge-btn { width: 240rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; border-radius: 999rpx; background: $surface; color: $brand-color; border: 1rpx solid $brand-color; padding: 0; margin: 0; } &__urge-hint { font-size: 20rpx; color: $text-color-placeholder; } &__urged-tag { font-size: 24rpx; color: #e02020; background: #fdeaea; border-radius: 999rpx; padding: 8rpx 24rpx; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } &__track { margin-top: 16rpx; font-size: 26rpx; color: $brand-color; font-weight: bold; } }
 .logistics { &__no { font-size: 26rpx; color: $brand-color; display: block; margin-top: 8rpx; } &__empty { font-size: 26rpx; color: $text-color-placeholder; } }
 .order-line { display: flex; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid #f5f5f5; &:last-child { border-bottom: none; } &__info { flex: 1; display: flex; flex-direction: column; justify-content: space-between; } &__name { font-size: 26rpx; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } &__spec { font-size: 22rpx; color: $text-color-placeholder; margin-top: 4rpx; } &__bottom { display: flex; justify-content: space-between; align-items: center; } &__price { font-size: 28rpx; color: $price-color; } &__qty { font-size: 24rpx; color: $text-color-placeholder; } }
 .summary { &__row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; &--total { padding-top: 16rpx; margin-top: 8rpx; border-top: 1rpx solid $border-color; font-size: 28rpx; } &--disc { padding: 4rpx 0; } } &__dname { font-size: 24rpx; color: $text-color-secondary; flex: 1; margin-right: 16rpx; } &__total { font-size: 36rpx; color: $price-color; font-weight: bold; } &__saved { display: block; text-align: right; font-size: 22rpx; color: #07c160; margin-top: 8rpx; } }

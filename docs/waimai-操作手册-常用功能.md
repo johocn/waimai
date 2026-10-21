@@ -734,3 +734,90 @@
 - 「+N 张」只作提示，点击缩略图预览的是全部图片（含未展示的）；
 - 帮助中心 FAQ 为内置文案，后台暂不可配置；客服热线依赖构建期 `VITE_SERVICE_PHONE`；
 - 我的页用户名兜底：无 `firstName` 时显示邮箱前缀，避免已登录仍显示「未登录」。
+
+---
+
+# 第八轮常用功能（地址标签 / 券包增强 / 骑手信息 / 店内搜索）
+
+> 上线日期：2026-10-21（第八轮）
+> 截图脚本：`node .secrets/common-features-v8-shots.cjs`（Playwright 390×844 dpr=2，输出 `docs/screenshots/common-features-v8/`）
+> 新增文件：`src/utils/addressLabel.ts`
+> 修改文件：`src/pkg-user/pages/address-book.vue`、`src/pkg-order/pages/checkout.vue`、`src/pkg-promotion/pages/my-coupons.vue`、`src/pkg-order/pages/order-detail.vue`、`src/pages/shop/menu.vue`、`src/locale/zh-Hans.json`、`src/locale/en.json`
+> 后端：无改动，复用 `activeCustomer.addresses` / `campusZones` / `campusBuildings` / `myCoupons` / `campusOrderRider`
+
+## 42. 地址簿标签与复制
+
+1. 标签来源：本地 `address_labels`（`{ addressId: 'home' | 'school' | 'company' }`），不写后端，不跨设备同步；
+2. 地址卡片标题行新增标签 chip：
+   - 已设置：显示「家 / 学校 / 公司」（当前语言）；
+   - 未设置：显示虚线「＋标签」，点击弹出 ActionSheet 选择家/学校/公司或「清除标签」；
+3. 操作行新增「复制」：复制「姓名 电话 完整地址（含分区 + 楼栋 + 房间）」，便于发给骑手或填表；
+4. 结算页地址卡与地址选择弹层同步展示同一标签（读同一份本地数据）；
+5. 分区/楼栋失效的地址仍标「待更新」，不展示标签操作。
+
+![地址簿标签与复制](screenshots/common-features-v8/26-address-labels.png)
+
+## 43. 券包增强（分类计数 + 临期提醒）
+
+1. Tab 计数：未使用 / 已使用 / 已过期的 tab 标题右侧显示数量（按已加载列表计算，切 tab 后补齐）；
+2. 临期横幅：未使用 tab 下，若有券 3 天内到期，顶部展示「N 张券将在 3 天内到期，尽快使用」；
+3. 券卡片新增：
+   - 「还剩 N 天」/「今天到期」提示（仅未使用且未过期）；
+   - 3 天内到期的券保留「即将过期」角标；
+   - 已使用/已过期券仍为灰度卡、无「去使用」按钮；
+4. 口径：`isExpiringSoon` = 未过期且到期时间距现在 ≤ 3 天（按当天 0 点比较下限）。
+
+![券包分类与临期提醒](screenshots/common-features-v8/27-coupons-expiring.png)
+![券包已使用 tab](screenshots/common-features-v8/28-coupons-used-tab.png)
+
+## 44. 骑手信息与催单
+
+1. 订单详情骑手卡在原有「姓名 + 信用分 + 联系商家」基础上新增：
+   - 「距你 {距离}」：< 1km 用米（取整），否则公里保留 1 位；
+   - 「约 N 分钟送达」：取 `campusOrderRider.etaMinutes`；
+   - 两项均来自 `campusOrderRider` 的 `distanceMeters / etaMinutes`，缺失自动隐藏；
+2. 催单区新增提示文案「催单后骑手会收到提醒，请耐心等待」，位于催单按钮下方；
+3. 已催单仍显示「已催单」红色标签，按钮隐藏；催单逻辑沿用原实现（`urgeOrder` 写 `urged`）。
+
+![骑手信息与催单提示](screenshots/common-features-v8/29-order-rider-meta.png)
+
+## 45. 店内搜索与筛选
+
+1. 商品面板顶部新增搜索框（`搜索店内商品`），输入即本地过滤，不发请求；
+2. 搜索建议（输入为空时展示）：
+   - 搜索历史：复用 `search_history`（与首页搜索共用，最多 10 条，可一键清空）；
+   - 热门搜索：店内销量前 6 的商品名，名额不足用分类名补齐；
+   - 点击词条直接填入并写入历史；
+3. 筛选 chips（与排序分行）：
+   - 「有优惠」：仅展示带可领/专属券的商品；
+   - 「仅看有货」：隐藏全部规格售罄的商品；
+4. 与既有能力叠加：`q` 参数（首页搜索/收藏进店定位）、分类、排序（综合/销量/价格升降）同时生效；
+5. 空结果沿用「该分类下暂无商品」空态。
+
+![店内搜索与建议词](screenshots/common-features-v8/30-shop-search-suggest.png)
+![搜索「可乐」结果](screenshots/common-features-v8/31-shop-search-result.png)
+![仅看有货筛选](screenshots/common-features-v8/32-shop-filter-instock.png)
+
+## 46. 验收记录与边界（第八轮，2026-10-21）
+
+| 项 | 结果 |
+|---|---|
+| 地址标签 | `{"home":true,"school":true,"copy":true,"defaultTag":true}`；两条地址分别显示「家 / 学校」chip，复制入口在操作行 |
+| 券包 | `{"counts":true,"banner":true,"days":true}`；未使用 3 张、横幅「1 张券将在 3 天内到期」、卡片「还剩 2 天」 |
+| 券包切 tab | 已使用 tab 命中「满15减2」卡片，临期横幅消失 |
+| 骑手信息 | `{"name":true,"distance":true,"eta":true,"urge":true,"hint":true}`；显示「距你 620 m」「约 7 分钟送达」与催单提示 |
+| 店内搜索 | 搜索框、历史、热门三块命中，历史 3 条、热门 3 条；筛选 chips 正常 |
+| 搜索过滤 | 输入「可乐」后建议区收起，列表仅剩含关键词商品，清除按钮可用 |
+| 仅看有货 | 切换后列表不再出现「已售罄」商品 |
+| i18n | `zh-Hans.json` / `en.json` 补齐 `addressBook`（7 键）、`myCoupons`（3 键）、`orderDetail`（3 键）、`menu`（5 键） |
+| 前端构建/部署 | `pnpm build:h5` 通过（产物 2642 KB），`node .secrets/deploy-waimai.mjs` 部署成功 |
+| 手机视口截图 | 390×844 dpr=2，共 7 张（26–32） |
+
+边界与已知限制：
+- 地址标签仅存本机，换设备/清缓存后丢失；删除地址后标签残留（不影响展示）；
+- 复制内容含分区与楼栋，若地址失效则复制的是「地址已失效」提示文案；
+- 券 tab 计数基于已加载列表，首次进入只加载当前 tab，其余 tab 显示 0 直到切换；
+- 骑手距离/ETA 依赖后端实时字段，未上报定位时仅显示姓名与信用分；
+- 催单为单次写入 `urged`，前端不做频率限制（后端已幂等）；
+- 店内搜索为前端过滤（已在店铺页加载的 100 个商品内），不调用搜索接口；
+- 热门搜索按店内销量推导，不含跨店热搜。

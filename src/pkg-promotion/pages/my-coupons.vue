@@ -1,7 +1,15 @@
 <template>
   <view class="mc-page">
     <view class="mc-tabs">
-      <text v-for="k in TABS" :key="k.key" class="mc-tab" :class="{ on: tab === k.key }" @tap="switchTab(k.key)">{{ $t('myCoupons.' + k.label) }}</text>
+      <text v-for="k in TABS" :key="k.key" class="mc-tab" :class="{ on: tab === k.key }" @tap="switchTab(k.key)">
+        {{ $t('myCoupons.' + k.label) }}<text class="mc-tab__n" v-if="counts[k.key]">{{ counts[k.key] }}</text>
+      </text>
+    </view>
+
+    <!-- 临期提醒：未使用券中 3 天内到期的聚合提示，点击仍停留在可用券列表 -->
+    <view class="mc-banner" v-if="expiringCount > 0 && tab === 'UNUSED'" @tap="tab = 'UNUSED'">
+      <text class="mc-banner__ico">⏰</text>
+      <text class="mc-banner__txt">{{ $t('myCoupons.expiringBanner').replace('{n}', String(expiringCount)) }}</text>
     </view>
 
     <scroll-view scroll-y class="mc-list">
@@ -18,6 +26,7 @@
         <view class="ticket__right">
           <text class="ticket__name">{{ c.template.name }}</text>
           <text class="ticket__expire" v-if="c.expiredAt">{{ $t('myCoupons.validUntil').replace('{n}', fmtDate(c.expiredAt)) }}</text>
+          <text class="ticket__left-days" v-if="daysLeftText(c)">{{ daysLeftText(c) }}</text>
           <text class="ticket__state">{{ stateText(c.status) }}</text>
           <button v-if="c.status === 'UNUSED'" class="ticket__btn" @tap="useCoupon(c)">{{ $t('myCoupons.use') }}</button>
         </view>
@@ -58,10 +67,31 @@ const loading = ref(false);
 
 const EXPIRING_WINDOW_MS = 3 * 86400000;
 
+/** tab 计数：已加载的 tab 显示数量（未加载不显示，切过去后补齐） */
+const counts = computed<Record<string, number>>(() => ({
+    UNUSED: data.value.UNUSED?.length ?? 0,
+    USED: data.value.USED?.length ?? 0,
+    EXPIRED: data.value.EXPIRED?.length ?? 0,
+}));
+
 function expireTime(c: any): number {
     if (!c?.expiredAt) return Infinity;
     const t = new Date(c.expiredAt).getTime();
     return Number.isNaN(t) ? Infinity : t;
+}
+
+/** 未使用券 3 天内到期数量（横幅用，基于已加载的 UNUSED 列表） */
+const expiringCount = computed(() => (data.value.UNUSED || []).filter((c: any) => isExpiringSoon(c)).length);
+
+/** 剩余天数：今天到期 / 还剩 N 天；仅在未使用且有到期时间时展示 */
+function daysLeftText(c: any): string {
+    if (c?.status !== 'UNUSED') return '';
+    const t = expireTime(c);
+    if (t === Infinity || t < Date.now()) return '';
+    const days = Math.ceil((t - Date.now()) / 86400000);
+    return days <= 0
+        ? locale.t('myCoupons.todayExpire')
+        : locale.t('myCoupons.daysLeft').replace('{n}', String(days));
 }
 
 /** 未使用券按 expiredAt 升序（临期在前，无过期时间排最后）；其余 tab 保持服务端顺序 */
@@ -155,6 +185,11 @@ onShow(() => { data.value = { UNUSED: [], USED: [], EXPIRED: [] }; load(tab.valu
 .mc-page { min-height: 100vh; background: #f5f5f5; display: flex; flex-direction: column; }
 .mc-tabs { display: flex; background: #fff; padding: 0 32rpx; }
 .mc-tab { flex: 1; text-align: center; padding: 24rpx 0; font-size: 30rpx; color: #666; &.on { color: #ff6600; font-weight: bold; border-bottom: 4rpx solid #ff6600; } }
+.mc-tab__n { font-size: 22rpx; margin-left: 6rpx; color: inherit; }
+.mc-banner { display: flex; align-items: center; gap: 10rpx; margin: 20rpx 24rpx 0; padding: 16rpx 24rpx; border-radius: 999rpx; background: #fff4e6; border: 1rpx solid #ffc48a; }
+.mc-banner__ico { font-size: 24rpx; }
+.mc-banner__txt { font-size: 24rpx; color: #b45309; }
+.ticket__left-days { font-size: 22rpx; color: #ff6600; margin-top: 6rpx; }
 .mc-list { flex: 1; height: 0; padding: 24rpx; box-sizing: border-box; }
 .ticket { position: relative; display: flex; background: #fff; border-radius: 16rpx; margin-bottom: 24rpx; overflow: hidden; }
 .ticket__soon { position: absolute; top: 12rpx; right: 12rpx; height: 32rpx; line-height: 32rpx; padding: 0 12rpx; border-radius: 16rpx; background: #ff9500; color: #fff; font-size: 20rpx; white-space: nowrap; z-index: 1; }

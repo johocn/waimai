@@ -282,7 +282,12 @@
         "shareProductDesc": "来自 {s} 的推荐",
         "shareCopied": "链接已复制",
         "crossSellTitle": "凑单推荐",
-        "crossSellAdded": "已加入购物车"
+        "crossSellAdded": "已加入购物车",
+        "searchInShop": "搜索店内商品",
+        "searchHistory": "搜索历史",
+        "hotSearch": "热门搜索",
+        "filterCoupon": "有优惠",
+        "filterInStock": "仅看有货"
     },
     "orders": {
         "tabAll": "全部",
@@ -667,7 +672,10 @@
         "copyInvoice": "复制",
         "copyOk": "已复制发票信息",
         "invoiceMailHint": "电子发票将在 3 个工作日内发送至上述邮箱",
-        "manageTitles": "管理抬头"
+        "manageTitles": "管理抬头",
+        "riderDistance": "距你 {n}",
+        "riderEta": "约 {n} 分钟送达",
+        "urgeHint": "催单后骑手会收到提醒，请耐心等待"
     },
     "riderTracking": {
         "title": "骑手跟踪",
@@ -861,7 +869,14 @@
         "delTitle": "删除地址",
         "delConfirm": "确定删除「{n}」的地址吗？",
         "deleted": "已删除",
-        "delFail": "删除失败"
+        "delFail": "删除失败",
+        "tagHome": "家",
+        "tagSchool": "学校",
+        "tagCompany": "公司",
+        "tagClear": "清除标签",
+        "addLabel": "＋标签",
+        "copy": "复制",
+        "copyOk": "地址已复制"
     },
     "addressEdit": {
         "contactLabel": "联系人",
@@ -965,7 +980,10 @@
         "expiringSoon": "即将过期",
         "emptyUnused": "暂无可用优惠券",
         "emptyUsed": "暂无已使用记录",
-        "emptyExpired": "暂无已过期优惠券"
+        "emptyExpired": "暂无已过期优惠券",
+        "expiringBanner": "{n} 张券将在 3 天内到期，尽快使用",
+        "daysLeft": "还剩 {n} 天",
+        "todayExpire": "今天到期"
     },
     "errandCreate": {
         "myOrders": "我的跑腿单",

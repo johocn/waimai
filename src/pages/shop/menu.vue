@@ -9,6 +9,10 @@
                     <text class="sname">{{ shopName }}</text>
                     <text class="smeta">{{ routesText }}</text>
                 </view>
+                <view class="share-btn" @tap.stop="shareShop">
+                    <text class="share-ico">↗</text>
+                    <text class="share-txt">{{ $t('menu.share') }}</text>
+                </view>
                 <view class="fav-btn" :class="{ on: isFav, disabled: favChannelId == null }" @tap.stop="toggleFav">
                     <text class="fav-ico">{{ isFav ? '♥' : '♡' }}</text>
                     <text class="fav-txt">{{ isFav ? $t('menu.favRemove') : $t('menu.favAdd') }}</text>
@@ -155,6 +159,23 @@
             </view>
         </scroll-view>
 
+        <!-- 凑单推荐：购物车未达起送价/满减门槛时，推荐店内低价商品一键加购 -->
+        <view class="cross-sell" v-if="crossSellProducts.length">
+            <view class="cross-sell__head">
+                <text class="cross-sell__title">{{ $t('menu.crossSellTitle') }}</text>
+                <text class="cross-sell__gap">{{ crossSellHint }}</text>
+            </view>
+            <scroll-view scroll-x class="cross-sell__row">
+                <view v-for="it in crossSellProducts" :key="'cs-' + it.p.id" class="cs-item" @tap.stop="crossSellAdd(it)">
+                    <VImage :src="it.p.featuredAsset?.preview" width="132rpx" height="132rpx" class="cs-img" />
+                    <text class="cs-name">{{ it.p.name }}</text>
+                    <view class="cs-foot">
+                        <PriceTag :price="it.price" />
+                        <text class="cs-add">+</text>
+                    </view>
+                </view>
+            </scroll-view>
+        </view>
         <!-- 购物车悬浮胶囊 -->
         <view class="cart-bar" @tap="goCheckout">
             <view class="cart-btn">
@@ -172,7 +193,7 @@
                 {{ belowMinOrder ? $t('menu.minOrderGap').replace('{d}', minGapYuan) : $t('menu.checkout') }}
             </view>
         </view>
-        <SkuSheet v-model:visible="skuOpen" :product="skuProduct" @action="onSkuAction" />
+        <SkuSheet v-model:visible="skuOpen" :product="skuProduct" @action="onSkuAction" @share="shareProduct" />
     </view>
 </template>
 
@@ -191,6 +212,7 @@ import { plainDescription, routeText, routeDetail } from '../../utils/store-disp
 import { matchesProduct } from '../../utils/search';
 import { nextPromoHint, yuan } from '../../utils/promo';
 import { theme, initTheme } from '../../utils/theme';
+import { sharePage } from '../../utils/share';
 import { addItemToOrder } from '../../api/mutations/cart';
 import { claimProductCoupon } from '../../api/mutations/coupon';
 import { getActiveOrder } from '../../api/queries/order';
@@ -245,6 +267,66 @@ const cartPromoText = computed(() => {
         ? locale.t('menu.promoReached').replace('{t}', yuan(hint.thresholdFen)).replace('{y}', yuan(hint.discountFen))
         : locale.t('menu.promoGap').replace('{d}', yuan(hint.gapFen)).replace('{y}', yuan(hint.discountFen));
 });
+
+// 凑单推荐：未达起送价优先提示起送差额，其次提示满减差额；无门槛差额不展示
+const crossSellGapFen = computed(() => {
+    if (!cartCount.value) return 0;
+    if (belowMinOrder.value) return (minOrderFen.value ?? 0) - cartTotal.value;
+    const hint = nextPromoHint(storeInfo.value?.promoText || promoText.value, cartTotal.value);
+    return hint && !hint.reached ? hint.gapFen : 0;
+});
+const crossSellHint = computed(() => {
+    if (crossSellGapFen.value <= 0) return '';
+    if (belowMinOrder.value) {
+        return locale.t('menu.minOrderGap').replace('{d}', yuan(crossSellGapFen.value));
+    }
+    const hint = nextPromoHint(storeInfo.value?.promoText || promoText.value, cartTotal.value);
+    return hint
+        ? locale.t('menu.promoGap').replace('{d}', yuan(hint.gapFen)).replace('{y}', yuan(hint.discountFen))
+        : '';
+});
+const crossSellProducts = computed(() => {
+    if (crossSellGapFen.value <= 0) return [];
+    const inCart = new Set(cart.lines.map((l: any) => String(l.productVariant?.id ?? '')));
+    return products.value
+        .map((p: any) => {
+            const vs = (p.variants ?? []).filter((v: any) => variantAvailable(v) && Number(v.priceWithTax) > 0);
+            if (!vs.length) return null;
+            const v = vs.reduce((a: any, b: any) => (Number(b.priceWithTax) < Number(a.priceWithTax) ? b : a));
+            return { p, v, price: Number(v.priceWithTax) || 0 };
+        })
+        .filter((it: any) => it && !inCart.has(String(it.v.id)))
+        .sort((a: any, b: any) => a.price - b.price)
+        .slice(0, 8);
+});
+async function crossSellAdd(it: { v: any }) {
+    const ok = await doAddItem(it.v.id, 1);
+    if (ok) uni.showToast({ title: locale.t('menu.crossSellAdded'), icon: 'none' });
+}
+
+/** 店铺分享：微信内走 JS-SDK 卡片，其它环境复制带店铺 token 的链接 */
+async function shareShop() {
+    const path = `/pages/shop/menu?token=${encodeURIComponent(shopToken.value)}&name=${encodeURIComponent(shopName.value)}&routes=${encodeURIComponent(shopRoutes.value)}${favChannelId.value != null ? `&cid=${favChannelId.value}` : ''}`;
+    const how = await sharePage({
+        title: shopName.value,
+        desc: locale.t('menu.shareShopDesc'),
+        path,
+        image: storeInfo.value?.logo || '',
+    });
+    if (how === 'copy') uni.showToast({ title: locale.t('menu.shareCopied'), icon: 'none' });
+}
+
+/** 商品分享：商品详情弹层右上角 ↗ */
+async function shareProduct(p: any) {
+    if (!p) return;
+    const how = await sharePage({
+        title: p.name,
+        desc: locale.t('menu.shareProductDesc').replace('{s}', shopName.value),
+        path: `/pages/shop/menu?token=${encodeURIComponent(shopToken.value)}&name=${encodeURIComponent(shopName.value)}&routes=${encodeURIComponent(shopRoutes.value)}${favChannelId.value != null ? `&cid=${favChannelId.value}` : ''}`,
+        image: p.featuredAsset?.preview || '',
+    });
+    if (how === 'copy') uni.showToast({ title: locale.t('menu.shareCopied'), icon: 'none' });
+}
 
 /** 商品收藏：任一 variant 已收藏即显示实心（多规格商品用首个 variant 作为代表） */
 function isGoodFav(g: any): boolean {
@@ -580,10 +662,11 @@ function toastSoldOut() {
     uni.showToast({ title: locale.t('menu.soldOutToast'), icon: 'none' });
 }
 
+/** 点商品：统一打开详情弹层（大图/描述/月销/规格/收藏/加购），单规格也可先看清详情 */
 function pickSku(g: any) {
     if (goodSoldOut(g)) { toastSoldOut(); return; }
-    if ((g.variants?.length ?? 0) > 1) { skuProduct.value = g; skuOpen.value = true; }
-    else addToCart(g);
+    skuProduct.value = g;
+    skuOpen.value = true;
 }
 
 async function doAddItem(variantId: string, quantity: number) {
@@ -678,6 +761,9 @@ function goCheckout() {
 .shop-main { flex: 1; min-width: 0; }
 .sname { display: block; font-size: 32rpx; font-weight: 600; color: var(--w-text); line-height: 1.3; }
 .smeta { display: block; font-size: 22rpx; color: var(--w-brand-text); margin-top: 8rpx; }
+.share-btn { display: flex; flex-direction: column; align-items: center; gap: 4rpx; padding: 4rpx 8rpx; flex-shrink: 0; }
+.share-ico { font-size: 34rpx; line-height: 1.1; color: var(--w-text-muted); }
+.share-txt { font-size: 20rpx; color: var(--w-text-muted); }
 .fav-btn { display: flex; flex-direction: column; align-items: center; gap: 4rpx; padding: 4rpx 8rpx; flex-shrink: 0; }
 .fav-btn.disabled { opacity: 0.4; }
 .fav-ico { font-size: 40rpx; line-height: 1; color: var(--w-text-muted); }
@@ -769,6 +855,16 @@ function goCheckout() {
 .mval { color: var(--w-text); flex: 1; }
 .msrv { display: flex; gap: 12rpx; align-items: center; padding: 20rpx 0; font-size: 24rpx; color: var(--w-text-muted); flex-wrap: wrap; }
 /* ── 购物车悬浮胶囊 ── */
+.cross-sell { position: absolute; left: 24rpx; right: 24rpx; bottom: calc(136rpx + env(safe-area-inset-bottom)); z-index: 49; background: var(--w-surface, #fff); border-radius: $radius; padding: 16rpx 16rpx 12rpx; box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.12); }
+.cross-sell__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; margin-bottom: 12rpx; }
+.cross-sell__title { font-size: 24rpx; font-weight: 600; color: var(--w-text, #333); }
+.cross-sell__gap { font-size: 22rpx; color: var(--w-brand-text, #ff6600); }
+.cross-sell__row { white-space: nowrap; }
+.cs-item { display: inline-block; vertical-align: top; width: 132rpx; margin-right: 16rpx; }
+.cs-img { border-radius: $radius-sm; background: var(--w-surface-muted, #f5f5f5); }
+.cs-name { display: block; font-size: 22rpx; color: var(--w-text, #333); margin-top: 6rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4rpx; }
+.cs-add { width: 34rpx; height: 34rpx; border-radius: 999rpx; background: $brand; color: #fff; font-size: 26rpx; line-height: 34rpx; text-align: center; }
 .cart-bar { position: absolute; left: 24rpx; right: 24rpx; bottom: calc(24rpx + env(safe-area-inset-bottom)); height: 96rpx; background: var(--w-cart); border-radius: 999rpx; display: flex; align-items: center; padding-right: 8rpx; box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.28); z-index: 50; }
 .cart-btn { width: 96rpx; height: 96rpx; border-radius: 999rpx; background: $brand; display: flex; align-items: center; justify-content: center; font-size: 40rpx; margin-top: -36rpx; border: 6rpx solid var(--w-bg); position: relative; flex-shrink: 0; }
 .cart-count { position: absolute; top: -10rpx; right: -10rpx; min-width: 36rpx; height: 36rpx; border-radius: 999rpx; background: $surface; color: $brand; font-size: 20rpx; display: flex; align-items: center; justify-content: center; font-weight: 600; padding: 0 6rpx; }

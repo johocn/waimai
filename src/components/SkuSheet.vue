@@ -2,16 +2,28 @@
   <view v-if="visible" class="sku-mask" @click.self="close">
     <view class="sku-sheet">
       <view class="sku-sheet__head">
-        <VImage :src="variantAsset" width="180rpx" height="180rpx" />
+        <VImage :src="variantAsset" width="200rpx" height="200rpx" />
         <view class="sku-sheet__head-info">
+          <text class="sku-sheet__name">{{ product?.name }}</text>
+          <view class="sku-sheet__meta" v-if="metaText">
+            <text v-for="(m, i) in metaText.split(' · ')" :key="i" class="sku-sheet__meta-item">{{ m }}</text>
+          </view>
           <PriceTag :price="currentVariant?.priceWithTax || 0" :large="true" />
           <text class="sku-sheet__stock">{{ stockText }}</text>
           <text class="sku-sheet__picked">{{ $t('comp.selected').replace('{s}', pickedText).replace('{n}', String(quantity)) }}</text>
         </view>
-        <text class="sku-sheet__close" @click="close">✕</text>
+        <view class="sku-sheet__tools">
+          <text class="sku-sheet__share" @click="emit('share', product)">↗</text>
+          <text class="sku-sheet__close" @click="close">✕</text>
+        </view>
       </view>
 
       <scroll-view scroll-y class="sku-sheet__body">
+        <!-- 商品详情：纯文本描述（富文本标签已剥离） -->
+        <view class="sku-detail" v-if="description">
+          <text class="sku-detail__title">{{ $t('comp.productDetail') }}</text>
+          <text class="sku-detail__text">{{ description }}</text>
+        </view>
         <view v-for="group in optionGroups" :key="group.id" class="sku-group">
           <text class="sku-group__label">{{ group.name }} ({{ group.options.length }})</text>
           <view class="sku-group__options">
@@ -48,6 +60,7 @@ import { computed, ref, watch } from 'vue';
 import VImage from './VImage.vue';
 import PriceTag from './PriceTag.vue';
 import { useLocaleStore } from '../stores/locale';
+import { plainDescription } from '../utils/store-display';
 
 const locale = useLocaleStore();
 
@@ -60,7 +73,25 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'update:visible', v: boolean): void;
     (e: 'action', payload: { action: 'cart' | 'buy'; variantId: string; quantity: number }): void;
+    (e: 'share', product: any): void;
 }>();
+
+/** 商品详情：描述纯文本化，空描述不展示详情块 */
+const description = computed(() => plainDescription(props.product?.description));
+
+/** 头部标签：评分 · 评价数 · 月售（无数据不展示） */
+const metaText = computed(() => {
+    const cf = props.product?.customFields || {};
+    const parts: string[] = [];
+    const count = Number(cf.reviewCount) || 0;
+    if (count > 0) {
+        parts.push(`★ ${(Number(cf.reviewRating) || 0).toFixed(1)}`);
+        parts.push(locale.t('comp.reviewCountShort').replace('{n}', String(count)));
+    }
+    const sold = Number(cf.waimaiMonthlySales) || 0;
+    if (sold > 0) parts.push(locale.t('comp.monthlySales').replace('{n}', String(sold)));
+    return parts.join(' · ');
+});
 
 const selected = ref<Record<string, string>>({});
 const quantity = ref(1);
@@ -180,16 +211,25 @@ watch(
 .sku-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: flex-end; }
 .sku-sheet { width: 100%; background: var(--w-surface, #fff); border-top-left-radius: 24rpx; border-top-right-radius: 24rpx; max-height: 80vh; display: flex; flex-direction: column;
     &__head { display: flex; gap: 20rpx; padding: 24rpx; border-bottom: 1rpx solid var(--w-border, #eee); position: relative; }
-    &__head-info { flex: 1; display: flex; flex-direction: column; gap: 8rpx; }
+    &__head-info { flex: 1; display: flex; flex-direction: column; gap: 8rpx; min-width: 0; }
+    &__name { font-size: 30rpx; font-weight: 600; color: var(--w-text, #333); }
+    &__meta { display: flex; flex-wrap: wrap; gap: 8rpx; }
+    &__meta-item { font-size: 22rpx; color: var(--w-text-muted, #999); background: var(--w-surface-muted, #f5f5f5); border-radius: 6rpx; padding: 2rpx 10rpx; }
     &__stock { font-size: 24rpx; color: var(--w-text-muted, #999); }
     &__picked { font-size: 24rpx; color: var(--w-text, #666); }
-    &__close { position: absolute; right: 24rpx; top: 16rpx; font-size: 32rpx; color: var(--w-text-muted, #ccc); }
-    &__body { flex: 1; padding: 0 24rpx; }
+    &__tools { position: absolute; right: 20rpx; top: 12rpx; display: flex; align-items: center; gap: 20rpx; }
+    &__share { font-size: 34rpx; color: var(--w-text-muted, #999); padding: 4rpx; }
+    &__close { font-size: 32rpx; color: var(--w-text-muted, #ccc); padding: 4rpx; }
+    &__body { flex: 1; padding: 0 24rpx; box-sizing: border-box; }
     &__bar { display: flex; gap: 16rpx; padding: 20rpx 24rpx calc(20rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid var(--w-border, #eee); }
     &__btn { flex: 1; height: 80rpx; font-size: 28rpx; border-radius: $radius-md; border: none;
         &--cart { background: $brand-color-light; color: var(--w-brand-text, #ff6600); }
         &--buy { background: $brand-color; color: #fff; }
     }
+}
+.sku-detail { padding: 20rpx 0 4rpx; border-bottom: 1rpx solid var(--w-border, #eee);
+    &__title { font-size: 26rpx; font-weight: 600; color: var(--w-text, #333); display: block; margin-bottom: 10rpx; }
+    &__text { font-size: 24rpx; line-height: 1.6; color: var(--w-text, #666); display: block; }
 }
 .sku-group { padding: 20rpx 0;
     &__label { font-size: 26rpx; color: var(--w-text, #333); }
@@ -199,10 +239,10 @@ watch(
     &.active { border-color: $brand-color; color: var(--w-brand-text, #ff6600); background: $brand-color-light; }
     &.disabled { color: var(--w-text-muted, #ccc); background: var(--w-surface-muted, #f7f7f7); border-color: var(--w-border, #eee); }
 }
-.sku-qty { display: flex; align-items: center; justify-content: space-between; padding: 20rpx 0 30rpx;
+.sku-qty { display: flex; align-items: center; justify-content: space-between; padding: 20rpx 8rpx 30rpx 0; box-sizing: border-box;
     &__label { font-size: 26rpx; color: var(--w-text, #333); }
 }
-.qty-control { display: flex; align-items: center; border: 1rpx solid var(--w-border, #eee); border-radius: $radius-sm; }
+.qty-control { display: flex; align-items: center; border: 1rpx solid var(--w-border, #eee); border-radius: $radius-sm; flex-shrink: 0; }
 .qty-btn { width: 56rpx; height: 48rpx; text-align: center; line-height: 48rpx; font-size: 28rpx; background: var(--w-surface-muted, #f5f5f5); color: var(--w-text, #333); }
 .qty-num { width: 64rpx; height: 48rpx; text-align: center; line-height: 48rpx; font-size: 26rpx; border-left: 1rpx solid var(--w-border, #eee); border-right: 1rpx solid var(--w-border, #eee); color: var(--w-text, #333); }
 </style>

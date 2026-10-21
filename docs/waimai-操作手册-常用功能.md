@@ -433,3 +433,94 @@
 
 
 
+
+---
+
+# 第五轮常用功能（商品详情 / 订单进度与费用 / 分享 / 凑单推荐）
+
+> 上线日期：2026-10-21（第五轮）
+> 截图脚本：`node .secrets/common-features-v5-shots.cjs`（Playwright 390×844 dpr=2，输出 `docs/screenshots/common-features-v5/`）
+> 前端改动文件：`src/components/SkuSheet.vue`、`src/pages/shop/menu.vue`、`src/pkg-order/pages/order-detail.vue`、`src/utils/share.ts`（新增）、`src/locale/zh-Hans.json`、`src/locale/en.json`
+> 无后端改动（复用现有 shop-api 字段）
+
+## 27. 商品详情弹层
+
+1. 店铺菜单点击任意商品（单规格 / 多规格一致）先打开详情弹层，不再直接加购；
+2. 弹层内容：
+   - 左上商品主图（200rpx）、商品名；
+   - 标签行：评分 `★ 4.0`、评价数、`月售 328`（无数据自动隐藏）；
+   - 价格（当前规格）、库存/售罄状态、已选提示；
+   - **商品详情**：`description` 纯文本化展示（剥离 HTML 标签，避免富文本注入）；
+   - 规格分组、数量加减、底部「加入购物车 / 立即购买」；
+3. 右上角 `↗` 分享商品、`✕` 关闭；
+4. 售罄商品点击仍走原「已售罄」Toast，不打开弹层。
+
+![商品详情弹层](screenshots/common-features-v5/07-product-detail.png)
+
+## 28. 订单详情增强：订单进度 + 费用明细
+
+### 28.1 订单进度时间轴（非校园路线订单）
+
+- 四步节点：`提交订单 → 支付成功 → 商家备餐 / 配送中 → 已送达`；
+- 推导规则：
+  - 提交订单：始终完成，时间取 `createdAt`；
+  - 支付成功：`PaymentAuthorized / PaymentSettled / Shipped / PartiallyDelivered / Delivered / Completed`，时间取首笔支付 `payments[0].createdAt`；
+  - 配送中：上述状态或 `customFields.deliveryStatus ∈ {assigned, in_progress, delivered}`；
+  - 已送达：`Delivered / PartiallyDelivered / Completed` 或 `deliveryStatus = delivered`；
+- 已取消 / 修改中订单改为两步：`提交订单 → 订单已取消`；
+- 校园路线订单（`campusRoute` 有值）继续使用原有校园 R2 时间轴，不重复展示。
+
+### 28.2 费用明细
+
+- 商品总额、配送费（0 元显示「免配送费」）；
+- **逐条优惠**：`order.discounts[]` 按 `description` 展示（如「满20减4」），金额右对齐绿色；
+- 实付金额（`totalWithTax`）；
+- 底部「共优惠 ¥4.00」（优惠合计 > 0 时展示）；
+- 保留原优惠券码、订单编号、下单时间、支付方式。
+
+![订单进度](screenshots/common-features-v5/09-order-progress.png)
+![费用明细](screenshots/common-features-v5/10-order-fee-detail.png)
+
+## 29. 分享店铺 / 商品 / 订单
+
+1. 新增 `src/utils/share.ts`：
+   - `absoluteUrl(path)`：站内路由 → 当前站点绝对地址（hash 路由，兼容子路径部署）；
+   - `sharePage({title, desc, path, image})`：微信内调用 JS-SDK（`updateAppMessageShareData` / `updateTimelineShareData`，旧版 API 兜底）；非微信环境复制链接并提示「链接已复制」；返回实际渠道 `wechat | copy`；
+2. 店铺菜单店铺卡片新增 `↗ 分享`（与收藏并排）：分享标题=店铺名，链接带 `token/name/routes/cid`，好友打开直达该店；
+3. 商品详情弹层右上 `↗`：分享标题=商品名，描述=「来自 XX 的推荐」，直达店铺；
+4. 订单详情底部「分享订单」：标题=「我的外卖订单 {code}」，链接直达订单详情；
+5. JS-SDK 签名失败（非公众号域名/未授权）自动降级为复制链接，不阻断交互。
+
+![店铺分享（复制链接兜底）](screenshots/common-features-v5/11-share-shop.png)
+
+## 30. 凑单推荐
+
+1. 触发条件（购物车非空且满足其一）：
+   - 未达起送价：`cartTotal < minOrderAmount`，优先展示「还差 ¥X 起送」；
+   - 已达起送但未满足下一档满减：解析店铺 `promoText`，展示「还差 ¥X 可减 ¥Y」；
+2. 位置：店铺页底部购物车条上方悬浮卡片，标题「凑单推荐」+ 右侧差额提示；
+3. 推荐商品：当前已加载商品中，可售且价格 > 0，取最低价规格、排除已在购物车的商品、按价格升序取前 8 个；
+4. 点击卡片即加购 1 件并 Toast「已加入购物车」，差额实时重算；达成门槛后卡片自动消失；
+5. 购物车为空或无门槛时不展示。
+
+![凑单推荐](screenshots/common-features-v5/08-cross-sell.png)
+
+## 31. 验收记录与边界（第五轮，2026-10-21）
+
+| 项 | 结果 |
+|---|---|
+| 商品详情弹层 | 名称「可乐鸡排饭」，标签 `★ 4.0` / `1条评价` / `月售328`，详情「冒烟测试商品」，分享按钮存在 |
+| 订单进度 | 四步齐全「提交订单/支付成功/商家备餐·配送中/已送达」，时间正常 |
+| 费用明细 | 商品 ¥30.00、免配送费、满20减4 -¥4.00、实付 ¥26.00、共优惠 ¥4.00 |
+| 凑单推荐 | 模拟购物车 ¥8（起送 ¥15）→ 提示「还差 ¥7 起送」，推荐可乐鸡排饭 / 麻辣拌面 |
+| 分享 | 分享按钮存在，非微信环境弹出「链接已复制」 |
+| i18n | `zh-Hans.json` / `en.json` 均补齐新增词条并通过 JSON 校验 |
+| 前端构建/部署 | `pnpm build:h5` 通过，产物校验 2569 KB，已部署 |
+| 手机视口截图 | 390×844 dpr=2，共 5 张（07–11） |
+
+边界与已知限制：
+- 商品详情描述为纯文本（后端为 HTML 描述），图片详情/富文本图文暂不渲染；
+- 订单进度时间轴基于订单状态推导，未接入骑手实时轨迹（校园路线订单另有跟踪页）；
+- 分享在非微信环境走复制链接；微信内卡片需公众号 JS 安全域名与签名服务可用；
+- 凑单推荐只从当前店铺已加载商品中挑选，不跨店推荐；满减门槛解析自 `promoText` 文案，非结构化配置；
+- 单规格商品也进入详情弹层（原为直接加购），交互多一步，已在手册注明。

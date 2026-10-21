@@ -45,6 +45,25 @@
       </view>
     </view>
 
+    <!-- 通用配送进度（非校园路线订单）：下单 → 支付 → 配送 → 完成，按订单状态推导 -->
+    <view class="section" v-if="!campusRoute && simpleTimeline.length">
+      <text class="section__title">{{ $t('orderDetail.progressTitle') }}</text>
+      <view class="tl">
+        <view
+          v-for="(n, i) in simpleTimeline"
+          :key="n.key"
+          class="tl__item"
+          :class="{ 'tl__item--done': n.done, 'tl__item--active': i === activeSimpleIndex }"
+        >
+          <view class="tl__rail"><view class="tl__dot"><text v-if="n.done">✓</text></view></view>
+          <view class="tl__body">
+            <text class="tl__label">{{ n.label }}</text>
+            <text v-if="n.time" class="tl__time">{{ formatTime(n.time) }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <!-- R2 快递到校卡（二期 spec §5.2）：preparing=确认到校；arrived_gate=选取件方式 -->
     <view class="section r2-card" v-if="campusRoute === 'R2'">
       <text class="section__title">{{ $t('orderDetail.r2Title') }}</text>
@@ -128,11 +147,17 @@
         </view>
       </view>
     </view>
+    <!-- 费用明细：商品小计 / 配送费 / 逐条优惠 / 实付；优惠合计单列展示 -->
     <view class="section summary">
+      <text class="section__title">{{ $t('orderDetail.feeTitle') }}</text>
       <view class="summary__row"><text>{{ $t('orderDetail.goodsTotal') }}</text><text>¥{{ (order.subTotalWithTax / 100).toFixed(2) }}</text></view>
-      <view class="summary__row"><text>{{ $t('orderDetail.shipping') }}</text><text>¥{{ (order.shippingWithTax / 100).toFixed(2) }}</text></view>
-      <view class="summary__row" v-if="order.discounts?.length"><text>{{ $t('orderDetail.discount') }}</text><text class="discount">-¥{{ (discountTotal / 100).toFixed(2) }}</text></view>
+      <view class="summary__row"><text>{{ $t('orderDetail.shipping') }}</text><text>{{ order.shippingWithTax > 0 ? '¥' + (order.shippingWithTax / 100).toFixed(2) : $t('orderDetail.freeShipping') }}</text></view>
+      <view class="summary__row summary__row--disc" v-for="d in (order.discounts ?? [])" :key="d.id">
+        <text class="summary__dname">{{ d.description || $t('orderDetail.discount') }}</text>
+        <text class="discount">-¥{{ (d.amountWithTax / 100).toFixed(2) }}</text>
+      </view>
       <view class="summary__row summary__row--total"><text>{{ $t('orderDetail.paid') }}</text><text class="summary__total">¥{{ (order.totalWithTax / 100).toFixed(2) }}</text></view>
+      <text class="summary__saved" v-if="discountTotal > 0">{{ $t('orderDetail.savedTotal').replace('{y}', (discountTotal / 100).toFixed(2)) }}</text>
     </view>
     <view class="section" v-if="order.couponCodes?.length">
       <text class="section__title">{{ $t('orderDetail.couponTitle') }}</text>
@@ -155,6 +180,7 @@
       <button v-if="canCancel" class="action-btn action-btn--ghost" @click="cancelOrder">{{ $t('orderDetail.cancelBtn') }}</button>
       <button v-if="canReview" class="action-btn" @click="goReview">{{ $t('orderDetail.reviewBtn') }}</button>
       <button class="action-btn action-btn--primary" @click="reorder">{{ $t('orderDetail.reorderBtn') }}</button>
+      <button class="action-btn action-btn--ghost" @click="shareOrder">{{ $t('orderDetail.shareOrderBtn') }}</button>
     </view>
 
     <!-- 开发票弹层（Task 11）：抬头选择 + 接收邮箱 + 提交申请 -->
@@ -220,6 +246,7 @@ import { applyOrderInvoice } from '../../api/mutations/user';
 import { parseInvoiceTitles, type InvoiceTitle } from '../../utils/profile-mapping';
 import { fetchMyPickupCode, claimPickup } from '../../api/queries/pickup';
 import { relayStatusLabel } from '../../utils/errand';
+import { sharePage } from '../../utils/share';
 import { buildTimeline, isNoRiderFinal, isExceptionFinal } from '../../utils/timeline';
 import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
@@ -301,6 +328,36 @@ const campusRoute = computed(() => order.value?.customFields?.fulfillmentRoute |
 const timeline = computed(() => buildTimeline(campusRoute.value, order.value?.customFields?.hallStatus ?? null, order.value?.customFields?.deliveryStatus ?? null, order.value?.customFields?.leg1Status ?? null));
 const timelineFinished = computed(() => timeline.value.every(n => n.done));
 const activeTimelineIndex = computed(() => timeline.value.findIndex(n => !n.done));
+
+/** 通用配送进度（无校园路线的普通订单）：按订单状态与配送状态推导节点 */
+const simpleTimeline = computed(() => {
+    const o = order.value;
+    if (!o || campusRoute.value) return [] as Array<{ key: string; label: string; done: boolean; time: string | null }>;
+    const state = String(o.state || '');
+    const paidStates = ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'PartiallyDelivered', 'Delivered', 'Completed'];
+    const deliveryStatus = String(o.customFields?.deliveryStatus || '');
+    const paid = paidStates.includes(state);
+    const delivering = ['Shipped', 'PartiallyDelivered', 'Delivered', 'Completed'].includes(state)
+        || ['assigned', 'in_progress', 'delivered'].includes(deliveryStatus);
+    const done = ['Delivered', 'PartiallyDelivered', 'Completed'].includes(state) || deliveryStatus === 'delivered';
+    const t = (k: string) => locale.t(`orderDetail.${k}`);
+    if (state === 'Cancelled' || state === 'Modifying') {
+        return [
+            { key: 'created', label: t('stepCreated'), done: true, time: o.createdAt ?? null },
+            { key: 'cancelled', label: t('stepCancelled'), done: true, time: null },
+        ];
+    }
+    return [
+        { key: 'created', label: t('stepCreated'), done: true, time: o.createdAt ?? null },
+        { key: 'paid', label: t('stepPaid'), done: paid, time: paid ? (o.payments?.[0]?.createdAt ?? null) : null },
+        { key: 'delivering', label: t('stepDelivering'), done: delivering, time: null },
+        { key: 'done', label: t('stepDone'), done: done, time: done ? (o.customFields?.deliveredAt ?? null) : null },
+    ];
+});
+const activeSimpleIndex = computed(() => {
+    const i = simpleTimeline.value.findIndex(n => !n.done);
+    return i < 0 ? simpleTimeline.value.length - 1 : i;
+});
 const canReceive = computed(() =>
     ['Delivered','PartiallyDelivered','Shipped'].includes(order.value?.state)
     || (campusRoute.value === 'R2' && order.value?.state === 'PaymentSettled'
@@ -475,6 +532,18 @@ async function selfRedeem() {
 }
 function formatTime(t: string) { return t ? new Date(t).toLocaleString('zh-CN') : ''; }
 function copyCode() { uni.setClipboardData({ data: order.value.code }); uni.showToast({ title: locale.t('orderDetail.copied'), icon: 'success' }); }
+
+/** 分享订单：微信内发送卡片，其它环境复制订单链接 */
+async function shareOrder() {
+    if (!order.value?.code) return;
+    const how = await sharePage({
+        title: locale.t('orderDetail.shareOrderTitle').replace('{c}', order.value.code),
+        desc: locale.t('orderDetail.shareOrderDesc').replace('{y}', (Number(order.value.totalWithTax || 0) / 100).toFixed(2)),
+        path: `/pkg-order/pages/order-detail?code=${encodeURIComponent(order.value.code)}`,
+        image: order.value.lines?.[0]?.featuredAsset?.preview || '',
+    });
+    if (how === 'copy') uni.showToast({ title: locale.t('orderDetail.shareCopied'), icon: 'none' });
+}
 function confirmReceive() { uni.showModal({ title: locale.t('orderDetail.receiveBtn'), content: locale.t('orderDetail.receiveConfirm'), success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { transitionOrderToState(state: "Delivered") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: locale.t('orderDetail.received') }); order.value.state = 'Delivered'; } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
 function cancelOrder() { uni.showModal({ title: locale.t('orderDetail.cancelBtn'), content: locale.t('orderDetail.cancelConfirm'), success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { cancelOrder(orderId: "${order.value.id}") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: locale.t('orderDetail.cancelled') }); order.value.state = 'Cancelled'; stopRiderPolling(); } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
 // 去评价：默认带第一个商品行（同一行同一客户只能评一次，后端防重）
@@ -672,13 +741,13 @@ async function confirmReorder() {
 }
 .section { background: $surface; margin: 20rpx; padding: 24rpx; border-radius: $radius-md; &__title { font-size: 28rpx; font-weight: bold; display: block; margin-bottom: 16rpx; } &__sub { font-size: 26rpx; color: $text-color-secondary; display: block; margin-top: 6rpx; } }
 // 履约时间线
-.tl { &__item { display: flex; align-items: flex-start; } &__rail { display: flex; flex-direction: column; align-items: center; margin-right: 20rpx; } &__dot { width: 32rpx; height: 32rpx; border-radius: 50%; background: #eee; color: #fff; font-size: 20rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; } &__label { font-size: 26rpx; color: $text-color-placeholder; padding: 4rpx 0 28rpx; } &__item:last-child &__label { padding-bottom: 4rpx; } &__item--done &__dot { background: $brand-color; } &__item--done &__label { color: $text-color; } &__item--active &__dot { background: $brand-color; box-shadow: 0 0 0 8rpx rgba(255, 102, 0, 0.15); } &__item--active &__label { color: $brand-color; font-weight: bold; } }
+.tl { &__body { display: flex; flex-direction: column; } &__time { font-size: 22rpx; color: $text-color-placeholder; padding-bottom: 24rpx; } &__item { display: flex; align-items: flex-start; } &__rail { display: flex; flex-direction: column; align-items: center; margin-right: 20rpx; } &__dot { width: 32rpx; height: 32rpx; border-radius: 50%; background: #eee; color: #fff; font-size: 20rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; } &__label { font-size: 26rpx; color: $text-color-placeholder; padding: 4rpx 0 28rpx; } &__item:last-child &__label { padding-bottom: 4rpx; } &__item--done &__dot { background: $brand-color; } &__item--done &__label { color: $text-color; } &__item--active &__dot { background: $brand-color; box-shadow: 0 0 0 8rpx rgba(255, 102, 0, 0.15); } &__item--active &__label { color: $brand-color; font-weight: bold; } }
 .tl-meta { display: flex; flex-direction: column; gap: 6rpx; border-top: 1rpx solid $border-color; padding-top: 16rpx; font-size: 24rpx; color: $text-color-secondary; }
 // 骑手卡
 .rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__hint { font-size: 26rpx; color: $brand-color; } &__contact { font-size: 24rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 8rpx 20rpx; flex-shrink: 0; } &__urge { margin-top: 16rpx; display: flex; justify-content: center; } &__urge-btn { width: 240rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; border-radius: 999rpx; background: $surface; color: $brand-color; border: 1rpx solid $brand-color; padding: 0; margin: 0; } &__urged-tag { font-size: 24rpx; color: #e02020; background: #fdeaea; border-radius: 999rpx; padding: 8rpx 24rpx; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } &__track { margin-top: 16rpx; font-size: 26rpx; color: $brand-color; font-weight: bold; } }
 .logistics { &__no { font-size: 26rpx; color: $brand-color; display: block; margin-top: 8rpx; } &__empty { font-size: 26rpx; color: $text-color-placeholder; } }
 .order-line { display: flex; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid #f5f5f5; &:last-child { border-bottom: none; } &__info { flex: 1; display: flex; flex-direction: column; justify-content: space-between; } &__name { font-size: 26rpx; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } &__spec { font-size: 22rpx; color: $text-color-placeholder; margin-top: 4rpx; } &__bottom { display: flex; justify-content: space-between; align-items: center; } &__price { font-size: 28rpx; color: $price-color; } &__qty { font-size: 24rpx; color: $text-color-placeholder; } }
-.summary { &__row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; &--total { padding-top: 16rpx; margin-top: 8rpx; border-top: 1rpx solid $border-color; font-size: 28rpx; } } &__total { font-size: 36rpx; color: $price-color; font-weight: bold; } }
+.summary { &__row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; &--total { padding-top: 16rpx; margin-top: 8rpx; border-top: 1rpx solid $border-color; font-size: 28rpx; } &--disc { padding: 4rpx 0; } } &__dname { font-size: 24rpx; color: $text-color-secondary; flex: 1; margin-right: 16rpx; } &__total { font-size: 36rpx; color: $price-color; font-weight: bold; } &__saved { display: block; text-align: right; font-size: 22rpx; color: #07c160; margin-top: 8rpx; } }
 .discount { color: #07c160; }
 .coupon-tag { display: inline-block; background: #fff3e6; color: $brand-color; font-size: 22rpx; padding: 4rpx 16rpx; border-radius: 20rpx; margin-right: 12rpx; border: 1rpx solid $brand-color; }
 .info { &__row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; color: $text-color-secondary; } }

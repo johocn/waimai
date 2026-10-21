@@ -5,6 +5,15 @@
       <text class="status-header__sub">{{ statusHint }}</text>
     </view>
 
+    <!-- 预约单提醒：带送达时段且未完成时置顶展示，避免用户错过预约时间 -->
+    <view class="section sched-card" v-if="scheduledText && !['Delivered', 'Cancelled'].includes(order.state)">
+      <view class="sched-card__row">
+        <text class="sched-card__title">{{ $t('orderDetail.scheduleTitle') }}</text>
+        <text class="sched-card__slot">{{ scheduledText }}</text>
+      </view>
+      <text class="sched-card__hint">{{ $t('orderDetail.scheduleHint') }}</text>
+    </view>
+
     <!-- 异常赔付提示（plan 3.4）：处理中黄条 / 已处理绿条（展示赔付结果） -->
     <view
       v-if="campusRoute && (exceptionPending || exceptionFinal)"
@@ -388,6 +397,8 @@ const canCancel = computed(() => ['Created','AddingItems','ArrangingPayment'].in
 const canReview = computed(() => ['Delivered', 'Completed'].includes(order.value?.state));
 // 预约单（plan 3.1）：未放量进大厅前不显示骑手等待卡（时间线首节点已表达预约态）
 const isScheduled = computed(() => ((order.value?.customFields?.hallStatus ?? '') + '').toLowerCase() === 'scheduled');
+// 预约送达时段（结算页写入 customFields.deliverySlotText）
+const scheduledText = computed(() => String(order.value?.customFields?.deliverySlotText ?? ''));
 // 「平台调度中」降级（spec §5.4）：无骑手且在大厅停留超 2 分钟
 const dispatching = computed(() => {
     const cf = order.value?.customFields;
@@ -451,6 +462,8 @@ onMounted(async () => {
     } catch (e) { /* 未登录等场景静默 */ }
     loadPickupCode();
     startRiderPolling();
+    // 订单列表「再来一单」直达：加载完成后自动打开复购弹层
+    if (page?.options?.reorder === '1' && order.value) void reorder();
 });
 // 轮询：R2 原单轮询接力状态（10s，动态反查不写回标记）；其余校园单轮询骑手卡（送达/无骑手终态即停）
 let riderTimer: ReturnType<typeof setInterval> | null = null;
@@ -785,6 +798,13 @@ async function confirmReorder() {
 // 履约时间线
 .tl { &__body { display: flex; flex-direction: column; } &__time { font-size: 22rpx; color: $text-color-placeholder; padding-bottom: 24rpx; } &__item { display: flex; align-items: flex-start; } &__rail { display: flex; flex-direction: column; align-items: center; margin-right: 20rpx; } &__dot { width: 32rpx; height: 32rpx; border-radius: 50%; background: #eee; color: #fff; font-size: 20rpx; display: flex; align-items: center; justify-content: center; flex-shrink: 0; } &__label { font-size: 26rpx; color: $text-color-placeholder; padding: 4rpx 0 28rpx; } &__item:last-child &__label { padding-bottom: 4rpx; } &__item--done &__dot { background: $brand-color; } &__item--done &__label { color: $text-color; } &__item--active &__dot { background: $brand-color; box-shadow: 0 0 0 8rpx rgba(255, 102, 0, 0.15); } &__item--active &__label { color: $brand-color; font-weight: bold; } }
 .tl-meta { display: flex; flex-direction: column; gap: 6rpx; border-top: 1rpx solid $border-color; padding-top: 16rpx; font-size: 24rpx; color: $text-color-secondary; }
+// 预约单提醒卡（蓝底区别于橙色营销信息）
+.sched-card { background: #eef4ff; border: 1rpx solid #cbdcff;
+  &__row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+  &__title { font-size: 26rpx; font-weight: bold; color: #2d5bd1; }
+  &__slot { font-size: 26rpx; color: #2d5bd1; font-weight: bold; }
+  &__hint { display: block; margin-top: 10rpx; font-size: 22rpx; color: #5b76b8; }
+}
 // 骑手卡
 .rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__meta { display: flex; gap: 16rpx; font-size: 22rpx; color: $brand-color; } &__hint { font-size: 26rpx; color: $brand-color; } &__contact { font-size: 24rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 8rpx 20rpx; flex-shrink: 0; } &__urge { margin-top: 16rpx; display: flex; flex-direction: column; align-items: center; gap: 8rpx; } &__urge-btn { width: 240rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; border-radius: 999rpx; background: $surface; color: $brand-color; border: 1rpx solid $brand-color; padding: 0; margin: 0; } &__urge-hint { font-size: 20rpx; color: $text-color-placeholder; } &__urged-tag { font-size: 24rpx; color: #e02020; background: #fdeaea; border-radius: 999rpx; padding: 8rpx 24rpx; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } &__track { margin-top: 16rpx; font-size: 26rpx; color: $brand-color; font-weight: bold; } }
 .logistics { &__no { font-size: 26rpx; color: $brand-color; display: block; margin-top: 8rpx; } &__empty { font-size: 26rpx; color: $text-color-placeholder; } }

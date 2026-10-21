@@ -18,6 +18,11 @@
       <text class="after-bar__txt">{{ $t('orders.pendingReviewBar').replace('{n}', String(pendingReviewCount)) }}</text>
       <text class="after-bar__act">{{ onlyPendingReview ? $t('orders.reviewAll') : $t('orders.pendingReviewOnly') }} ▸</text>
     </view>
+    <!-- 预约单聚合：带送达时段且未完成的订单，点击只看预约单 -->
+    <view v-if="scheduledCount > 0" class="after-bar after-bar--slot" :class="{ on: onlyScheduled }" @click="toggleScheduled">
+      <text class="after-bar__txt">{{ $t('orders.scheduledBar').replace('{n}', String(scheduledCount)) }}</text>
+      <text class="after-bar__act">{{ onlyScheduled ? $t('orders.scheduledAll') : $t('orders.scheduledOnly') }} ▸</text>
+    </view>
     <scroll-view class="orders-page__scroll" scroll-y @scrolltolower="loadMore" refresher-enabled @refresherrefresh="onRefresh" :refresher-triggered="refreshing">
       <view v-for="order in filteredOrders" :key="order.id" class="order-card" @click="goDetail(order.code)">
         <view class="order-card__header">
@@ -48,11 +53,16 @@
             <PriceTag :price="order.totalWithTax" />
           </view>
         </view>
+        <!-- 快捷操作：配送中可直接看骑手地图，已完成/已取消可再来一单 -->
+        <view class="order-card__quick" v-if="canTrack(order) || canReorder(order)">
+          <text v-if="canTrack(order)" class="quick-btn" @click.stop="goTracking(order)">{{ $t('orders.trackBtn') }}</text>
+          <text v-if="canReorder(order)" class="quick-btn quick-btn--primary" @click.stop="goReorder(order)">{{ $t('orders.reorderShort') }}</text>
+        </view>
       </view>
       <view class="orders-page__footer">
         <LoadingSkeleton v-if="loading" type="list" :count="3" />
         <text v-else-if="!hasMore && filteredOrders.length > 0" class="footer-text">{{ $t('orders.noMore') }}</text>
-        <EmptyState v-if="!loading && filteredOrders.length === 0" :text="orderKeyword || onlyAfterSale || onlyPendingReview ? $t('orders.searchEmpty') : $t('orders.empty')" />
+        <EmptyState v-if="!loading && filteredOrders.length === 0" :text="orderKeyword || onlyAfterSale || onlyPendingReview || onlyScheduled ? $t('orders.searchEmpty') : $t('orders.empty')" />
       </view>
     </scroll-view>
   </view>
@@ -95,19 +105,50 @@ function hasPendingReview(order: any): boolean {
     return (order.lines ?? []).some((l: any) => l.id && !reviewedLineIds.value.has(String(l.id)));
 }
 const pendingReviewCount = computed(() => orders.value.filter((o: any) => hasPendingReview(o)).length);
+// —— 预约单：带送达时段且未完成（已送达/已取消不算待履约预约）——
+const onlyScheduled = ref(false);
+function isScheduled(order: any): boolean {
+    if (!order?.customFields?.deliverySlotText) return false;
+    return !['Delivered', 'Cancelled'].includes(String(order.state ?? ''));
+}
+const scheduledCount = computed(() => orders.value.filter(isScheduled).length);
+function toggleScheduled() {
+    onlyScheduled.value = !onlyScheduled.value;
+    if (onlyScheduled.value) {
+        onlyAfterSale.value = false;
+        onlyPendingReview.value = false;
+    }
+}
+// —— 快捷操作：配送中 → 全屏骑手地图；已结束/已取消 → 再来一单（详情页自动打开复购弹层）——
+function canTrack(order: any): boolean {
+    const cf = order.customFields || {};
+    return !!cf.fulfillmentRoute && ['assigned', 'in_progress'].includes(String(cf.deliveryStatus ?? ''));
+}
+function canReorder(order: any): boolean {
+    return !order.active || ['Delivered', 'Cancelled'].includes(String(order.state ?? ''));
+}
+function goTracking(order: any) {
+    if (!order?.code) return;
+    uni.navigateTo({ url: '/pkg-order/pages/rider-tracking?code=' + order.code });
+}
+function goReorder(order: any) {
+    if (!order?.code) return;
+    uni.navigateTo({ url: '/pkg-order/pages/order-detail?code=' + order.code + '&reorder=1' });
+}
 function toggleAfterSale() {
     onlyAfterSale.value = !onlyAfterSale.value;
-    if (onlyAfterSale.value) onlyPendingReview.value = false;
+    if (onlyAfterSale.value) { onlyPendingReview.value = false; onlyScheduled.value = false; }
 }
 function togglePendingReview() {
     onlyPendingReview.value = !onlyPendingReview.value;
-    if (onlyPendingReview.value) onlyAfterSale.value = false;
+    if (onlyPendingReview.value) { onlyAfterSale.value = false; onlyScheduled.value = false; }
 }
 const filteredOrders = computed(() => {
     const kw = orderKeyword.value.trim().toLowerCase();
     return orders.value.filter((o: any) => {
         if (onlyAfterSale.value && !afterSaleByOrderId.value[o.id]) return false;
         if (onlyPendingReview.value && !hasPendingReview(o)) return false;
+        if (onlyScheduled.value && !isScheduled(o)) return false;
         if (!kw) return true;
         if (String(o.code ?? '').toLowerCase().includes(kw)) return true;
         if (String(o.channelName ?? '').toLowerCase().includes(kw)) return true;
@@ -327,6 +368,12 @@ function goDetail(code: string) { uni.navigateTo({ url: '/pkg-order/pages/order-
 .after-bar--review { background: #e8f7ef; }
 .after-bar--review.on { background: #d3f0e0; }
 .after-bar--review .after-bar__txt, .after-bar--review .after-bar__act { color: #0a7d4b; }
+.after-bar--slot { background: #eef4ff; }
+.after-bar--slot.on { background: #dce9ff; }
+.after-bar--slot .after-bar__txt, .after-bar--slot .after-bar__act { color: #2d5bd1; }
+.order-card__quick { display: flex; justify-content: flex-end; gap: 16rpx; margin-top: 16rpx; }
+.quick-btn { font-size: 24rpx; color: $text-color-secondary; padding: 8rpx 24rpx; border: 1rpx solid $border-color; border-radius: 999rpx; background: $surface; }
+.quick-btn--primary { color: $brand-color; border-color: $brand-color; }
 .order-card__flags { display: flex; flex-wrap: wrap; gap: 10rpx; margin-bottom: 10rpx; }
 .flag { font-size: 20rpx; padding: 4rpx 14rpx; border-radius: 8rpx; }
 .flag--after { color: #b25c00; background: #fff1e0; }

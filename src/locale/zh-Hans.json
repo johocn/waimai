@@ -312,7 +312,12 @@
         "pendingReviewOnly": "只看待评价",
         "reviewBtn": "去评价",
         "reviewAll": "查看全部",
-        "stateUpdated": "订单状态已更新"
+        "stateUpdated": "订单状态已更新",
+        "trackBtn": "追踪骑手",
+        "reorderShort": "再来一单",
+        "scheduledBar": "预约单 {n} 单",
+        "scheduledOnly": "只看预约单",
+        "scheduledAll": "查看全部"
     },
     "profile": {
         "guest": "客",
@@ -675,7 +680,9 @@
         "manageTitles": "管理抬头",
         "riderDistance": "距你 {n}",
         "riderEta": "约 {n} 分钟送达",
-        "urgeHint": "催单后骑手会收到提醒，请耐心等待"
+        "urgeHint": "催单后骑手会收到提醒，请耐心等待",
+        "scheduleTitle": "预约配送",
+        "scheduleHint": "将在预约时段开始前为您安排骑手，请留意订单通知"
     },
     "riderTracking": {
         "title": "骑手跟踪",
@@ -1076,7 +1083,15 @@
         "removeFail": "操作失败",
         "itemFallback": "商品",
         "minOrder": "起送 ¥{y}",
-        "paused": "店铺休息中，暂不接单"
+        "paused": "店铺休息中，暂不接单",
+        "dynamics": "店铺动态",
+        "dynamicsTitle": "关注店铺动态",
+        "dynamicsLoading": "正在加载店铺动态…",
+        "clearNew": "全部已读",
+        "dynEmpty": "还没有关注的店铺，去收藏一家吧",
+        "newProducts": "上新 {n} 件",
+        "newBadge": "新品",
+        "hotBadge": "热销"
     },
     "afterSalesList": {
         "tabAll": "全部",

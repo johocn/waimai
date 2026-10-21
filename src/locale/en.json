@@ -312,7 +312,12 @@
         "pendingReviewOnly": "To review only",
         "reviewBtn": "Review",
         "reviewAll": "Show all",
-        "stateUpdated": "Order status updated"
+        "stateUpdated": "Order status updated",
+        "trackBtn": "Track courier",
+        "reorderShort": "Order again",
+        "scheduledBar": "{n} scheduled order(s)",
+        "scheduledOnly": "Scheduled only",
+        "scheduledAll": "View all"
     },
     "profile": {
         "guest": "Guest",
@@ -675,7 +680,9 @@
         "manageTitles": "Manage titles",
         "riderDistance": "{n} away",
         "riderEta": "Arriving in ~{n} min",
-        "urgeHint": "The courier will be notified after urging"
+        "urgeHint": "The courier will be notified after urging",
+        "scheduleTitle": "Scheduled delivery",
+        "scheduleHint": "A courier will be arranged before your slot starts. Stay tuned for updates."
     },
     "riderTracking": {
         "title": "Courier Tracking",
@@ -1076,7 +1083,15 @@
         "removeFail": "Operation failed",
         "itemFallback": "Item",
         "minOrder": "Min ¥{y}",
-        "paused": "Shop is closed now"
+        "paused": "Shop is closed now",
+        "dynamics": "Store updates",
+        "dynamicsTitle": "Updates from followed stores",
+        "dynamicsLoading": "Loading store updates…",
+        "clearNew": "Mark all read",
+        "dynEmpty": "No followed stores yet. Save one first.",
+        "newProducts": "{n} new item(s)",
+        "newBadge": "New",
+        "hotBadge": "Popular"
     },
     "afterSalesList": {
         "tabAll": "All",

@@ -15,8 +15,8 @@ export function plainDescription(html: string | null | undefined): string {
  * R6 已取消，不出现。
  */
 const ROUTE_LABELS: Record<string, string> = {
-    R1: '商户/自营快递 + 拾光达接力',
-    R2: '外部快递 + 拾光达接力',
+    R1: '商户/自营快递 + 传信者接力',
+    R2: '外部快递 + 传信者接力',
     R3: '传信者/自营/外部快递直送',
     R4: '到店自取',
     R5: '校内跑腿',

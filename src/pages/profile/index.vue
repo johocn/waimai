@@ -55,6 +55,7 @@
         </view>
         <text class="menu-arrow">></text>
       </view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/distribution')"><text>{{ $t('profile.distribution') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/spending')"><text>{{ $t('profile.spending') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/favorites')"><text>{{ $t('profile.favorites') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/history')"><text>{{ $t('profile.history') }}</text><text class="menu-arrow">></text></view>

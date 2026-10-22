@@ -54,6 +54,9 @@
         "nav.flashSale": "Flash Sale",
         "nav.groupBuy": "Group Buy",
         "nav.couponFlash": "Coupon Rush",
-        "nav.receipt": "E-Receipt"
+        "nav.receipt": "E-Receipt",
+        "nav.distribution": "Promoter Center",
+        "nav.couponFission": "Share & Earn",
+        "nav.preSale": "Pre-sale"
     }
 }

@@ -13,6 +13,10 @@
         <text class="cc-entry__ico">🧾</text>
         <text class="cc-entry__txt">{{ $t('couponCentre.entryOrders') }}</text>
       </view>
+      <view class="cc-entry" @tap="go('/pkg-promotion/pages/coupon-fission')">
+        <text class="cc-entry__ico">🤝</text>
+        <text class="cc-entry__txt">{{ $t('couponCentre.entryFission') }}</text>
+      </view>
     </view>
 
     <view class="cc-tabs">

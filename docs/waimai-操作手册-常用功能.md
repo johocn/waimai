@@ -1727,3 +1727,86 @@
 - 线上当前购券商城目录、每日领券活动、积分券模板均为空（后台未配置），页面为空态；截图使用模拟响应，后台配置后即真实展示；
 - 本轮为纯前端改动，复用线上已启用的券/余额/微信支付插件，无需发布后端。
 
+## 105 消息中心接后端
+
+入口：我的 → 消息中心；首页右上角铃铛（未读角标）。
+
+- 消息列表改为读取后端 `myMessages(options:{take:50})`，返回 `items[{ id, messageId, title, body, readAt, createdAt }]` 与 `totalItems`；
+- 未读数读取 `myUnreadMessageCount`，首页铃铛、「我的」菜单红点、页面头部「未读 n」三处共用同一 store（`useMessagesStore`），任意页面 `onShow` 刷新即同步；
+- 点击消息：未读则调用 `markMessageRead(id)` 回写服务端并本地置已读；卡片标题按关键词匹配图标（订单🧾 / 券🎫 / 其他📣）；点击「展开全文」切换 2 行截断与全文；
+- 「全部已读」并发调用 `markMessageRead`，成功后清空未读并隐藏按钮；
+- 未登录展示登录引导；无消息展示空态；消息正文按纯文本渲染（`white-space: pre-wrap`），不注入 HTML。
+
+截图：[117-messages-list.png](screenshots/common-features-v21/117-messages-list.png)、[118-messages-need-login.png](screenshots/common-features-v21/118-messages-need-login.png)、[119-messages-empty.png](screenshots/common-features-v21/119-messages-empty.png)
+
+## 106 分享裂变领券
+
+入口：领券中心顶部第四入口「分享裂变」（也可从分享链接 `?invite=邀请码` 直接进入）。
+
+- 活动区读取 `couponFissionActivity`（匿名可看，未配置/未开始/已结束后端返回 null → 空态 + 「去领券中心」）；
+- hero 展示活动名、副标题与「剩余 x 天 hh:mm:ss」倒计时（每秒刷新）；规则区展示后端 `rules`；
+- 双券卡：好友领（`inviteeTemplate`）/ 你得（`inviterTemplate`），按 FIXED/FULL/PERCENT/FREE_SHIPPING 渲染面额与门槛；
+- 领奖：输入邀请码后调用 `claimFissionReward(inviteCode)`，按 `status` 映射提示：OK / ALREADY_REWARDED（该好友已助力）/ SELF_SHARE（不能用自己的码）/ BLOCKED_NEW_CUSTOMER（仅限新客）/ SOLD_OUT / NO_INVITER（邀请码无效）/ INACTIVE / NOT_LOGGED_IN（引导登录）；成功后清空输入并刷新活动；
+- 我的邀请码：前端按后端规则 `F + base36(customerId).toUpperCase()` 生成（如 customerId=12345 → `F9IX`），支持一键复制与分享；分享链接携带 `?invite=` 参数，好友打开即自动填入。
+
+截图：[120-coupon-fission.png](screenshots/common-features-v21/120-coupon-fission.png)、[121-coupon-fission-empty.png](screenshots/common-features-v21/121-coupon-fission-empty.png)
+
+## 107 推广 / 分销中心
+
+入口：我的 → 推广中心。
+
+- 未申请：展示申请卡片（权益三条 + 选填上级推广码），调用 `applyDistributor(referredByCode)`，成功后重新拉取资料；
+- 已申请：hero 展示审核状态（已通过/审核中/已冻结）、可提现余额、累计佣金、冻结中；
+- 推广码区展示 `referralCode`，支持复制与分享（分享链接 `?ref=` 自动填入上级码）；
+- 团队区读取 `myTeamSummary`：直推 / 间推 / 团队总数 / 订单数 / 订单金额 / 团队佣金；
+- 「佣金明细」读取 `myCommissionRecords`：类型（直推/间推）、状态（待结算/已确认/已入账/已取消）、金额、订单号、订单金额、佣金比例（后端按万分比存，前端 `/100` 转百分数，如 1000 → 10%）、日期；
+- 「提现记录」读取 `myWithdrawalRequests`：方式（支付宝/微信/银行卡）、状态（审核中/已通过/已驳回/已打款）、金额、申请与打款日期；
+- 「申请提现」弹层：输入金额（元 → 分取整）、选择方式、填写收款账号，前端校验有效金额、不超可提现余额、账号必填后调用 `requestWithdrawal`；失败按后端 message 分流（低于最低提现额 / 余额不足 / 其他）。
+
+截图：[122-distribution-apply.png](screenshots/common-features-v21/122-distribution-apply.png)、[123-distribution-overview.png](screenshots/common-features-v21/123-distribution-overview.png)、[124-distribution-commission.png](screenshots/common-features-v21/124-distribution-commission.png)、[125-distribution-withdraw.png](screenshots/common-features-v21/125-distribution-withdraw.png)
+
+## 108 预售专区
+
+入口：首页活动宫格「预售专区」。
+
+- 按店铺渠道聚合：先取 `waimaiStoreList`，再逐店调用 `activePreSaleActivities`（固定 `vendure-token`），并用 `products(options)` 批量补全商品名、主图与变体原价；
+- 卡片展示：预售模式（定金预售 / 全款预售）、店铺名、商品名、预售价与原价、定金与预估尾款、进度条「已订 a/b」、距结束倒计时、预计到货日期；售罄置灰按钮；
+- 「立即预订」：先 `addItemToOrder`（该店铺渠道）加购 1 件，再 `applyPreSale(activityId)` 应用预售价与期次快照，最后重新拉取该渠道 activeOrder 写入购物车并跳转购物车；
+- 失败文案：已售罄 / 已达限购 / 商品不在购物车（变体已下架）/ 活动不在可预订时间 / 未登录跳登录 / 其他「预订失败」；
+- 列表过滤已结束活动，只展示当前可订。
+
+截图：[126-pre-sale-list.png](screenshots/common-features-v21/126-pre-sale-list.png)、[127-pre-sale-empty.png](screenshots/common-features-v21/127-pre-sale-empty.png)
+
+## 109 验收记录与边界（第二十一轮，2026-10-22）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，本地 serve 最新构建产物；消息/裂变/分销/预售数据为脚本注入的模拟 GraphQL 响应（查询与 mutation 文档已对线上 schema 校验通过）。交互回归另行断言 3 条链路：全部已读、邀请码领奖、预售预订。
+
+| 项目 | 结果 |
+|---|---|
+| 消息中心 | 3 条消息、未读 2、全部已读按钮、订单/券/公告三类图标（断言通过） |
+| 消息已读回写 | 点击「全部已读」→ 未读数归零、按钮隐藏、`markMessageRead` 逐条调用（断言通过） |
+| 消息未登录/空态 | 未登录展示登录引导；后端 0 条时展示「暂无消息」（断言通过） |
+| 分享裂变 | 活动名「邀请好友 · 双方得券」、倒计时 02:59:49、规则 3 条、双券卡 ¥10/满25、¥15/满50、我的邀请码 F9IX（断言通过） |
+| 裂变领奖 | 输入邀请码点击领取 → 「领取成功，券已放入卡包」提示（断言通过） |
+| 裂变空态 | 活动返回 null 时展示「当前暂无分享裂变活动」+ 去领券中心（断言通过） |
+| 推广申请 | 未申请时展示权益三条、上级码输入框、立即申请按钮（断言通过） |
+| 推广概览 | 状态「已通过」、可提现 ¥86.00、累计 ¥128.00、冻结 ¥12.00、推广码 JOHO88、团队 6/14/20、37 单 ¥2688.00（断言通过） |
+| 佣金明细 | 3 条记录（直推×2 + 间推×1），比例 10%/10%/3%，状态已入账/已确认/待结算（断言通过） |
+| 提现 | 提现记录 Tab + 申请提现弹层（可提现余额 ¥86.00、金额输入、支付宝/微信/银行卡、收款账号）（断言通过） |
+| 预售专区 | 2 个活动（定金预售 ¥68/定金 ¥20/尾款 ¥48/已订 62/100；全款预售 ¥128/已订 50/50 售罄）、倒计时与预计到货（断言通过） |
+| 预售预订 | 点击「立即预订」→ 加购 + `applyPreSale` → 「预订成功」并跳购物车（断言通过） |
+| 预售空态 | 无活动时展示「暂无进行中的预售活动」（断言通过） |
+| 接口核对 | 线上校验 `myMessages`、`myUnreadMessageCount`、`markMessageRead`、`couponFissionActivity`、`claimFissionReward`、`myDistributorProfile`、`myCommissionRecords`、`myWithdrawalRequests`、`myTeamSummary`、`applyDistributor`、`requestWithdrawal`、`activePreSaleActivities`、`applyPreSale` 均无 schema 错误 |
+| i18n | 新增 `fission`（36 条）、`preSale`（24 条）、`distribution`（67 条），`messages` 重构为服务端消息（12 条），`home.actPreSale`、`profile.distribution`、`couponCentre.entryFission`、`nav.*` 3 条，中英双语同步 |
+| 构建/部署 | `pnpm build:h5` 通过，`deploy-waimai.mjs` 部署成功，线上新增页面 chunk 均 200 |
+| 手机视口截图 | 390×844 dpr=2，共 11 张（117-127，存放 `docs/screenshots/common-features-v21/`） |
+
+边界与已知限制：
+- 消息中心未读数与列表分两次请求（`Promise.allSettled`），未读数失败时回退为列表内 `readAt == null` 计数；消息列表一次取 50 条，暂不做分页加载；
+- 已读回写为服务端持久化，失败仅告警不回滚本地状态，下次进入以服务端为准；
+- 裂变邀请码由前端按 `F+base36(customerId)` 生成，与后端可逆码规则一致；若后台为个别客户配置了自定义 `inviteCode`，以后端校验为准，前端展示的可逆码仍可通过；
+- 分销佣金比例后端按万分比存储，前端仅做 `/100` 展示转换；提现金额前端元→分 `Math.round`，实际最低额以平台配置为准；
+- 预售预订依赖「先加购再应用预售」的两步流程：若同店铺购物车已有其他商品，预售会整单应用预售价（后端按活动价重算预售变体行），下单前请在购物车确认；
+- 线上当前消息、裂变活动、推广员资料、预售活动均可能为空（后台未配置），页面为空态；截图使用模拟响应，后台配置后即真实展示；
+- 本轮为纯前端改动，复用线上已启用的 message / coupon-fission / distribution / pre-sale 插件，无需发布后端。
+

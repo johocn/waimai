@@ -44,6 +44,9 @@
         "nav.flashSale": "限时秒杀",
         "nav.groupBuy": "拼团专区",
         "nav.couponFlash": "整点抢券",
-        "nav.receipt": "电子小票"
+        "nav.receipt": "电子小票",
+        "nav.distribution": "推广中心",
+        "nav.couponFission": "分享裂变",
+        "nav.preSale": "预售专区"
     }
 }

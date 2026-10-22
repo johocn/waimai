@@ -63,7 +63,8 @@
                 { "path": "pages/points-mall", "style": { "navigationBarTitleText": "%nav.pointsMall%" } },
                 { "path": "pages/points-orders", "style": { "navigationBarTitleText": "%nav.pointsOrders%" } },
                 { "path": "pages/invoice-center", "style": { "navigationBarTitleText": "%nav.invoiceCenter%" } },
-                { "path": "pages/lottery", "style": { "navigationBarTitleText": "%nav.lottery%" } }
+                { "path": "pages/lottery", "style": { "navigationBarTitleText": "%nav.lottery%" } },
+                { "path": "pages/distribution", "style": { "navigationBarTitleText": "%nav.distribution%" } }
             ]
         },
         {
@@ -90,7 +91,9 @@
                 { "path": "pages/coupon-flash", "style": { "navigationBarTitleText": "%nav.couponFlash%" } },
                 { "path": "pages/coupon-mall", "style": { "navigationBarTitleText": "%nav.couponMall%" } },
                 { "path": "pages/coupon-sale-orders", "style": { "navigationBarTitleText": "%nav.couponSaleOrders%" } },
-                { "path": "pages/daily-coupon", "style": { "navigationBarTitleText": "%nav.dailyCoupon%" } }
+                { "path": "pages/daily-coupon", "style": { "navigationBarTitleText": "%nav.dailyCoupon%" } },
+                { "path": "pages/coupon-fission", "style": { "navigationBarTitleText": "%nav.couponFission%" } },
+                { "path": "pages/pre-sale", "style": { "navigationBarTitleText": "%nav.preSale%" } }
             ]
         }
     ],

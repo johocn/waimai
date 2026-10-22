@@ -24,10 +24,14 @@
           <image v-if="s.logo" class="fav-store__logo" :src="s.logo" mode="aspectFill" />
           <view v-else class="fav-store__logo fav-store__logo--txt">{{ (s.name || '?').slice(0, 1) }}</view>
           <view class="fav-store__body">
-            <text class="fav-store__name">{{ s.name }}</text>
+            <view class="fav-store__name-row">
+              <text class="fav-store__name">{{ s.name }}</text>
+              <text v-if="isPinned(s)" class="fav-store__pin-tag">{{ $t('favorites.pinnedTag') }}</text>
+            </view>
             <text class="fav-store__meta">{{ storeMeta(s) }}</text>
           </view>
           <view class="fav-store__side">
+            <text class="fav-store__pin" :class="{ on: isPinned(s) }" @click.stop="togglePin(s)">{{ isPinned(s) ? $t('favorites.unpin') : $t('favorites.pin') }}</text>
             <text class="fav-store__del" @click.stop="removeStore(s)">{{ $t('favorites.remove') }}</text>
             <text class="fav-store__go">›</text>
           </view>
@@ -130,7 +134,47 @@ const locale = useLocaleStore();
 const tab = ref<'stores' | 'items' | 'dynamics'>('stores');
 const stores = ref<any[]>([]);
 
-const storeList = computed(() => stores.value.filter(s => favorites.isFavorite(s.channelId)));
+// —— 置顶：本地记录置顶店铺（channelId 序），置顶店排最前（仅本地，不进云端收藏） ——
+const PINS_KEY = 'fav_store_pins';
+
+function readPins(): string[] {
+    try {
+        const raw = uni.getStorageSync(PINS_KEY);
+        const list = typeof raw === 'string' ? JSON.parse(raw || '[]') : raw;
+        return Array.isArray(list) ? list.map(String) : [];
+    } catch {
+        return [];
+    }
+}
+
+const pins = ref<string[]>(readPins());
+
+/** 置顶优先稳定排序：置顶店按 pin 顺序排前，其余保持原序 */
+const storeList = computed(() => {
+    const list = stores.value.filter(s => favorites.isFavorite(s.channelId));
+    const rank = (cid: any) => {
+        const i = pins.value.indexOf(String(cid));
+        return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+    };
+    return list.slice().sort((a, b) => rank(a.channelId) - rank(b.channelId));
+});
+
+function isPinned(s: any): boolean {
+    return pins.value.includes(String(s.channelId));
+}
+
+function togglePin(s: any) {
+    const id = String(s.channelId);
+    if (pins.value.includes(id)) {
+        pins.value = pins.value.filter(x => x !== id);
+        uni.showToast({ title: locale.t('favorites.pinRemoved'), icon: 'none' });
+    } else {
+        pins.value = [id, ...pins.value];
+        uni.showToast({ title: locale.t('favorites.pinAdded'), icon: 'none' });
+    }
+    uni.setStorageSync(PINS_KEY, JSON.stringify(pins.value));
+}
+
 const itemList = computed(() => favorites.variantItems.slice().sort((a, b) => (b.at || 0) - (a.at || 0)));
 /** 降价条目：收藏时快照价高于当前价 */
 const dropCount = computed(() => itemList.value.filter(p => !!dropOf(p)).length);
@@ -341,9 +385,13 @@ function goHome() {
   &__logo { width: 88rpx; height: 88rpx; border-radius: $radius-sm; flex-shrink: 0; background: $bg-color;
     &--txt { display: flex; align-items: center; justify-content: center; color: $brand-color; font-size: 34rpx; } }
   &__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
-  &__name { font-size: 28rpx; font-weight: 600; color: $text-color; }
+  &__name-row { display: flex; align-items: center; gap: 8rpx; min-width: 0; }
+  &__name { font-size: 28rpx; font-weight: 600; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__pin-tag { font-size: 18rpx; color: #fff; background: #ff6600; border-radius: 999rpx; padding: 2rpx 10rpx; flex-shrink: 0; }
   &__meta { font-size: 22rpx; color: $text-color-secondary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__side { display: flex; align-items: center; gap: 16rpx; flex-shrink: 0; }
+  &__pin { font-size: 22rpx; color: $text-color-placeholder; padding: 8rpx 14rpx; border: 1rpx solid $border-color; border-radius: 999rpx;
+    &.on { color: #ff6600; border-color: #ff6600; } }
   &__del { font-size: 22rpx; color: $text-color-placeholder; padding: 8rpx 14rpx; border: 1rpx solid $border-color; border-radius: 999rpx; }
   &__go { font-size: 32rpx; color: $text-color-placeholder; }
 }

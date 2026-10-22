@@ -216,7 +216,8 @@
     "mealLunch": "Lunch",
     "mealTea": "Afternoon tea",
     "mealDinner": "Dinner",
-    "mealNight": "Late-night snacks"
+    "mealNight": "Late-night snacks",
+    "guessTitle": "Recommended for you"
   },
   "menu": {
     "tabGoods": "Goods",
@@ -510,6 +511,8 @@
     "couponsAvailable": "{n} available",
     "noCoupon": "None available",
     "payable": "Total",
+    "feeDetail": "Discount details",
+    "feeSaved": "Saved ¥{d}",
     "noteLabel": "Order Note",
     "notePlaceholder": "Taste preferences, allergies, message to merchant (optional)",
     "noteManage": "Manage",
@@ -756,7 +759,13 @@
     "continueShopping": "Keep Shopping",
     "stSuccess": "Payment Successful",
     "stPending": "Awaiting Payment Confirmation",
-    "stFail": "Payment Failed"
+    "stFail": "Payment Failed",
+    "share": "Share Order",
+    "shareTitle": "[Yourbao] My Order",
+    "shareItems": "Items: {s}",
+    "sharePaid": "Total: ¥{y}",
+    "shareSlot": "Delivery: {s}",
+    "shareCopied": "Order info copied. Paste to share"
   },
   "afterSaleCreate": {
     "modeOrder": "Full Refund",
@@ -1168,7 +1177,12 @@
     "newBadge": "New",
     "hotBadge": "Hot",
     "priceDrop": "Down ¥{d}",
-    "oldPrice": "Was"
+    "oldPrice": "Was",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinnedTag": "Pinned",
+    "pinAdded": "Pinned",
+    "pinRemoved": "Unpinned"
   },
   "spending": {
     "totalLabel": "Total spent",

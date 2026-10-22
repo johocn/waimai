@@ -239,6 +239,17 @@
           <text class="coupon-arrow">›</text>
         </text>
       </view>
+      <!-- 优惠明细：逐项展开 order.discounts（券/满减/活动），并给出已省合计 -->
+      <view class="summary-row summary-row--saved" v-if="discountItems.length" @click="feeDetailOpen = !feeDetailOpen">
+        <text>{{ $t('checkout.feeDetail') }}</text>
+        <text class="fee-detail__toggle">{{ $t('checkout.feeSaved').replace('{d}', discountTotalYuan) }} {{ feeDetailOpen ? '▴' : '▾' }}</text>
+      </view>
+      <view class="fee-detail" v-if="feeDetailOpen && discountItems.length">
+        <view class="fee-detail__row" v-for="(d, i) in discountItems" :key="'fd-' + i">
+          <text class="fee-detail__desc">{{ d.description || $t('checkout.feeDetail') }}</text>
+          <text class="fee-detail__amt">-¥{{ d.yuan }}</text>
+        </view>
+      </view>
       <view class="summary-row summary-row--total"><text>{{ $t('checkout.payable') }}</text><text class="checkout-page__total">¥{{ cart.formatPrice(cart.order.totalWithTax) }}</text></view>
     </view>
 
@@ -1060,6 +1071,17 @@ const couponRowText = computed(() => {
 
 const attachedCoupon = computed(() => !!attachedCouponCode.value);
 
+// —— 优惠明细：逐项展开 order.discounts（券/满减/活动等），并给出已省合计 ——
+const feeDetailOpen = ref(false);
+const discountItems = computed(() => (cart.order?.discounts ?? [])
+    .map((x: any) => {
+        const fen = Math.abs(Math.round(Number(x?.amountWithTax) || 0));
+        return { description: String(x?.description ?? ''), fen, yuan: (fen / 100).toFixed(2) };
+    })
+    .filter(x => x.fen > 0));
+const discountTotalFen = computed(() => discountItems.value.reduce((s, x) => s + x.fen, 0));
+const discountTotalYuan = computed(() => (discountTotalFen.value / 100).toFixed(2));
+
 const sheetCoupons = computed(() =>
     [...myUnusedCoupons.value].sort((a, b) =>
         estimateDiscountFen(b.template, subtotalFen.value, shippingFen.value) - estimateDiscountFen(a.template, subtotalFen.value, shippingFen.value)));
@@ -1572,6 +1594,13 @@ onLoad((q: any) => {
 // ===== 优惠券行 + 选券弹层（spec §3.3） =====
 .summary-row--coupon { cursor: pointer; }
 .coupon-val { color: #ff6600; }
+// ===== 优惠明细（v14）：逐项展开 + 已省合计 =====
+.summary-row--saved { cursor: pointer; }
+.fee-detail__toggle { color: #ff4d4f; }
+.fee-detail { padding: 4rpx 0 12rpx; border-bottom: 1rpx solid $border-color;
+  &__row { display: flex; justify-content: space-between; align-items: center; font-size: 24rpx; color: $text-color-secondary; padding: 6rpx 0; }
+  &__desc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 16rpx; }
+  &__amt { color: #ff4d4f; flex-shrink: 0; } }
 .coupon-arrow { color: #c0c0c0; margin-left: 8rpx; }
 .coupon-sheet-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: flex-end; }
 .coupon-sheet { width: 100%; background: #f5f5f5; border-radius: 24rpx 24rpx 0 0; padding: 32rpx 0 calc(32rpx + env(safe-area-inset-bottom)); max-height: 70vh; display: flex; flex-direction: column; }

@@ -216,7 +216,8 @@
     "mealLunch": "午餐",
     "mealTea": "下午茶",
     "mealDinner": "晚餐",
-    "mealNight": "夜宵"
+    "mealNight": "夜宵",
+    "guessTitle": "猜你喜欢"
   },
   "menu": {
     "tabGoods": "商品",
@@ -510,6 +511,8 @@
     "couponsAvailable": "{n} 张可用",
     "noCoupon": "暂无可用",
     "payable": "应付",
+    "feeDetail": "优惠明细",
+    "feeSaved": "已省 ¥{d}",
     "noteLabel": "订单备注",
     "notePlaceholder": "口味偏好、忌口等给商家留言（选填）",
     "noteManage": "管理常用",
@@ -756,7 +759,13 @@
     "continueShopping": "继续购物",
     "stSuccess": "支付成功",
     "stPending": "等待支付确认",
-    "stFail": "支付失败"
+    "stFail": "支付失败",
+    "share": "分享订单",
+    "shareTitle": "【有宝外卖】订单分享",
+    "shareItems": "商品：{s}",
+    "sharePaid": "实付：¥{y}",
+    "shareSlot": "送达时段：{s}",
+    "shareCopied": "订单信息已复制，快去粘贴分享吧"
   },
   "afterSaleCreate": {
     "modeOrder": "整单退款",
@@ -1168,7 +1177,12 @@
     "newBadge": "新品",
     "hotBadge": "热销",
     "priceDrop": "降价 ¥{d}",
-    "oldPrice": "原价"
+    "oldPrice": "原价",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "pinnedTag": "置顶",
+    "pinAdded": "已置顶",
+    "pinRemoved": "已取消置顶"
   },
   "spending": {
     "totalLabel": "累计消费",

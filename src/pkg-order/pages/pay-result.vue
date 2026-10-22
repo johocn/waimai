@@ -16,6 +16,7 @@
     </view>
     <view class="pay-result__actions">
       <button class="btn-primary" @click="viewOrder(orderCodes[0] || '')">{{ $t('payResult.viewOrder') }}</button>
+      <button v-if="orderCodes.length" class="btn-secondary" @click="shareOrder">{{ $t('payResult.share') }}</button>
       <button class="btn-secondary" @click="goHome">{{ $t('payResult.continueShopping') }}</button>
     </view>
   </view>
@@ -28,6 +29,7 @@ import { ref } from 'vue';
 import { useCartStore } from '../../stores/cart';
 import { useLocaleStore } from '../../stores/locale';
 import { addItemToOrder } from '../../api/mutations/cart';
+import { getOrderByCode } from '../../api/queries/order';
 
 const cart = useCartStore();
 const locale = useLocaleStore();
@@ -75,6 +77,38 @@ function viewOrder(code: string) {
 }
 function goHome() {
     uni.switchTab({ url: '/pages/home/index' });
+}
+
+// —— 分享订单：拉详情拼摘要文本复制到剪贴板（失败退化为订单号） ——
+async function shareOrder() {
+    const code = orderCodes.value[0] || '';
+    if (!code) return;
+    let text = '';
+    try {
+        const res: any = await getOrderByCode(code);
+        const o = res?.orderByCode;
+        if (o) {
+            const items = (o.lines ?? [])
+                .map((l: any) => `${l.productVariant?.name ?? ''} x${l.quantity}`)
+                .filter((s: string) => !!s)
+                .join('、');
+            const rows = [
+                locale.t('payResult.orderNo').replace('{c}', o.code),
+                items ? locale.t('payResult.shareItems').replace('{s}', items) : '',
+                locale.t('payResult.sharePaid').replace('{y}', (Number(o.totalWithTax) / 100).toFixed(2)),
+                o.customFields?.deliverySlotText ? locale.t('payResult.shareSlot').replace('{s}', o.customFields.deliverySlotText) : '',
+            ].filter(Boolean);
+            text = `${locale.t('payResult.shareTitle')}\n${rows.join('\n')}`;
+        }
+    } catch { /* 查不到详情：退化分享订单号 */ }
+    if (!text) {
+        const codes = orderCodes.value.join('、');
+        text = `${locale.t('payResult.shareTitle')}\n${locale.t('payResult.orderNo').replace('{c}', codes)}`;
+    }
+    uni.setClipboardData({
+        data: text,
+        success: () => uni.showToast({ title: locale.t('payResult.shareCopied'), icon: 'none' }),
+    });
 }
 </script>
 

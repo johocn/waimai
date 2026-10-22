@@ -184,6 +184,19 @@
                     </view>
                 </scroll-view>
             </view>
+            <!-- 猜你喜欢：足迹+常买+店铺月售打分的个性化推荐（与常买/收藏去重） -->
+            <view v-if="guessProducts.length" class="recent">
+                <view class="sec"><text class="sec-t">{{ $t('home.guessTitle') }}</text></view>
+                <scroll-view scroll-x class="recent-row">
+                    <view v-for="p in guessProducts" :key="'guess-' + p.key" class="item-card" @tap="openGuessProduct(p)">
+                        <image v-if="p.image" class="item-img" :src="p.image" mode="aspectFill" />
+                        <view v-else class="item-img item-img--text">{{ p.name.slice(0, 1) }}</view>
+                        <text class="item-name">{{ p.name }}</text>
+                        <text class="item-price" v-if="p.price">¥{{ fenText(p.price) }}</text>
+                        <text class="item-store">{{ p.storeName || '' }}</text>
+                    </view>
+                </scroll-view>
+            </view>
             <!-- 跨店商品搜索结果（仅在提交搜索后展示） -->
             <view v-if="searchKeyword && searching" class="sp-loading">{{ $t('home.searchLoading') }}</view>
             <template v-if="searchKeyword && searchProductHits.length">
@@ -319,6 +332,7 @@ import { filterStores, applyStoreFilters, sortStores, type StoreSort, type Store
 import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
 import { getStoreStatus, type StoreOpenState } from '../../utils/store-status';
 import { currentMealSlot, recommendStores } from '../../utils/time-slot';
+import { readFootprint } from '../../utils/footprint';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
 import { useLocaleStore } from '../../stores/locale';
 import { useFavoritesStore } from '../../stores/favorites';
@@ -491,6 +505,65 @@ function openRecentProduct(it: any) {
     const cid = cidVal != null ? `&cid=${cidVal}` : '';
     const routes = (s?.routesEnabled || it.routes || '').toString();
     uni.navigateTo({ url: `/pages/shop/menu?token=${token}&name=${encodeURIComponent(s?.name || it.storeName || '')}&routes=${encodeURIComponent(routes)}${cid}&add=${it.variantId}` });
+}
+
+// ── 猜你喜欢：足迹 + 常买 + 店铺月售打分的个性化推荐（v14） ──
+const guessTick = ref(0);
+const guessProducts = computed(() => {
+    guessTick.value; // 依赖 onShow 自增，返回首页时重读足迹
+    if (keyword.value || searchKeyword.value) return [] as any[];
+    // 收藏/常买区已展示的 variant 不重复出现
+    const favIds = new Set(favorites.variantItems.map(v => String(v.variantId)));
+    const recentIds = new Set(favorites.recentItems.map(v => String(v.variantId)));
+    const now = Date.now();
+    const DAY = 24 * 3600 * 1000;
+    const pool = new Map<string, any>();
+    const add = (it: any, base: number) => {
+        if (!it?.name) return;
+        const vid = it.variantId != null ? String(it.variantId) : '';
+        if (vid && (favIds.has(vid) || recentIds.has(vid))) return;
+        const key = vid || String(it.productId ?? '') || String(it.name);
+        const ageDays = Math.max(0, (now - (Number(it.at) || now)) / DAY);
+        const decay = Math.exp(-ageDays / 3); // 近期衰减：3 天量级半衰
+        const store = storeOfVariant(it);
+        const hotBonus = (Number(store?.monthlySales) || 0) / 100; // 店铺热度加成（量级远小于基础权重）
+        const score = base * decay + hotBonus;
+        const prev = pool.get(key);
+        if (prev) {
+            prev.score += score;
+            if (!prev.image && it.image) prev.image = it.image;
+            if (!prev.price && it.price) prev.price = Number(it.price);
+            return;
+        }
+        pool.set(key, {
+            key,
+            variantId: vid,
+            productId: it.productId != null ? String(it.productId) : '',
+            name: String(it.name),
+            image: it.image ? String(it.image) : '',
+            price: Number(it.price) || 0,
+            storeName: it.storeName ? String(it.storeName) : '',
+            channelToken: it.channelToken ? String(it.channelToken) : '',
+            channelId: it.channelId != null ? String(it.channelId) : undefined,
+            routes: it.routes ? String(it.routes) : '',
+            score,
+        });
+    };
+    for (const it of favorites.recentItems) add(it, 3);   // 常买权重高
+    for (const it of readFootprint()) add(it, 1);          // 足迹权重次之
+    return Array.from(pool.values()).sort((a, b) => b.score - a.score).slice(0, 8);
+});
+
+/** 猜你喜欢点击：有 variantId 直接进店自动加购，否则带关键词定位 */
+function openGuessProduct(p: any) {
+    const s = storeOfVariant(p);
+    const token = p.channelToken || s?.channelToken;
+    if (!token) return;
+    const cidVal = p.channelId ?? s?.channelId;
+    const cid = cidVal != null ? `&cid=${cidVal}` : '';
+    const routes = (s?.routesEnabled || p.routes || '').toString();
+    const pos = p.variantId ? `&add=${p.variantId}` : `&q=${encodeURIComponent(p.name)}`;
+    uni.navigateTo({ url: `/pages/shop/menu?token=${token}&name=${encodeURIComponent(s?.name || p.storeName || '')}&routes=${encodeURIComponent(routes)}${cid}${pos}` });
 }
 
 // ── 当前配送楼栋（结算页保存）与快捷切换 ──
@@ -719,6 +792,7 @@ onUnmounted(() => {
 // 登录/退出后回到首页：同步云端收藏（登录时会把游客收藏补写到云端）；同时刷新结算页刚保存的楼栋
 onShow(() => {
     nowTick.value = Date.now();
+    guessTick.value++; // 重读浏览足迹（localStorage 非响应式，onShow 时刷新猜你喜欢）
     void favorites.loadRemote();
     void loadCouponBadge();
     void messages.load();

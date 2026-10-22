@@ -53,6 +53,7 @@
                 { "path": "pages/messages", "style": { "navigationBarTitleText": "%nav.messages%" } },
                 { "path": "pages/favorites", "style": { "navigationBarTitleText": "%nav.favorites%" } },
                 { "path": "pages/history", "style": { "navigationBarTitleText": "%nav.history%" } },
+                { "path": "pages/spending", "style": { "navigationBarTitleText": "%nav.spending%" } },
                 { "path": "pages/help", "style": { "navigationBarTitleText": "%nav.help%" } }
             ]
         },

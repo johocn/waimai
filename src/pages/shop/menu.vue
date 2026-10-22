@@ -37,6 +37,12 @@
             <text class="shop-state__ico">{{ storeClosed ? '🌙' : '⏰' }}</text>
             <text class="shop-state__txt">{{ storeStateText }}</text>
         </view>
+        <!-- 店铺公告条：单行省略，点击查看完整公告（首次进店每日自动弹一次） -->
+        <view v-if="storeNotice" class="notice-bar" @tap="openNotice">
+            <text class="notice-bar__ico">📣</text>
+            <text class="notice-bar__txt">{{ storeNotice }}</text>
+            <text class="notice-bar__more">{{ $t('menu.noticeMore') }} ›</text>
+        </view>
         <!-- 三 Tab -->
         <view class="tabs">
             <view class="tb" :class="{ on: tab === 'goods' }" @tap="switchTab('goods')">{{ $t('menu.tabGoods') }}</view>
@@ -240,6 +246,20 @@
             </view>
         </view>
         <SkuSheet v-model:visible="skuOpen" :product="skuProduct" :preferred-variant-id="skuPreferred" @action="onSkuAction" @share="shareProduct" />
+
+        <!-- 店铺公告弹层 -->
+        <view v-if="noticeOpen" class="notice-mask" @tap="noticeOpen = false">
+            <view class="notice-sheet" @tap.stop>
+                <view class="notice-sheet__head">
+                    <text class="notice-sheet__ico">📣</text>
+                    <text class="notice-sheet__title">{{ $t('menu.storeNoticeTitle') }}</text>
+                </view>
+                <scroll-view scroll-y class="notice-sheet__body">
+                    <text class="notice-sheet__text">{{ storeNotice }}</text>
+                </scroll-view>
+                <button class="notice-sheet__btn" @tap="noticeOpen = false">{{ $t('menu.noticeOk') }}</button>
+            </view>
+        </view>
     </view>
 </template>
 
@@ -281,6 +301,9 @@ const shopName = ref(locale.t('menu.defaultShop'));
 const routesText = ref(locale.t('menu.defaultDelivery'));
 const promoText = ref('');
 const storeInfo = ref<any>(null);
+/** 店铺公告（storeInfo 的 storeNotice，空则整块不显示） */
+const storeNotice = computed(() => String(storeInfo.value?.storeNotice || '').trim());
+const noticeOpen = ref(false);
 const tab = ref<'goods' | 'reviews' | 'merchant'>('goods');
 const cats = ref([{ id: 'all', name: '全部' }]);
 const activeCat = ref('all');
@@ -301,6 +324,25 @@ const cartTotal = computed(() => cart.totalPrice);
 // 收藏（店铺 = 渠道）：storeInfo 由 fetchStoreList 按 token 匹配后才有 channelId
 const favChannelId = computed(() => storeInfo.value?.channelId ?? null);
 const isFav = computed(() => favorites.isFavorite(favChannelId.value));
+
+/** 打开公告弹层（点公告条） */
+function openNotice() {
+    if (storeNotice.value) noticeOpen.value = true;
+}
+
+/** 首次进店每日自动弹一次公告：同店同一天只弹一次 */
+function maybeAutoNotice() {
+    if (!storeNotice.value) return;
+    const d = new Date();
+    const key = `store_notice_seen_${shopToken.value || storeInfo.value?.channelId || shopName.value}_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    try {
+        if (uni.getStorageSync(key)) return;
+        uni.setStorageSync(key, '1');
+    } catch {
+        /* 存储不可用时仍弹一次 */
+    }
+    noticeOpen.value = true;
+}
 
 // 起送价（后端配置单位为分）与满减凑单提示
 const minOrderFen = computed(() => {
@@ -600,6 +642,7 @@ onLoad(async (q: any) => {
         storeInfo.value = hit;
         if (hit) {
             favorites.touchRecent({ channelId: hit.channelId, channelToken: shopToken.value, name: shopName.value, routes: shopRoutes.value });
+            maybeAutoNotice();
         }
     }).catch(() => { storeInfo.value = null; });
     uni.setNavigationBarTitle({ title: shopName.value });
@@ -931,6 +974,20 @@ function goCheckout() {
 .shop-state__txt { font-size: 24rpx; line-height: 1.4; flex: 1; }
 .shop-state--closed .shop-state__txt { color: #b42318; }
 .shop-state--closing .shop-state__txt { color: #b45309; }
+/* 店铺公告条 + 公告弹层 */
+.notice-bar { display: flex; align-items: center; gap: 10rpx; margin: 12rpx 24rpx 0; padding: 14rpx 20rpx; border-radius: 12rpx; background: #fff8ef; border: 1rpx solid #ffe2c2; flex-shrink: 0; }
+.notice-bar__ico { font-size: 24rpx; flex-shrink: 0; }
+.notice-bar__txt { flex: 1; min-width: 0; font-size: 24rpx; color: #8a5a1f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notice-bar__more { flex-shrink: 0; font-size: 22rpx; color: #ff6600; }
+.notice-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 260; display: flex; align-items: center; justify-content: center; padding: 0 60rpx; }
+.notice-sheet { width: 100%; max-height: 70vh; background: #fff; border-radius: 24rpx; padding: 36rpx 32rpx 28rpx; display: flex; flex-direction: column; gap: 20rpx; box-sizing: border-box; }
+.notice-sheet__head { display: flex; align-items: center; gap: 12rpx; }
+.notice-sheet__ico { font-size: 34rpx; }
+.notice-sheet__title { font-size: 32rpx; font-weight: 600; color: #222; }
+.notice-sheet__body { max-height: 44vh; }
+.notice-sheet__text { font-size: 26rpx; line-height: 1.7; color: #555; white-space: pre-wrap; }
+.notice-sheet__btn { width: 100%; margin-top: 8rpx; height: 88rpx; line-height: 88rpx; border-radius: 44rpx; background: #ff6600; color: #fff; font-size: 30rpx; border: none; }
+.notice-sheet__btn::after { border: none; }
 /* ── Tab 行 ── */
 .tabs { display: flex; gap: 48rpx; padding: 0 32rpx; border-bottom: 1rpx solid var(--w-border); flex-shrink: 0; }
 .tb { padding: 20rpx 0; font-size: 28rpx; color: var(--w-text-muted); border-bottom: 4rpx solid transparent; margin-bottom: -1rpx; }

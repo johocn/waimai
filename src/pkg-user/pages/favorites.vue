@@ -6,6 +6,7 @@
       </view>
       <view class="fav-tab" :class="{ on: tab === 'items' }" @click="switchTab('items')">
         {{ $t('favorites.items') }}<text class="fav-tab__n">{{ itemList.length }}</text>
+        <text v-if="dropCount" class="fav-tab__n fav-tab__n--drop">· ↓{{ dropCount }}</text>
       </view>
       <view class="fav-tab" :class="{ on: tab === 'dynamics' }" @click="switchTab('dynamics')">
         {{ $t('favorites.dynamics') }}<text class="fav-tab__n fav-tab__n--new" v-if="dynNewCount">{{ dynNewCount }}</text>
@@ -47,9 +48,13 @@
             <text class="fav-item__name">{{ p.name || $t('favorites.itemFallback') }}</text>
             <text class="fav-item__store">{{ p.storeName || '' }}</text>
             <view class="fav-item__foot">
-              <text class="fav-item__price" v-if="p.price != null">¥{{ fen(p.price) }}</text>
+              <view class="fav-item__prices" v-if="p.price != null">
+                <text class="fav-item__price">¥{{ fen(p.price) }}</text>
+                <text v-if="dropOf(p)" class="fav-item__old">¥{{ fen(dropOf(p).original) }}</text>
+              </view>
               <text class="fav-item__del" @click.stop="removeItem(p)">{{ $t('favorites.remove') }}</text>
             </view>
+            <text v-if="dropOf(p)" class="fav-item__drop">{{ $t('favorites.priceDrop').replace('{d}', fen(dropOf(p).diff)) }}</text>
           </view>
         </view>
       </view>
@@ -116,6 +121,7 @@ import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/wa
 import { useFavoritesStore } from '../../stores/favorites';
 import { useLocaleStore } from '../../stores/locale';
 import { routeText } from '../../utils/store-display';
+import { priceDrop } from '../../utils/fav-price';
 import VImage from '../../components/VImage.vue';
 
 const favorites = useFavoritesStore();
@@ -126,6 +132,38 @@ const stores = ref<any[]>([]);
 
 const storeList = computed(() => stores.value.filter(s => favorites.isFavorite(s.channelId)));
 const itemList = computed(() => favorites.variantItems.slice().sort((a, b) => (b.at || 0) - (a.at || 0)));
+/** 降价条目：收藏时快照价高于当前价 */
+const dropCount = computed(() => itemList.value.filter(p => !!dropOf(p)).length);
+
+function dropOf(p: any) {
+    return priceDrop(p?.variantId, p?.price);
+}
+
+/** 刷新收藏商品当前价：按渠道各拉一次商品，命中 variant 后用最新价覆盖（失败保留旧价） */
+async function refreshPrices() {
+    const groups = new Map<string, Set<string>>();
+    for (const v of itemList.value) {
+        const token = v.channelToken
+            || stores.value.find((s: any) => String(s.channelId) === String(v.channelId))?.channelToken;
+        if (!token) continue;
+        if (!groups.has(token)) groups.set(token, new Set());
+        groups.get(token)!.add(String(v.variantId));
+    }
+    if (!groups.size) return;
+    const prices = new Map<string, number>();
+    await Promise.all(Array.from(groups.entries()).map(async ([token, ids]) => {
+        const goods = await fetchProductListForChannel(token).catch(() => [] as any[]);
+        for (const p of goods) {
+            for (const v of p.variants ?? []) {
+                const id = String(v.id);
+                if (!ids.has(id)) continue;
+                const fen = Math.round(Number(v.priceWithTax));
+                if (Number.isFinite(fen) && fen > 0) prices.set(id, fen);
+            }
+        }
+    }));
+    favorites.refreshVariantPrices(prices);
+}
 
 // —— 店铺动态：本地记录已见商品 ID，用于区分「上新」与常规商品 ——
 const SEEN_KEY = 'follow_seen_products';
@@ -160,7 +198,8 @@ const dynNewCount = computed(() => dynamics.value.reduce((s, g) => s + g.newProd
 onShow(async () => {
     await favorites.loadRemote().catch(() => {});
     stores.value = await fetchStoreList().catch(() => [] as any[]);
-    void favorites.hydrateVariantMeta(stores.value);
+    await favorites.hydrateVariantMeta(stores.value);
+    void refreshPrices();
     if (tab.value === 'dynamics') dynLoaded.value = false;
 });
 
@@ -291,7 +330,8 @@ function goHome() {
 .fav-page { min-height: 100vh; background: $bg-color; padding: 20rpx 20rpx 40rpx; box-sizing: border-box; }
 .fav-tabs { display: flex; gap: 12rpx; margin-bottom: 20rpx;
   &__n { font-size: 22rpx; color: $text-color-placeholder; margin-left: 6rpx;
-    &--new { color: #fff; background: #e02020; border-radius: 999rpx; padding: 0 10rpx; margin-left: 8rpx; } }
+    &--new { color: #fff; background: #e02020; border-radius: 999rpx; padding: 0 10rpx; margin-left: 8rpx; }
+    &--drop { color: #fff; background: #ff6600; border-radius: 999rpx; padding: 0 10rpx; margin-left: 8rpx; } }
 }
 .fav-tab { flex: 1; text-align: center; padding: 18rpx 0; font-size: 26rpx; border-radius: $radius-md; background: $surface; color: $text-color-secondary; border: 1rpx solid transparent;
   &.on { color: $brand-color; border-color: $brand-color; background: $brand-color-light; font-weight: 600; }
@@ -313,8 +353,11 @@ function goHome() {
   &__body { display: flex; flex-direction: column; gap: 6rpx; margin-top: 12rpx; }
   &__name { font-size: 26rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__store { font-size: 22rpx; color: $text-color-secondary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  &__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4rpx; }
+  &__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4rpx; gap: 8rpx; }
+  &__prices { display: flex; align-items: baseline; gap: 8rpx; min-width: 0; }
   &__price { font-size: 28rpx; color: $price-color; font-weight: 600; }
+  &__old { font-size: 20rpx; color: $text-color-placeholder; text-decoration: line-through; }
+  &__drop { align-self: flex-start; margin-top: 4rpx; font-size: 20rpx; color: #fff; background: #ff6600; border-radius: 999rpx; padding: 2rpx 12rpx; }
   &__del { font-size: 22rpx; color: $text-color-placeholder; padding: 4rpx 10rpx; border: 1rpx solid $border-color; border-radius: 999rpx; }
 }
 .fav-empty { padding: 120rpx 0; display: flex; flex-direction: column; align-items: center; gap: 16rpx;

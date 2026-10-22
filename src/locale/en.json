@@ -209,7 +209,14 @@
     "suggestHistory": "History",
     "suggestHot": "Trending",
     "storeClosed": "Closed",
-    "storeClosing": "Closing soon"
+    "storeClosing": "Closing soon",
+    "mealTitle": "Good for now · {s}",
+    "mealMore": "See all",
+    "mealBreakfast": "Breakfast",
+    "mealLunch": "Lunch",
+    "mealTea": "Afternoon tea",
+    "mealDinner": "Dinner",
+    "mealNight": "Late-night snacks"
   },
   "menu": {
     "tabGoods": "Goods",
@@ -296,7 +303,10 @@
     "closedBtn": "Closed",
     "freeShipGap": "{d} more for free delivery",
     "tierLabel": "Spend {t} save {d}",
-    "tierGap": "{d} to go"
+    "tierGap": "{d} to go",
+    "storeNoticeTitle": "Store notice",
+    "noticeMore": "View",
+    "noticeOk": "Got it"
   },
   "orders": {
     "tabAll": "All",
@@ -365,7 +375,8 @@
     "langEn": "English",
     "myAfterSales": "After-sales",
     "help": "Help & Support",
-    "history": "History & frequent"
+    "history": "History & frequent",
+    "spending": "Spending"
   },
   "login": {
     "brand": "Shiguangda",
@@ -1147,7 +1158,35 @@
     "removeFail": "Operation failed",
     "itemFallback": "Item",
     "minOrder": "Min ¥{y}",
-    "paused": "Shop is closed now"
+    "paused": "Shop is closed now",
+    "dynamics": "Shop updates",
+    "dynamicsTitle": "Updates from favorite shops",
+    "dynamicsLoading": "Loading…",
+    "clearNew": "Mark all read",
+    "dynEmpty": "Follow shops to see new and popular items",
+    "newProducts": "{n} new",
+    "newBadge": "New",
+    "hotBadge": "Hot",
+    "priceDrop": "Down ¥{d}",
+    "oldPrice": "Was"
+  },
+  "spending": {
+    "totalLabel": "Total spent",
+    "orders": "Orders",
+    "avg": "Avg. order",
+    "thisMonth": "This month",
+    "loading": "Calculating…",
+    "trendTitle": "Last 6 months",
+    "trendSub": "Monthly total",
+    "monthLabel": "{m}",
+    "topTitle": "Top 3 shops",
+    "topSub": "By order count",
+    "times": "{n} order(s)",
+    "recentTitle": "Recent orders",
+    "dateFmt": "{m}/{d}",
+    "tip": "Includes paid and completed orders; cancelled or unpaid orders are excluded",
+    "empty": "No orders to summarize yet",
+    "loginTip": "Log in to view spending"
   },
   "afterSalesList": {
     "tabAll": "All",

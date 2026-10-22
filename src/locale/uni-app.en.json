@@ -38,6 +38,7 @@
         "nav.favorites": "My Favorites",
         "nav.afterSales": "After-sales",
         "nav.help": "Help & Support",
-        "nav.history": "History"
+        "nav.history": "History",
+        "nav.spending": "Spending"
     }
 }

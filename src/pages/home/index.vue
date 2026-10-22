@@ -53,6 +53,21 @@
                     <text class="qtxt">江湖</text>
                 </view>
             </view>
+            <!-- 时段推荐：按当前时间（早餐/午餐/下午茶/晚餐/夜宵）推荐应景店铺 -->
+            <view v-if="!keyword && !showSearchPanel && mealPicks.length" class="recent meal">
+                <view class="sec">
+                    <text class="sec-t">{{ $t('home.mealTitle').replace('{s}', mealSlotLabel) }}</text>
+                    <text v-if="mealFilterable" class="sec-more" @tap="showMealAll">{{ $t('home.mealMore') }} ›</text>
+                </view>
+                <scroll-view scroll-x class="recent-row">
+                    <view v-for="s in mealPicks" :key="'meal-' + s.channelId" class="recent-card" @tap="enterStore(s)">
+                        <image v-if="s.logo" class="recent-logo" :src="s.logo" mode="aspectFill" />
+                        <view v-else class="recent-logo recent-logo--text">{{ (s.name || '?').slice(0, 1) }}</view>
+                        <text class="recent-name">{{ s.name }}</text>
+                        <text class="recent-meta">{{ s.promoText || deliveryTag(s) || routeText(s.routesEnabled) }}</text>
+                    </view>
+                </scroll-view>
+            </view>
             <!-- 搜索面板：聚焦且关键词为空时展示（历史 + 热搜），不发请求 -->
             <view v-if="showSearchPanel" class="search-panel">
                 <view v-if="searchHistory.length" class="sp-group">
@@ -294,7 +309,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
@@ -303,6 +318,7 @@ import { readSearchHistory, pushSearchHistory, clearSearchHistory, buildHotWords
 import { filterStores, applyStoreFilters, sortStores, type StoreSort, type StoreFilterOptions } from '../../utils/store-filter';
 import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
 import { getStoreStatus, type StoreOpenState } from '../../utils/store-status';
+import { currentMealSlot, recommendStores } from '../../utils/time-slot';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
 import { useLocaleStore } from '../../stores/locale';
 import { useFavoritesStore } from '../../stores/favorites';
@@ -587,6 +603,23 @@ const secTitle = computed(() => {
     return activeTag.value === '全部' ? locale.t('home.allStores') : tagLabel(activeTag.value);
 });
 const promoStore = computed(() => stores.value.find((s: any) => s.promoText && !s.paused));
+
+// —— 时段推荐：每分钟刷新一次当前时段，按店铺标签/活动/月售/营业状态打分 ——
+const nowTick = ref(Date.now());
+let mealTimer: any = 0;
+const mealSlot = computed(() => currentMealSlot(new Date(nowTick.value)));
+const mealSlotLabel = computed(() => {
+    const key = mealSlot.value.key;
+    return locale.t(`home.meal${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+});
+const mealPicks = computed(() => (keyword.value ? [] : recommendStores(stores.value, mealSlot.value, 4)));
+const mealFilterable = computed(() => tagList.value.includes(mealSlot.value.filterTag));
+/** 查看全部：切到该时段对应类目并滚到店铺列表 */
+function showMealAll() {
+    if (!mealFilterable.value) return;
+    activeTag.value = mealSlot.value.filterTag;
+    uni.pageScrollTo({ selector: '.cards', duration: 200 });
+}
 // 本地测试版入口：仅当 .env 配置 VITE_JIANGHU_ENTRY=true 时显示（prod 默认隐藏，避免产品级入口决策前置）
 const jianghuEntry = String(import.meta.env.VITE_JIANGHU_ENTRY) === 'true';
 
@@ -677,9 +710,15 @@ onMounted(() => {
     initTheme();
     void favorites.loadRemote();
     load();
+    mealTimer = setInterval(() => { nowTick.value = Date.now(); }, 60000);
+});
+onUnmounted(() => {
+    if (mealTimer) clearInterval(mealTimer);
+    mealTimer = 0;
 });
 // 登录/退出后回到首页：同步云端收藏（登录时会把游客收藏补写到云端）；同时刷新结算页刚保存的楼栋
 onShow(() => {
+    nowTick.value = Date.now();
     void favorites.loadRemote();
     void loadCouponBadge();
     void messages.load();
@@ -747,6 +786,7 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .sec { display: flex; justify-content: space-between; align-items: baseline; padding: 28rpx 4rpx 8rpx; }
 .sec-t { font-size: 32rpx; font-weight: 600; color: var(--w-text); }
 .sec-n { font-size: 22rpx; color: var(--w-text-muted); }
+.sec-more { font-size: 22rpx; color: var(--w-brand-text); }
 .cards { display: flex; flex-direction: column; gap: 16rpx; padding-bottom: 8rpx; }
 .card { display: flex; align-items: center; gap: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx; }
 .logo { width: 120rpx; height: 120rpx; border-radius: $radius; flex-shrink: 0; }

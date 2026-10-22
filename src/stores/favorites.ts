@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { fetchFavoriteStores, toggleFavoriteStore, fetchFavoriteVariants, toggleFavoriteVariant } from '../api/queries/favorite';
 import { fetchProductListForChannel } from '../api/queries/waimai';
+import { priceSnapshot, rememberFavPrice, forgetFavPrice } from '../utils/fav-price';
 import { useAuthStore } from './auth';
 
 const FAV_KEY = 'favorite_stores';
@@ -171,10 +172,14 @@ export const useFavoritesStore = defineStore('favorites', () => {
         if (!id) return false;
         const before = variantItems.value.slice();
         const willAdd = !variantIdSet.value.has(id);
+        const snapBefore = priceSnapshot(id);
         variantItems.value = willAdd
             ? [...variantItems.value, { ...record, variantId: id, at: Date.now() }]
             : variantItems.value.filter(v => v.variantId !== id);
         persistVariants();
+        // 收藏时记价格快照，取消收藏时清除（用于价格下降提醒）
+        if (willAdd) rememberFavPrice(id, record.price ?? null);
+        else forgetFavPrice(id);
         if (auth.isLoggedIn) {
             try {
                 const remote = await toggleFavoriteVariant(id, String(record.channelId ?? ''));
@@ -183,6 +188,9 @@ export const useFavoritesStore = defineStore('favorites', () => {
             } catch (e) {
                 variantItems.value = before;
                 persistVariants();
+                // 远端失败回滚：快照同步回滚，避免误报降价
+                if (willAdd) forgetFavPrice(id);
+                else if (snapBefore != null) rememberFavPrice(id, snapBefore);
                 throw e;
             }
         }
@@ -270,6 +278,8 @@ export const useFavoritesStore = defineStore('favorites', () => {
             const hit = variantMap.get(`${token}:${v.variantId}`);
             if (!hit) return v;
             changed = true;
+            // 老收藏首次回填时以当前价建立快照基线，避免打开收藏页即误报降价
+            if (priceSnapshot(v.variantId) == null) rememberFavPrice(v.variantId, hit.variant.priceWithTax);
             return {
                 ...v,
                 channelToken: token,
@@ -279,6 +289,27 @@ export const useFavoritesStore = defineStore('favorites', () => {
                 price: hit.variant.priceWithTax,
                 storeName: v.storeName || stores.find((s: any) => s.channelToken === token)?.name,
             };
+        });
+        if (changed) {
+            variantItems.value = next;
+            persistVariants();
+        }
+    }
+
+    /**
+     * 刷新收藏商品当前价（收藏页打开时调用）。
+     * 缺失快照的旧收藏以当前价建立基线；仅价格变化时落盘。
+     */
+    function refreshVariantPrices(prices: Map<string, number>) {
+        if (!prices?.size) return;
+        let changed = false;
+        const next = variantItems.value.map((v) => {
+            const cur = Math.round(Number(prices.get(String(v.variantId))));
+            if (!Number.isFinite(cur) || cur <= 0) return v;
+            if (priceSnapshot(v.variantId) == null) rememberFavPrice(v.variantId, cur);
+            if (Number(v.price) === cur) return v;
+            changed = true;
+            return { ...v, price: cur };
         });
         if (changed) {
             variantItems.value = next;
@@ -328,6 +359,6 @@ export const useFavoritesStore = defineStore('favorites', () => {
     return {
         ids, recents, variantItems, recentItems, syncing,
         isFavorite, isVariantFavorite, toggle, toggleVariant,
-        loadRemote, hydrateVariantMeta, touchRecent, touchRecentItem,
+        loadRemote, hydrateVariantMeta, refreshVariantPrices, touchRecent, touchRecentItem,
     };
 });

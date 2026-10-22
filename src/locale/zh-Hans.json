@@ -209,7 +209,14 @@
     "suggestHistory": "历史",
     "suggestHot": "热搜",
     "storeClosed": "已打烊",
-    "storeClosing": "即将打烊"
+    "storeClosing": "即将打烊",
+    "mealTitle": "现在适合吃 · {s}",
+    "mealMore": "查看全部",
+    "mealBreakfast": "早餐",
+    "mealLunch": "午餐",
+    "mealTea": "下午茶",
+    "mealDinner": "晚餐",
+    "mealNight": "夜宵"
   },
   "menu": {
     "tabGoods": "商品",
@@ -296,7 +303,10 @@
     "closedBtn": "已打烊",
     "freeShipGap": "再买 ¥{d} 免配送费",
     "tierLabel": "满{t}减{d}",
-    "tierGap": "再买 ¥{d}"
+    "tierGap": "再买 ¥{d}",
+    "storeNoticeTitle": "店铺公告",
+    "noticeMore": "查看",
+    "noticeOk": "知道了"
   },
   "orders": {
     "tabAll": "全部",
@@ -365,7 +375,8 @@
     "langEn": "English",
     "myAfterSales": "我的售后",
     "help": "帮助与客服",
-    "history": "足迹与常买"
+    "history": "足迹与常买",
+    "spending": "消费统计"
   },
   "login": {
     "brand": "拾光达",
@@ -1147,7 +1158,35 @@
     "removeFail": "操作失败",
     "itemFallback": "商品",
     "minOrder": "起送 ¥{y}",
-    "paused": "店铺休息中，暂不接单"
+    "paused": "店铺休息中，暂不接单",
+    "dynamics": "店铺动态",
+    "dynamicsTitle": "关注店铺动态",
+    "dynamicsLoading": "加载中…",
+    "clearNew": "全部已读",
+    "dynEmpty": "关注店铺后查看上新与热销",
+    "newProducts": "{n} 件上新",
+    "newBadge": "新品",
+    "hotBadge": "热销",
+    "priceDrop": "降价 ¥{d}",
+    "oldPrice": "原价"
+  },
+  "spending": {
+    "totalLabel": "累计消费",
+    "orders": "订单数",
+    "avg": "客单价",
+    "thisMonth": "本月消费",
+    "loading": "统计中…",
+    "trendTitle": "近 6 个月消费",
+    "trendSub": "按月汇总",
+    "monthLabel": "{m}月",
+    "topTitle": "常点店铺 TOP3",
+    "topSub": "按订单数排序",
+    "times": "{n} 单",
+    "recentTitle": "最近订单",
+    "dateFmt": "{m}月{d}日",
+    "tip": "统计包含已支付与已完成的订单，不含已取消/待付款订单",
+    "empty": "暂无可统计的订单",
+    "loginTip": "登录后查看消费统计"
   },
   "afterSalesList": {
     "tabAll": "全部",

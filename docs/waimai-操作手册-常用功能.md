@@ -1260,3 +1260,71 @@
 - 订单分享复制的是纯文本摘要，不含图片/小程序卡片；多笔订单仅展开首笔详情，其余以订单号列出；
 - 猜你喜欢依赖本机浏览足迹，换设备/清缓存后从零积累；打分为端上启发式，不涉及服务端推荐算法；
 - 猜你喜欢候选最多取足迹 40 条 + 常买 8 条，全部被收藏/常买去重命中时区块隐藏。
+
+# 第十五轮常用功能（收藏一键加购 / 足迹增强 / 热销榜 / 联系骑手）
+
+## 73 收藏商品一键加购
+
+入口：我的 → 收藏 → 商品收藏卡。
+
+- 每张收藏商品卡新增「加购」实心胶囊按钮（价格行右侧，与「删除」并排）；
+- 一键将 1 份商品加入其所属店铺购物车：跨店请求固定 `vendure-token` 指向商品店铺渠道（`addItemToOrderInChannel`），与当前所在店铺无关；
+- 加购成功：全局购物车角标即时刷新（`useCartStore().setOrder`），toast「已加入购物车」；失败 toast 展示服务端原因（如售罄/下架）；
+- 店铺信息缺失（channelToken 拿不到）时 toast「该店铺信息已失效」，不发请求。
+
+截图：[74a-favorites-add-cart.png](screenshots/common-features-v15/74a-favorites-add-cart.png)、[74b-favorites-add-cart-toast.png](screenshots/common-features-v15/74b-favorites-add-cart-toast.png)
+
+## 74 足迹管理增强（单条删除 + 按店铺聚合）
+
+入口：我的 → 我的足迹。
+
+- 视图切换：足迹列表顶部新增「按店铺 / 按时间」胶囊切换按钮，默认按时间（与原行为一致）；
+- 按店铺聚合：同一店铺的足迹归入一组，组头显示店铺名 + 条数徽标，组按组内最新浏览时间排序；聚合视图下行内不再重复显示店名；
+- 单条删除：每条足迹行尾新增「×」按钮，点击立即删除该条（`removeFootprint` 按 productId+variantId 精确移除）并 toast「已删除」，无需确认；
+- 「清空」按钮行为不变（仍二次确认）。
+
+截图：[75a-history-footprint-delete.png](screenshots/common-features-v15/75a-history-footprint-delete.png)、[75b-history-footprint-by-store.png](screenshots/common-features-v15/75b-history-footprint-by-store.png)
+
+## 75 首页热销榜
+
+入口：首页「猜你喜欢」下方常驻区块。
+
+- 全平台店铺按月售 Top8 横滑展示（复用猜你喜欢卡片样式），显示店名 + 「月售 {n}」；
+- 前三名左上角金/银/铜圆形排名角标（1 橙红 / 2 橙 / 3 琥珀）；
+- 输入搜索关键词时区块自动隐藏，清空搜索后恢复；与搜索无结果兜底「热销店铺推荐」（Top4）并存互不影响。
+
+截图：[76-home-hot-sale.png](screenshots/common-features-v15/76-home-hot-sale.png)
+
+## 76 订单联系骑手
+
+入口：订单详情页骑手卡（配送中订单）。
+
+- 骑手卡操作区改为纵向双按钮：有骑手电话时显示「联系骑手」，点击直接拨号（`uni.makePhoneCall`）；「联系商家」按钮保持原位；
+- 后端 `campusOrderRider` 新增返回 `phone`（骑手 Customer 的 phoneNumber，脱敏策略不变）；schema 增加可空 `phone: String` 字段；
+- 兼容性：骑手电话为空或后端未升级时按钮自动隐藏，前端无需与后端同版本发布。
+
+截图：[77-order-detail-contact-rider.png](screenshots/common-features-v15/77-order-detail-contact-rider.png)
+
+## 77 验收记录与边界（第十五轮，2026-10-22）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，登录走线上测试账号，收藏/足迹/购物车/骑手为脚本注入或模拟响应；构建产物本地 serve 后截图，前端部署后核对线上 chunk。
+
+| 项目 | 结果 |
+|---|---|
+| 收藏加购按钮 | 商品收藏卡渲染「加购」实心胶囊（断言通过） |
+| 一键加购成功 | toast「已加入购物车」，跨店请求固定 vendure-token，购物车角标刷新 |
+| 足迹单条删除 | 点「×」后行数 5→4，toast「已删除」（断言通过） |
+| 按店铺聚合 | 切换后组头「川味小馆 3件 / 青柠奶茶 2件」，按钮态翻转为「按时间」（断言通过） |
+| 首页热销榜 | 常驻区块渲染，月售 Top8 横滑，前三角标 1/2/3（断言通过） |
+| 联系骑手 | 骑手卡双按钮「联系骑手 / 联系商家」，mock phone 拨号（断言通过） |
+| 后端 schema | 线上 `campusOrderRider` 已接受 `phone` 字段（匿名 FORBIDDEN 为预期鉴权响应） |
+| i18n | `favorites.addCart*`（3）、`history.groupByStore/byTime/removed/itemCount/unknownStore`（5）、`home.hotSaleTitle`、`orderDetail.contactRider` 中英双语补齐 |
+| 构建/部署 | `pnpm build:h5` 通过，`deploy-waimai.mjs` 部署成功；插件 `tsc` 通过，lib 替换 + pm2 restart 成功 |
+| 手机视口截图 | 390×844 dpr=2，共 5 张（74a/74b/75a/75b/76/77） |
+
+边界与已知限制：
+- 一键加购固定数量 1；已加购同规格再次点击由服务端默认叠加数量（与店内加购一致）；
+- 足迹单条删除仅删本机记录，不影响常买清单（常买来自历史订单聚合）；
+- 按店铺聚合按 `channelToken` 分店，历史足迹缺失 token 时归入「其他店铺」组；
+- 热销榜排序依据店铺 `monthlySales` 快照，与店铺详情页月售数可能存在分钟级时差；
+- 骑手电话以骑手注册 Customer 的 `phoneNumber` 为准，未登记手机号的骑手不显示「联系骑手」按钮。

@@ -119,7 +119,10 @@
             <text v-if="rider.etaMinutes != null">{{ $t('orderDetail.riderEta').replace('{n}', String(rider.etaMinutes)) }}</text>
           </view>
         </view>
-        <text class="rider__contact" @tap="callStore">{{ $t('orderDetail.contactStore') }}</text>
+        <view class="rider__ops">
+          <text v-if="rider.phone" class="rider__contact" @tap="callRider">{{ $t('orderDetail.contactRider') }}</text>
+          <text class="rider__contact" @tap="callStore">{{ $t('orderDetail.contactStore') }}</text>
+        </view>
       </view>
       <text v-else class="rider__hint">{{ riderHint }}</text>
       <!-- 全屏 GPS 跟踪页入口（仅配送中且有骑手时） -->
@@ -287,7 +290,7 @@ const cart = useCartStore();
 const auth = useAuthStore();
 const order = ref<any>(null);
 const trackingNo = ref('');
-const rider = ref<{ realName: string; credit: number; distanceMeters?: number | null; etaMinutes?: number | null; location?: { lat: number; lng: number } | null } | null>(null);
+const rider = ref<{ realName: string; credit: number; phone?: string | null; distanceMeters?: number | null; etaMinutes?: number | null; location?: { lat: number; lng: number } | null } | null>(null);
 // plan 2.2：骑手 Marker（callout 显示骑手姓名 + 送往楼栋，目标楼栋无经纬度以文字标注）
 const riderMarkers = computed(() => {
     const loc = rider.value?.location; if (!loc) return [];
@@ -484,6 +487,12 @@ async function callStore() {
         if (!phone) return uni.showToast({ title: locale.t('orderDetail.noPhone'), icon: 'none' });
         uni.makePhoneCall({ phoneNumber: phone });
     } catch { uni.showToast({ title: locale.t('orderDetail.phoneFail'), icon: 'none' }); }
+}
+/** 拨骑手电话（campusOrderRider.phone；旧后端无该字段时按钮不渲染） */
+function callRider() {
+    const phone = rider.value?.phone;
+    if (!phone) return;
+    uni.makePhoneCall({ phoneNumber: String(phone) });
 }
 onMounted(async () => {
     const pages = getCurrentPages(); const page = pages[pages.length - 1] as any;
@@ -852,7 +861,7 @@ async function confirmReorder() {
   &--late &__hint { color: #b42318; }
 }
 // 骑手卡
-.rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__meta { display: flex; gap: 16rpx; font-size: 22rpx; color: $brand-color; } &__hint { font-size: 26rpx; color: $brand-color; } &__contact { font-size: 24rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 8rpx 20rpx; flex-shrink: 0; } &__urge { margin-top: 16rpx; display: flex; flex-direction: column; align-items: center; gap: 8rpx; } &__urge-btn { width: 240rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; border-radius: 999rpx; background: $surface; color: $brand-color; border: 1rpx solid $brand-color; padding: 0; margin: 0; } &__urge-hint { font-size: 20rpx; color: $text-color-placeholder; } &__urged-tag { font-size: 24rpx; color: #e02020; background: #fdeaea; border-radius: 999rpx; padding: 8rpx 24rpx; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } &__track { margin-top: 16rpx; font-size: 26rpx; color: $brand-color; font-weight: bold; } }
+.rider { &__row { display: flex; align-items: center; gap: 20rpx; } &__avatar { width: 80rpx; height: 80rpx; border-radius: 50%; background: $brand-color; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 32rpx; flex-shrink: 0; } &__info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; } &__name { font-size: 28rpx; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; } &__meta { display: flex; gap: 16rpx; font-size: 22rpx; color: $brand-color; } &__hint { font-size: 26rpx; color: $brand-color; } &__contact { font-size: 24rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 8rpx 20rpx; flex-shrink: 0; } &__ops { display: flex; flex-direction: column; align-items: flex-end; gap: 12rpx; flex-shrink: 0; } &__urge { margin-top: 16rpx; display: flex; flex-direction: column; align-items: center; gap: 8rpx; } &__urge-btn { width: 240rpx; height: 64rpx; line-height: 64rpx; font-size: 26rpx; border-radius: 999rpx; background: $surface; color: $brand-color; border: 1rpx solid $brand-color; padding: 0; margin: 0; } &__urge-hint { font-size: 20rpx; color: $text-color-placeholder; } &__urged-tag { font-size: 24rpx; color: #e02020; background: #fdeaea; border-radius: 999rpx; padding: 8rpx 24rpx; } &__map { width: 100%; height: 320rpx; border-radius: $radius-md; margin-top: 16rpx; } &__track { margin-top: 16rpx; font-size: 26rpx; color: $brand-color; font-weight: bold; } }
 .logistics { &__no { font-size: 26rpx; color: $brand-color; display: block; margin-top: 8rpx; } &__empty { font-size: 26rpx; color: $text-color-placeholder; } }
 .order-line { display: flex; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid #f5f5f5; &:last-child { border-bottom: none; } &__info { flex: 1; display: flex; flex-direction: column; justify-content: space-between; } &__name { font-size: 26rpx; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } &__spec { font-size: 22rpx; color: $text-color-placeholder; margin-top: 4rpx; } &__bottom { display: flex; justify-content: space-between; align-items: center; } &__price { font-size: 28rpx; color: $price-color; } &__qty { font-size: 24rpx; color: $text-color-placeholder; } }
 .summary { &__row { display: flex; justify-content: space-between; padding: 8rpx 0; font-size: 26rpx; &--total { padding-top: 16rpx; margin-top: 8rpx; border-top: 1rpx solid $border-color; font-size: 28rpx; } &--disc { padding: 4rpx 0; } } &__dname { font-size: 24rpx; color: $text-color-secondary; flex: 1; margin-right: 16rpx; } &__total { font-size: 36rpx; color: $price-color; font-weight: bold; } &__saved { display: block; text-align: right; font-size: 22rpx; color: #07c160; margin-top: 8rpx; } }

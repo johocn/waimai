@@ -194,6 +194,7 @@
     "searchProducts": "Items",
     "searchLoading": "Searching…",
     "noProductHit": "No matching items",
+    "hotSaleTitle": "Top Sellers",
     "hotStores": "Popular shops",
     "favoriteProducts": "Favorite items",
     "recentProducts": "Frequently bought",
@@ -637,6 +638,7 @@
     "credit": "Credit {n}",
     "relayRider": " · Relay courier · Leg 2",
     "contactStore": "Contact Store",
+    "contactRider": "Contact rider",
     "hintNoRider": "No courier accepted yet, platform support is handling it",
     "hintDispatching": "Platform dispatching, expediting your order",
     "hintWaiting": "Waiting for a courier to accept…",
@@ -1177,6 +1179,9 @@
     "newBadge": "New",
     "hotBadge": "Hot",
     "priceDrop": "Down ¥{d}",
+    "addCart": "Add",
+    "addCartOk": "Added to cart",
+    "addCartFail": "Failed to add",
     "oldPrice": "Was",
     "pin": "Pin",
     "unpin": "Unpin",
@@ -1270,6 +1275,11 @@
     "boughtTimes": "Bought {n}×",
     "add": "Add",
     "today": "Today {t}",
-    "noStore": "Store info is no longer available"
+    "noStore": "Store info is no longer available",
+    "groupByStore": "By store",
+    "byTime": "By time",
+    "removed": "Removed",
+    "itemCount": "{n} item(s)",
+    "unknownStore": "Other stores"
   }
 }

@@ -9,24 +9,34 @@
       </view>
     </view>
 
-    <!-- 浏览足迹：本地记录，最新在前 -->
+    <!-- 浏览足迹：本地记录，最新在前；支持按时间 / 按店铺聚合两种视图与单条删除 -->
     <view v-if="tab === 'footprint'">
       <view class="hist-top" v-if="footprint.length">
         <text class="hist-top__hint">{{ $t('history.footprintHint') }}</text>
-        <text class="hist-top__clear" @tap="clearAll">{{ $t('history.clear') }}</text>
+        <view class="hist-top__ops">
+          <text class="hist-top__mode" @tap="toggleFpMode">{{ fpMode === 'time' ? $t('history.groupByStore') : $t('history.byTime') }}</text>
+          <text class="hist-top__clear" @tap="clearAll">{{ $t('history.clear') }}</text>
+        </view>
       </view>
       <view class="hist-list" v-if="footprint.length">
-        <view class="hist-row" v-for="it in footprint" :key="'fp-' + it.productId + '-' + (it.variantId || '')" @tap="openFootprint(it)">
-          <VImage :src="it.image" width="140rpx" height="140rpx" class="hist-row__img" />
-          <view class="hist-row__body">
-            <text class="hist-row__name">{{ it.name }}</text>
-            <text class="hist-row__store">{{ it.storeName || '' }}</text>
-            <view class="hist-row__foot">
-              <text class="hist-row__price" v-if="it.price">¥{{ yuan(it.price) }}</text>
-              <text class="hist-row__time">{{ timeText(it.at) }}</text>
-            </view>
+        <view class="hist-group" v-for="g in fpDisplay" :key="'fpg-' + g.key">
+          <view class="hist-group__head" v-if="g.name">
+            <text class="hist-group__name">{{ g.name }}</text>
+            <text class="hist-group__n">{{ $t('history.itemCount').replace('{n}', String(g.items.length)) }}</text>
           </view>
-          <text class="hist-row__arrow">›</text>
+          <view class="hist-row" v-for="it in g.items" :key="'fp-' + it.productId + '-' + (it.variantId || '')" @tap="openFootprint(it)">
+            <VImage :src="it.image" width="140rpx" height="140rpx" class="hist-row__img" />
+            <view class="hist-row__body">
+              <text class="hist-row__name">{{ it.name }}</text>
+              <text class="hist-row__store" v-if="!g.name">{{ it.storeName || '' }}</text>
+              <view class="hist-row__foot">
+                <text class="hist-row__price" v-if="it.price">¥{{ yuan(it.price) }}</text>
+                <text class="hist-row__time">{{ timeText(it.at) }}</text>
+              </view>
+            </view>
+            <text class="hist-row__del" @tap.stop="removeOne(it)">×</text>
+            <text class="hist-row__arrow">›</text>
+          </view>
         </view>
       </view>
       <view class="hist-empty" v-else>
@@ -74,7 +84,7 @@ import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getOrdersForChannel } from '../../api/queries/order';
 import { fetchStoreList } from '../../api/queries/waimai';
-import { readFootprint, clearFootprint, type FootprintItem } from '../../utils/footprint';
+import { readFootprint, clearFootprint, removeFootprint, type FootprintItem } from '../../utils/footprint';
 import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
 
@@ -120,6 +130,31 @@ function clearAll() {
             uni.showToast({ title: locale.t('history.cleared'), icon: 'none' });
         },
     });
+}
+
+// —— 足迹视图：按时间平铺 / 按店铺聚合（组头带条数，组间按最新浏览时间排序） ——
+const fpMode = ref<'time' | 'store'>('time');
+
+function toggleFpMode() {
+    fpMode.value = fpMode.value === 'time' ? 'store' : 'time';
+}
+
+const fpDisplay = computed<{ key: string; name: string; items: FootprintItem[] }[]>(() => {
+    if (fpMode.value === 'time') return [{ key: '__all__', name: '', items: footprint.value }];
+    const map = new Map<string, { key: string; name: string; items: FootprintItem[] }>();
+    for (const it of footprint.value) {
+        const key = it.channelToken || it.storeName || '__other__';
+        if (!map.has(key)) map.set(key, { key, name: it.storeName || locale.t('history.unknownStore'), items: [] });
+        map.get(key)!.items.push(it);
+    }
+    return Array.from(map.values()).sort((a, b) => (b.items[0]?.at || 0) - (a.items[0]?.at || 0));
+});
+
+/** 单条删除足迹（按 productId+variantId 精确移除） */
+function removeOne(it: FootprintItem) {
+    removeFootprint(it.productId, it.variantId);
+    footprint.value = readFootprint();
+    uni.showToast({ title: locale.t('history.removed'), icon: 'none' });
 }
 
 function menuUrl(token: string, name: string, routes: string, cid?: string, extra = ''): string {
@@ -222,7 +257,13 @@ function goHome() {
   &__n { font-size: 22rpx; color: inherit; margin-left: 6rpx; } }
 .hist-top { display: flex; align-items: center; justify-content: space-between; padding: 6rpx 8rpx 14rpx;
   &__hint { font-size: 22rpx; color: $text-color-placeholder; }
-  &__clear { font-size: 22rpx; color: $brand-color; padding: 6rpx 18rpx; border: 1rpx solid $brand-color; border-radius: 999rpx; } }
+  &__ops { display: flex; align-items: center; gap: 12rpx; }
+  &__mode { font-size: 22rpx; color: $brand-color; padding: 6rpx 18rpx; border: 1rpx solid $brand-color; border-radius: 999rpx; }
+  &__clear { font-size: 22rpx; color: $text-color-placeholder; padding: 6rpx 18rpx; border: 1rpx solid $border-color; border-radius: 999rpx; } }
+.hist-group { display: flex; flex-direction: column; gap: 12rpx;
+  &__head { display: flex; align-items: center; gap: 10rpx; padding: 4rpx 8rpx; }
+  &__name { font-size: 26rpx; font-weight: 600; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__n { font-size: 20rpx; color: $brand-color; background: $brand-color-light; border-radius: 999rpx; padding: 2rpx 14rpx; flex-shrink: 0; } }
 .hist-loading { padding: 100rpx 0; text-align: center; font-size: 26rpx; color: $text-color-placeholder; }
 .hist-list { display: flex; flex-direction: column; gap: 16rpx; }
 .hist-row { display: flex; align-items: center; gap: 18rpx; background: $surface; border-radius: $radius-md; padding: 20rpx;
@@ -235,6 +276,7 @@ function goHome() {
   &__foot { display: flex; align-items: center; gap: 16rpx; }
   &__price { font-size: 28rpx; color: $price-color; font-weight: 600; }
   &__time { font-size: 20rpx; color: $text-color-placeholder; }
+  &__del { width: 48rpx; height: 48rpx; line-height: 44rpx; text-align: center; font-size: 32rpx; color: $text-color-placeholder; border: 1rpx solid $border-color; border-radius: 50%; flex-shrink: 0; }
   &__arrow { font-size: 32rpx; color: $text-color-placeholder; }
   &__add { flex-shrink: 0; font-size: 22rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 8rpx 20rpx; } }
 .hist-empty { padding: 120rpx 0; display: flex; flex-direction: column; align-items: center; gap: 16rpx;

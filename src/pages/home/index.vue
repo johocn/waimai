@@ -197,6 +197,19 @@
                     </view>
                 </scroll-view>
             </view>
+            <!-- 热销榜：全平台月售 Top8 店铺常驻横滑（前三名排名角标），有搜索词时隐藏让位结果 -->
+            <view v-if="!searchKeyword && hotSaleStores.length" class="recent">
+                <view class="sec"><text class="sec-t">{{ $t('home.hotSaleTitle') }}</text></view>
+                <scroll-view scroll-x class="recent-row">
+                    <view v-for="(s, hi) in hotSaleStores" :key="'hs-' + s.channelId" class="recent-card recent-card--rank" @tap="enterStore(s)">
+                        <view v-if="hi < 3" class="rank-badge" :class="'rank-' + (hi + 1)">{{ hi + 1 }}</view>
+                        <image v-if="s.logo" class="recent-logo" :src="s.logo" mode="aspectFill" />
+                        <view v-else class="recent-logo recent-logo--text">{{ s.name.slice(0, 1) }}</view>
+                        <text class="recent-name">{{ s.name }}</text>
+                        <text class="recent-meta">{{ $t('home.monthlySales').replace('{n}', String(s.monthlySales)) }}</text>
+                    </view>
+                </scroll-view>
+            </view>
             <!-- 跨店商品搜索结果（仅在提交搜索后展示） -->
             <view v-if="searchKeyword && searching" class="sp-loading">{{ $t('home.searchLoading') }}</view>
             <template v-if="searchKeyword && searchProductHits.length">
@@ -402,6 +415,13 @@ const showSuggest = computed(() => searchFocused.value && !!suggestKey.value &&
     (storeSuggestions.value.length + historySuggestions.value.length + hotSuggestions.value.length > 0));
 /** 无结果兜底：热销店铺（月售降序前 4，含休息中的店，点进去有休息提示） */
 const hotStores = computed(() => [...stores.value].sort((a: any, b: any) => (b.monthlySales || 0) - (a.monthlySales || 0)).slice(0, 4));
+// ── 热销榜：全平台月售 Top8 店铺常驻区块（v15，与搜索无结果兜底 hotStores 并存） ──
+const hotSaleStores = computed(() =>
+    stores.value
+        .filter((s: any) => (Number(s.monthlySales) || 0) > 0)
+        .sort((a: any, b: any) => (b.monthlySales || 0) - (a.monthlySales || 0))
+        .slice(0, 8),
+);
 let blurTimer: any = null;
 
 function onSearchFocus() {
@@ -885,6 +905,11 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .recent { margin-top: 8rpx; }
 .recent-row { white-space: nowrap; padding-bottom: 8rpx; }
 .recent-card { display: inline-flex; flex-direction: column; align-items: center; width: 148rpx; margin-right: 16rpx; background: var(--w-surface); border-radius: $radius-card; padding: 16rpx 12rpx; vertical-align: top; }
+.recent-card--rank { position: relative; }
+.rank-badge { position: absolute; top: -8rpx; left: -8rpx; z-index: 2; width: 40rpx; height: 40rpx; line-height: 40rpx; text-align: center; border-radius: 50% 50% 50% 8rpx; color: #fff; font-size: 22rpx; font-weight: 600;
+  &.rank-1 { background: #ff4d2d; }
+  &.rank-2 { background: #ff8a00; }
+  &.rank-3 { background: #ffb020; } }
 .recent-logo { width: 88rpx; height: 88rpx; border-radius: 999rpx; }
 .recent-logo--text { background: var(--w-brand-soft); color: var(--w-brand-text); font-size: 38rpx; line-height: 88rpx; text-align: center; }
 .recent-name { width: 100%; font-size: 22rpx; color: var(--w-text); margin-top: 10rpx; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

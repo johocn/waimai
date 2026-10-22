@@ -33,6 +33,7 @@ export const CAMPUS_ORDER_RIDER = gql`
     query campusOrderRider($orderId: ID!) {
         campusOrderRider(orderId: $orderId) {
             realName
+            phone
             credit
             deliveryStatus
             distanceMeters

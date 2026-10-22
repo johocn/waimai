@@ -56,7 +56,10 @@
                 <text class="fav-item__price">¥{{ fen(p.price) }}</text>
                 <text v-if="dropOf(p)" class="fav-item__old">¥{{ fen(dropOf(p).original) }}</text>
               </view>
-              <text class="fav-item__del" @click.stop="removeItem(p)">{{ $t('favorites.remove') }}</text>
+              <view class="fav-item__acts">
+                <text class="fav-item__add" @click.stop="addCart(p)">{{ $t('favorites.addCart') }}</text>
+                <text class="fav-item__del" @click.stop="removeItem(p)">{{ $t('favorites.remove') }}</text>
+              </view>
             </view>
             <text v-if="dropOf(p)" class="fav-item__drop">{{ $t('favorites.priceDrop').replace('{d}', fen(dropOf(p).diff)) }}</text>
           </view>
@@ -122,7 +125,9 @@
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
+import { addItemToOrderInChannel } from '../../api/mutations/cart';
 import { useFavoritesStore } from '../../stores/favorites';
+import { useCartStore } from '../../stores/cart';
 import { useLocaleStore } from '../../stores/locale';
 import { routeText } from '../../utils/store-display';
 import { priceDrop } from '../../utils/fav-price';
@@ -328,6 +333,24 @@ async function removeItem(p: any) {
     }
 }
 
+/** 一键加购：跨店固定 vendure-token 直加商品所属店铺购物车，成功后同步角标 */
+async function addCart(p: any) {
+    const token = p.channelToken
+        || stores.value.find((s: any) => String(s.channelId) === String(p.channelId))?.channelToken;
+    if (!token) {
+        uni.showToast({ title: locale.t('history.noStore'), icon: 'none' });
+        return;
+    }
+    try {
+        const res: any = await addItemToOrderInChannel(token, String(p.variantId), 1);
+        if (!res?.addItemToOrder?.id) throw new Error(res?.addItemToOrder?.message || 'fail');
+        useCartStore().setOrder(res.addItemToOrder);
+        uni.showToast({ title: locale.t('favorites.addCartOk'), icon: 'success' });
+    } catch (e: any) {
+        uni.showToast({ title: e?.message && e.message !== 'fail' ? String(e.message) : locale.t('favorites.addCartFail'), icon: 'none' });
+    }
+}
+
 function menuUrl(s: any, q?: string) {
     const routes = (s.routesEnabled || []).join(',');
     const cid = s.channelId != null ? `&cid=${s.channelId}` : '';
@@ -406,6 +429,8 @@ function goHome() {
   &__price { font-size: 28rpx; color: $price-color; font-weight: 600; }
   &__old { font-size: 20rpx; color: $text-color-placeholder; text-decoration: line-through; }
   &__drop { align-self: flex-start; margin-top: 4rpx; font-size: 20rpx; color: #fff; background: #ff6600; border-radius: 999rpx; padding: 2rpx 12rpx; }
+  &__acts { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; }
+  &__add { font-size: 22rpx; color: #fff; background: $brand-color; border-radius: 999rpx; padding: 6rpx 22rpx; font-weight: 600; }
   &__del { font-size: 22rpx; color: $text-color-placeholder; padding: 4rpx 10rpx; border: 1rpx solid $border-color; border-radius: 999rpx; }
 }
 .fav-empty { padding: 120rpx 0; display: flex; flex-direction: column; align-items: center; gap: 16rpx;

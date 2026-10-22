@@ -10,6 +10,18 @@ export async function addItemToOrder(productVariantId: string, quantity: number)
     return client.request(mutation, { productVariantId, quantity });
 }
 
+/** 跨店加购：收藏商品一键加购用，独立客户端固定 vendure-token 指向商品所属店铺渠道 */
+export async function addItemToOrderInChannel(channelToken: string, productVariantId: string, quantity: number) {
+    const authStore = useAuthStore();
+    const headers: Record<string, string> = { 'vendure-token': channelToken };
+    const bearer = authStore.token || getSessionToken();
+    if (bearer) headers['Authorization'] = 'Bearer ' + bearer;
+    const client = new GraphQLClient(getShopApiUrl(), { headers });
+    const mutation = `${CART_FRAGMENT}
+        mutation AddToCart($productVariantId: ID!, $quantity: Int!) { addItemToOrder(productVariantId: $productVariantId, quantity: $quantity) { ... on Order { ...CartInfo } ... on ErrorResult { errorCode message } } }`;
+    return client.request(mutation, { productVariantId, quantity });
+}
+
 export async function adjustOrderLine(orderLineId: string, quantity: number) {
     const client = getGraphQLClient();
     const mutation = `${CART_FRAGMENT}

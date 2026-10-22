@@ -42,6 +42,17 @@ export function recordFootprint(item: Omit<FootprintItem, 'at'>): FootprintItem[
     return next;
 }
 
+/** 删除单条足迹（productId + variantId 定位，未命中返回 false 不落盘） */
+export function removeFootprint(productId: string, variantId?: string): boolean {
+    const list = readFootprint();
+    const next = list.filter(
+        it => !(String(it.productId) === String(productId) && String(it.variantId ?? '') === String(variantId ?? '')),
+    );
+    if (next.length === list.length) return false;
+    uni.setStorageSync(KEY, JSON.stringify(next));
+    return true;
+}
+
 export function clearFootprint(): void {
     uni.removeStorageSync(KEY);
 }

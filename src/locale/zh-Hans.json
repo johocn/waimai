@@ -194,6 +194,7 @@
     "searchProducts": "商品",
     "searchLoading": "搜索中…",
     "noProductHit": "没有找到相关商品",
+    "hotSaleTitle": "热销榜",
     "hotStores": "热销店铺推荐",
     "favoriteProducts": "收藏商品",
     "recentProducts": "常买商品",
@@ -637,6 +638,7 @@
     "credit": "信用分 {n}",
     "relayRider": " · 接力传信者 · 第二程",
     "contactStore": "联系商家",
+    "contactRider": "联系骑手",
     "hintNoRider": "暂无传信者接单，平台人工介入处理中",
     "hintDispatching": "平台调度中，正在为您加急派单",
     "hintWaiting": "等待传信者接单…",
@@ -1177,6 +1179,9 @@
     "newBadge": "新品",
     "hotBadge": "热销",
     "priceDrop": "降价 ¥{d}",
+    "addCart": "加购",
+    "addCartOk": "已加入购物车",
+    "addCartFail": "加购失败",
     "oldPrice": "原价",
     "pin": "置顶",
     "unpin": "取消置顶",
@@ -1270,6 +1275,11 @@
     "boughtTimes": "买过 {n} 次",
     "add": "加购",
     "today": "今天 {t}",
-    "noStore": "该店铺信息已失效"
+    "noStore": "该店铺信息已失效",
+    "groupByStore": "按店铺",
+    "byTime": "按时间",
+    "removed": "已删除",
+    "itemCount": "{n}件",
+    "unknownStore": "其他店铺"
   }
 }

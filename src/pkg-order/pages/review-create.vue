@@ -1,5 +1,9 @@
 <template>
   <view class="review-create">
+    <view v-if="draftTip" class="draft-tip">
+      <text class="draft-tip__txt">💾 {{ $t('reviewCreate.draftRestored') }}</text>
+      <text class="draft-tip__clear" @tap="resetDraft">{{ $t('reviewCreate.draftClear') }}</text>
+    </view>
     <view class="section">
       <view class="goods">
         <VImage :src="thumb" width="120rpx" height="120rpx" />
@@ -42,8 +46,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { ref, computed, watch } from 'vue';
+import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { createReview, createFollowUpReview } from '../../api/queries/review';
 import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
@@ -85,7 +89,74 @@ onLoad((q: any) => {
   if (q.followUp === '1' && q.reviewId) {
     followUpReviewId.value = q.reviewId;
   }
+  restoreDraft();
 });
+
+// ── 评价草稿：输入即本地暂存（按订单行 + 评价类型分键），退出不丢失，提交后清除 ──
+const DRAFT_PREFIX = 'review_draft:';
+const draftKey = computed(
+  () => DRAFT_PREFIX + (orderLineId.value || productId.value || 'unknown') + ':' + (followUpReviewId.value || 'main'),
+);
+const draftTip = ref(false);
+/** 提交成功后置位，避免返回时 onUnload 重新落草稿 */
+const submitted = ref(false);
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearDraft() {
+  try { uni.removeStorageSync(draftKey.value); } catch { /* 忽略存储异常 */ }
+}
+
+/** 本次编辑是否为空（全默认则无需留草稿） */
+function draftEmpty(): boolean {
+  return !content.value.trim() && !picked.value.length && rating.value === 5 && !anonymous.value;
+}
+
+function saveNow() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  if (submitted.value) return;
+  try {
+    if (draftEmpty()) { clearDraft(); return; }
+    uni.setStorageSync(draftKey.value, JSON.stringify({
+      rating: rating.value,
+      picked: picked.value,
+      content: content.value,
+      anonymous: anonymous.value,
+    }));
+  } catch { /* 忽略存储异常 */ }
+}
+
+function scheduleSave() {
+  if (submitting.value) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 400);
+}
+
+function restoreDraft() {
+  try {
+    const raw = uni.getStorageSync(draftKey.value);
+    if (!raw) return;
+    const d = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!d) return;
+    if (Number(d.rating) >= 1 && Number(d.rating) <= 5) rating.value = Number(d.rating);
+    if (Array.isArray(d.picked)) picked.value = d.picked.filter((t: string) => TAGS.includes(t));
+    if (typeof d.content === 'string') content.value = d.content;
+    if (typeof d.anonymous === 'boolean') anonymous.value = d.anonymous;
+    draftTip.value = !draftEmpty();
+  } catch { /* 坏草稿直接忽略 */ }
+}
+
+/** 清除草稿并还原表单默认值 */
+function resetDraft() {
+  rating.value = 5;
+  picked.value = [];
+  content.value = '';
+  anonymous.value = false;
+  draftTip.value = false;
+  clearDraft();
+}
+
+watch([rating, picked, content, anonymous], scheduleSave, { deep: true });
+onUnload(saveNow);
 
 function onStarTap(e: any) {
   // 星星等宽排布，按触点视口横坐标折算档位
@@ -130,6 +201,9 @@ async function submit() {
       uni.showToast({ title: locale.t('reviewCreate.reviewDone'), icon: 'none' });
     }
     setTimeout(() => uni.navigateBack(), 1200);
+    submitted.value = true;
+    clearDraft();
+    draftTip.value = false;
   } catch (err: any) {
     uni.showToast({ title: err?.message || locale.t('reviewCreate.publishFail'), icon: 'none' });
   } finally {
@@ -140,6 +214,13 @@ async function submit() {
 
 <style lang="scss" scoped>
 .review-create { padding: 24rpx; }
+.draft-tip {
+  display: flex; align-items: center; justify-content: space-between; gap: 16rpx;
+  margin-bottom: 20rpx; padding: 16rpx 20rpx; border-radius: 12rpx;
+  background: #fffbeb; border: 1rpx solid #fde68a;
+}
+.draft-tip__txt { font-size: 24rpx; color: #92400e; }
+.draft-tip__clear { font-size: 24rpx; color: #b45309; flex-shrink: 0; }
 .section {
   background: $surface; border-radius: 16rpx; padding: 24rpx; margin-bottom: 24rpx;
 }

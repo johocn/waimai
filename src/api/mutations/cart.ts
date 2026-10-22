@@ -55,6 +55,18 @@ export async function removeAllOrderLinesForChannel(channelToken: string) {
     return client.request(mutation);
 }
 
+/** 调整指定渠道购物车单行数量（跨店购物车页，必须固定 vendure-token 指向该店铺渠道） */
+export async function adjustOrderLineForChannel(channelToken: string, orderLineId: string, quantity: number) {
+    const authStore = useAuthStore();
+    const headers: Record<string, string> = { 'vendure-token': channelToken };
+    const bearer = authStore.token || getSessionToken();
+    if (bearer) headers['Authorization'] = 'Bearer ' + bearer;
+    const client = new GraphQLClient(getShopApiUrl(), { headers });
+    const mutation = `${CART_FRAGMENT}
+        mutation AdjustLine($orderLineId: ID!, $quantity: Int!) { adjustOrderLine(orderLineId: $orderLineId, quantity: $quantity) { ... on Order { ...CartInfo } ... on ErrorResult { errorCode message } } }`;
+    return client.request(mutation, { orderLineId, quantity });
+}
+
 /** 删除指定渠道购物车中的单行（购物车失效巡查，跨店场景必须固定 vendure-token） */
 export async function removeOrderLineForChannel(channelToken: string, orderLineId: string) {
     const authStore = useAuthStore();

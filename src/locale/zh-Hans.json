@@ -308,7 +308,12 @@
     "tierGap": "再买 ¥{d}",
     "storeNoticeTitle": "店铺公告",
     "noticeMore": "查看",
-    "noticeOk": "知道了"
+    "noticeOk": "知道了",
+    "comboTitle": "常点搭配",
+    "comboHint": "近 {n} 单里最常一起点",
+    "comboAdd": "一键加购",
+    "comboAdded": "已加入两件商品",
+    "comboPartAdded": "部分加购成功"
   },
   "orders": {
     "tabAll": "全部",
@@ -866,7 +871,9 @@
     "contentRequired": "写点什么再发布吧",
     "followUpDone": "追评已提交，审核通过后展示",
     "reviewDone": "评价已提交，审核通过后展示",
-    "publishFail": "发布失败"
+    "publishFail": "发布失败",
+    "draftRestored": "已恢复上次未提交的评价草稿",
+    "draftClear": "清空草稿"
   },
   "myReviews": {
     "loading": "加载中…",
@@ -1156,7 +1163,10 @@
     "lineSoldOut": "已售罄",
     "linePriceChanged": "已变价",
     "oldPrice": "原 ¥{d}",
-    "cleanFirst": "请先清理失效商品"
+    "cleanFirst": "请先清理失效商品",
+    "lineDeleted": "已删除该商品",
+    "qtyFail": "调整数量失败",
+    "removeFail": "删除失败，请重试"
   },
   "favorites": {
     "stores": "收藏店铺",
@@ -1187,7 +1197,18 @@
     "unpin": "取消置顶",
     "pinnedTag": "置顶",
     "pinAdded": "已置顶",
-    "pinRemoved": "已取消置顶"
+    "pinRemoved": "已取消置顶",
+    "groupAll": "全部",
+    "groupNone": "未分组",
+    "groupNew": "新建分组",
+    "groupClear": "取消分组",
+    "groupAssign": "分组",
+    "groupEmpty": "该分组下暂无店铺",
+    "groupPlaceholder": "输入分组名（最多 8 字）",
+    "groupSet": "已设置分组",
+    "groupRemoved": "已取消分组",
+    "groupCancel": "取消",
+    "groupSave": "确定"
   },
   "spending": {
     "totalLabel": "累计消费",

@@ -308,7 +308,12 @@
     "tierGap": "{d} to go",
     "storeNoticeTitle": "Store notice",
     "noticeMore": "View",
-    "noticeOk": "Got it"
+    "noticeOk": "Got it",
+    "comboTitle": "Frequently ordered together",
+    "comboHint": "Most paired in the last {n} orders",
+    "comboAdd": "Add both",
+    "comboAdded": "Both items added",
+    "comboPartAdded": "Partially added"
   },
   "orders": {
     "tabAll": "All",
@@ -866,7 +871,9 @@
     "contentRequired": "Write something before publishing",
     "followUpDone": "Follow-up submitted, shown after review",
     "reviewDone": "Review submitted, shown after approval",
-    "publishFail": "Publish failed"
+    "publishFail": "Publish failed",
+    "draftRestored": "Restored your unsent review draft",
+    "draftClear": "Clear draft"
   },
   "myReviews": {
     "loading": "Loading…",
@@ -1156,7 +1163,10 @@
     "lineSoldOut": "Sold out",
     "linePriceChanged": "Price changed",
     "oldPrice": "was ¥{d}",
-    "cleanFirst": "Remove invalid items first"
+    "cleanFirst": "Remove invalid items first",
+    "lineDeleted": "Item removed",
+    "qtyFail": "Failed to update quantity",
+    "removeFail": "Failed to remove, please retry"
   },
   "favorites": {
     "stores": "Favorite shops",
@@ -1187,7 +1197,18 @@
     "unpin": "Unpin",
     "pinnedTag": "Pinned",
     "pinAdded": "Pinned",
-    "pinRemoved": "Unpinned"
+    "pinRemoved": "Unpinned",
+    "groupAll": "All",
+    "groupNone": "Ungrouped",
+    "groupNew": "New group",
+    "groupClear": "Remove group",
+    "groupAssign": "Group",
+    "groupEmpty": "No shops in this group",
+    "groupPlaceholder": "Group name (max 8 chars)",
+    "groupSet": "Group set",
+    "groupRemoved": "Group removed",
+    "groupCancel": "Cancel",
+    "groupSave": "OK"
   },
   "spending": {
     "totalLabel": "Total spent",

@@ -14,19 +14,34 @@
     </view>
 
     <view v-if="tab === 'stores'">
+      <!-- 店铺分组筛选：全部 / 自定义分组 / 未分组 -->
+      <view v-if="storeList.length" class="grp-chips">
+        <text class="grp-chip" :class="{ on: groupFilter === '__all__' }" @tap="groupFilter = '__all__'">{{ $t('favorites.groupAll') }}</text>
+        <text
+          v-for="gn in groupNames" :key="'g-' + gn"
+          class="grp-chip" :class="{ on: groupFilter === gn }"
+          @tap="groupFilter = gn"
+        >{{ gn }}</text>
+        <text
+          v-if="ungroupedCount" class="grp-chip" :class="{ on: groupFilter === '__none__' }"
+          @tap="groupFilter = '__none__'"
+        >{{ $t('favorites.groupNone') }} {{ ungroupedCount }}</text>
+      </view>
       <view v-if="!storeList.length" class="fav-empty">
         <text class="fav-empty__ico">🏪</text>
         <text class="fav-empty__text">{{ $t('favorites.emptyStores') }}</text>
         <button class="fav-empty__btn" @click="goHome">{{ $t('favorites.goHome') }}</button>
       </view>
+      <view v-else-if="!visibleStores.length" class="grp-empty">{{ $t('favorites.groupEmpty') }}</view>
       <view v-else class="fav-list">
-        <view class="fav-store" v-for="s in storeList" :key="'fs-' + s.channelId" @click="enterStore(s)">
+        <view class="fav-store" v-for="s in visibleStores" :key="'fs-' + s.channelId" @click="enterStore(s)">
           <image v-if="s.logo" class="fav-store__logo" :src="s.logo" mode="aspectFill" />
           <view v-else class="fav-store__logo fav-store__logo--txt">{{ (s.name || '?').slice(0, 1) }}</view>
           <view class="fav-store__body">
             <view class="fav-store__name-row">
               <text class="fav-store__name">{{ s.name }}</text>
               <text v-if="isPinned(s)" class="fav-store__pin-tag">{{ $t('favorites.pinnedTag') }}</text>
+              <text class="fav-store__grp" @click.stop="assignGroup(s)">{{ groupOf(s) || '＋' + $t('favorites.groupAssign') }}</text>
             </view>
             <text class="fav-store__meta">{{ storeMeta(s) }}</text>
           </view>
@@ -118,6 +133,25 @@
         </view>
       </view>
     </view>
+
+    <!-- 新建分组弹层 -->
+    <view v-if="groupEditor" class="grp-mask" @click="groupEditor = null">
+      <view class="grp-panel" @click.stop>
+        <text class="grp-panel__title">{{ $t('favorites.groupNew') }}</text>
+        <input
+          class="grp-panel__input"
+          v-model="groupInput"
+          :placeholder="$t('favorites.groupPlaceholder')"
+          :maxlength="8"
+          confirm-type="done"
+          @confirm="confirmNewGroup"
+        />
+        <view class="grp-panel__acts">
+          <text class="grp-panel__btn" @click="groupEditor = null">{{ $t('favorites.groupCancel') }}</text>
+          <text class="grp-panel__btn grp-panel__btn--primary" @click="confirmNewGroup">{{ $t('favorites.groupSave') }}</text>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -166,6 +200,80 @@ const storeList = computed(() => {
 
 function isPinned(s: any): boolean {
     return pins.value.includes(String(s.channelId));
+}
+
+// —— 店铺分组：按 channelId 记组名，本地保存（仅本机，不进云端收藏） ——
+const GROUPS_KEY = 'fav_store_groups';
+
+function readStoreGroups(): Record<string, string> {
+    try {
+        const raw = uni.getStorageSync(GROUPS_KEY);
+        const obj = typeof raw === 'string' ? JSON.parse(raw || '{}') : raw;
+        return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {};
+    } catch {
+        return {};
+    }
+}
+
+const storeGroups = ref<Record<string, string>>(readStoreGroups());
+/** 当前筛选：__all__ 全部 / __none__ 未分组 / 其余为组名 */
+const groupFilter = ref('__all__');
+const groupNames = computed(() => Array.from(new Set(Object.values(storeGroups.value).filter(Boolean))).sort());
+const ungroupedCount = computed(() => storeList.value.filter(s => !storeGroups.value[String(s.channelId)]).length);
+
+const visibleStores = computed(() => {
+    if (groupFilter.value === '__all__') return storeList.value;
+    if (groupFilter.value === '__none__') return storeList.value.filter(s => !storeGroups.value[String(s.channelId)]);
+    return storeList.value.filter(s => storeGroups.value[String(s.channelId)] === groupFilter.value);
+});
+
+const groupEditor = ref<{ channelId: string } | null>(null);
+const groupInput = ref('');
+
+function groupOf(s: any): string {
+    return storeGroups.value[String(s.channelId)] || '';
+}
+
+/** 设置/清除分组：空组名即取消分组 */
+function setGroup(id: string, name: string) {
+    const next = { ...storeGroups.value };
+    if (name) next[id] = name;
+    else delete next[id];
+    storeGroups.value = next;
+    try { uni.setStorageSync(GROUPS_KEY, JSON.stringify(next)); } catch { /* 忽略存储异常 */ }
+    // 当前筛选的组被删空时回到全部
+    if (groupFilter.value !== '__all__' && groupFilter.value !== '__none__' && !groupNames.value.includes(groupFilter.value)) {
+        groupFilter.value = '__all__';
+    }
+    uni.showToast({ title: name ? locale.t('favorites.groupSet') : locale.t('favorites.groupRemoved'), icon: 'none' });
+}
+
+function assignGroup(s: any) {
+    const id = String(s.channelId);
+    const names = groupNames.value;
+    const cur = groupOf(s);
+    const items = names.map(n => (n === cur ? '✓ ' + n : n));
+    items.push(locale.t('favorites.groupNew'));
+    if (cur) items.push(locale.t('favorites.groupClear'));
+    uni.showActionSheet({
+        itemList: items,
+        success: (r: any) => {
+            const idx = Number(r?.tapIndex);
+            if (idx < names.length) setGroup(id, names[idx]);
+            else if (idx === names.length) { groupEditor.value = { channelId: id }; groupInput.value = ''; }
+            else setGroup(id, '');
+        },
+    });
+}
+
+function confirmNewGroup() {
+    if (!groupEditor.value) return;
+    const name = groupInput.value.trim().slice(0, 8);
+    if (!name) { uni.showToast({ title: locale.t('favorites.groupPlaceholder'), icon: 'none' }); return; }
+    const id = groupEditor.value.channelId;
+    groupEditor.value = null;
+    groupInput.value = '';
+    setGroup(id, name);
 }
 
 function togglePin(s: any) {
@@ -404,6 +512,20 @@ function goHome() {
   &.on { color: $brand-color; border-color: $brand-color; background: $brand-color-light; font-weight: 600; }
 }
 .fav-list { display: flex; flex-direction: column; gap: 16rpx; }
+// —— 店铺分组 ——
+.grp-chips { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 16rpx; }
+.grp-chip { font-size: 22rpx; color: $text-color-secondary; background: $surface; border: 1rpx solid $border-color; border-radius: 999rpx; padding: 8rpx 22rpx;
+  &.on { color: $brand-color; border-color: $brand-color; background: $brand-color-light; font-weight: 600; }
+}
+.grp-empty { padding: 100rpx 0; text-align: center; font-size: 26rpx; color: $text-color-placeholder; }
+.grp-mask { position: fixed; left: 0; right: 0; top: 0; bottom: 0; background: rgba(0, 0, 0, .45); z-index: 99; display: flex; align-items: center; justify-content: center; }
+.grp-panel { width: 560rpx; background: $surface; border-radius: $radius-md; padding: 32rpx 28rpx;
+  &__title { display: block; font-size: 30rpx; font-weight: 600; color: $text-color; text-align: center; }
+  &__input { margin-top: 24rpx; height: 80rpx; padding: 0 20rpx; font-size: 28rpx; color: $text-color; background: $bg-color; border-radius: $radius-sm; }
+  &__acts { display: flex; gap: 20rpx; margin-top: 28rpx; }
+  &__btn { flex: 1; height: 76rpx; line-height: 76rpx; text-align: center; font-size: 28rpx; color: $text-color-secondary; background: $bg-color; border-radius: $radius-md;
+    &--primary { color: #fff; background: $brand-color; font-weight: 600; } }
+}
 .fav-store { display: flex; align-items: center; gap: 16rpx; background: $surface; border-radius: $radius-md; padding: 24rpx;
   &__logo { width: 88rpx; height: 88rpx; border-radius: $radius-sm; flex-shrink: 0; background: $bg-color;
     &--txt { display: flex; align-items: center; justify-content: center; color: $brand-color; font-size: 34rpx; } }
@@ -411,6 +533,7 @@ function goHome() {
   &__name-row { display: flex; align-items: center; gap: 8rpx; min-width: 0; }
   &__name { font-size: 28rpx; font-weight: 600; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__pin-tag { font-size: 18rpx; color: #fff; background: #ff6600; border-radius: 999rpx; padding: 2rpx 10rpx; flex-shrink: 0; }
+  &__grp { font-size: 18rpx; color: $text-color-placeholder; border: 1rpx dashed $border-color; border-radius: 999rpx; padding: 2rpx 12rpx; flex-shrink: 0; margin-left: auto; }
   &__meta { font-size: 22rpx; color: $text-color-secondary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__side { display: flex; align-items: center; gap: 16rpx; flex-shrink: 0; }
   &__pin { font-size: 22rpx; color: $text-color-placeholder; padding: 8rpx 14rpx; border: 1rpx solid $border-color; border-radius: 999rpx;

@@ -1328,3 +1328,77 @@
 - 按店铺聚合按 `channelToken` 分店，历史足迹缺失 token 时归入「其他店铺」组；
 - 热销榜排序依据店铺 `monthlySales` 快照，与店铺详情页月售数可能存在分钟级时差；
 - 骑手电话以骑手注册 Customer 的 `phoneNumber` 为准，未登记手机号的骑手不显示「联系骑手」按钮。
+
+# 第十六轮常用功能（购物车步进器 / 常点搭配 / 评价草稿 / 收藏分组）
+
+## 78 购物车单行数量增减与删除
+
+入口：购物车（底部 Tab 或店铺页「购物车」）。
+
+- 每个有效商品行尾由只读「×N」升级为步进器：`− 数量 ＋`，右侧新增 🗑 删除按钮；
+- 点击 `＋ / −` 跨店调整该行数量（`adjustOrderLineForChannel` 固定 `vendure-token` 指向店铺渠道），金额、起送差额、满减档位、免配送费进度实时联动；
+- 数量为 1 时再点 `−` 直接删除该行；点 🗑 立即删除该行（不二次确认）；
+- 调整/删除成功后用服务端返回的 Order 原地替换该店卡片，同时刷新本机单价快照，避免自家调量被误判为「已变价」；该店最后一行删完则整张店铺卡移除；
+- 失效行（已下架/售罄/变价）仍显示只读 `×N`，需点「清理失效」处理；单行请求期间按钮半透明防连点，失败 toast 展示服务端原因。
+
+截图：[78-cart-line-stepper.png](screenshots/common-features-v16/78-cart-line-stepper.png)、[78b-cart-qty-increased.png](screenshots/common-features-v16/78b-cart-qty-increased.png)、[78c-cart-line-removed.png](screenshots/common-features-v16/78c-cart-line-removed.png)
+
+## 79 店铺「常点搭配」一键加购
+
+入口：店铺页公告条下方（登录且有历史订单时显示）。
+
+- 取本店最近 20 笔非取消订单，统计「当前在售商品两两共同出现」的频次，取最高的一对生成搭配卡；
+- 卡片展示两项商品图/名/价与合计金额，并标注「近 {n} 单里最常一起点」；
+- 点「一键加购」依次把两项各 1 份加入本店购物车；全部成功 toast「已加入两件商品」，部分成功 toast「部分加购成功」，全失败 toast「加购失败」；
+- 无历史订单、无可售搭配或未登录时整卡隐藏，不影响店铺页其他区块。
+
+截图：[79-menu-combo.png](screenshots/common-features-v16/79-menu-combo.png)、[79b-menu-combo-added.png](screenshots/common-features-v16/79b-menu-combo-added.png)
+
+## 80 评价草稿自动保存
+
+入口：订单 → 写评价 / 追评。
+
+- 评分、标签、文字、匿名开关任一变化后 400ms 防抖写入本机草稿，键按「订单行 + 评价类型」区分（`review_draft:<orderLineId>:main`，追评后缀为 reviewId）；
+- 再次进入评价页自动回填星级/标签/文字/匿名，顶部显示「已恢复上次未提交的评价草稿」，可点「清空草稿」一键还原默认值；
+- 提交成功后清除草稿并置位标记，返回时不会把已提交内容重新写回；草稿为空（全默认值）时自动清除；
+- 草稿只存本机，换设备/清缓存不保留；图片不进入草稿。
+
+截图：[80-review-draft-restored.png](screenshots/common-features-v16/80-review-draft-restored.png)、[80b-review-draft-cleared.png](screenshots/common-features-v16/80b-review-draft-cleared.png)
+
+## 81 收藏店铺自定义分组
+
+入口：我的 → 收藏 → 收藏店铺。
+
+- 列表顶部新增分组筛选 chips：「全部」+ 各自定义分组 + 「未分组 N」（存在未分组店铺时显示）；
+- 店铺名右侧显示当前分组标签；未分组显示虚线「＋分组」，点击弹出操作表：选择已有分组（当前组带 ✓）/「新建分组」/「取消分组」；
+- 新建分组弹层输入组名（最多 8 字），确定后立即写入并 toast「已设置分组」；当前筛选的分组被删空时自动回到「全部」；
+- 分组关系存本机 `fav_store_groups`（channelId → 组名），不进云端收藏，换设备/清缓存不保留；置顶排序、店铺动态等既有能力不受影响。
+
+截图：[81-fav-store-groups.png](screenshots/common-features-v16/81-fav-store-groups.png)、[81b-fav-group-filtered.png](screenshots/common-features-v16/81b-fav-group-filtered.png)、[81c-fav-group-editor.png](screenshots/common-features-v16/81c-fav-group-editor.png)、[81d-fav-group-created.png](screenshots/common-features-v16/81d-fav-group-created.png)
+
+## 82 验收记录与边界（第十六轮，2026-10-22）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，本地 serve 最新构建产物，店铺/商品/订单/购物车为脚本注入的模拟响应。
+
+| 项目 | 结果 |
+|---|---|
+| 购物车步进器 | 2 张店铺卡 3 行商品，渲染 3 组步进器（6 个减/加按钮）与 3 个删除按钮（断言通过） |
+| 数量增加 | 点首行「＋」后数量 1→2，行金额 ¥20.00 保持不变，toast 无异常（断言通过） |
+| 单行删除 | 点 🗑 后行数 3→2，toast「已删除该商品」（断言通过） |
+| 常点搭配卡 | 标题「常点搭配」、提示「近 3 单里最常一起点」、两项商品与合计 ¥26.00（断言通过） |
+| 一键加购 | 点击后两项均加入购物车，toast「已加入两件商品」（断言通过） |
+| 评价草稿回填 | 注入 4 星 + 标签 + 文字草稿，进入页面显示恢复提示、4 星点亮、文字回填（断言通过） |
+| 清空草稿 | 点「清空草稿」后提示条消失、文字清空（断言通过） |
+| 收藏分组筛选 | 3 家收藏分入「午餐/奶茶」，chips 渲染「全部 / 午餐 / 奶茶」；点「午餐」后列表 3→2（断言通过） |
+| 新建分组 | 操作表含「新建分组」，弹层输入「夜宵」确定后 chips 变为「全部 / 午餐 / 夜宵 / 奶茶」（断言通过） |
+| i18n | `cart.lineDeleted/qtyFail/removeFail`、`menu.combo*`（5）、`reviewCreate.draftRestored/draftClear`、`favorites.group*`（11）中英双语补齐 |
+| 构建/部署 | `pnpm build:h5` 通过，`deploy-waimai.mjs` 部署成功 |
+| 手机视口截图 | 390×844 dpr=2，共 11 张（78/78b/78c/79/79b/80/80b/81/81b/81c/81d） |
+
+边界与已知限制：
+- 购物车调量/删除只作用于当前店铺渠道的购物车，不跨店合并；失效行不提供步进器，需走「清理失效」；
+- 常点搭配只统计最近 20 笔订单、且在售商品之间的两两共现，新品/单一商品订单不会产生搭配；搭配仅一项命中时不出卡；
+- 评价草稿存本机，图片与已上传结果不缓存；同一订单行再次评价会覆盖旧草稿；
+- 收藏分组仅本机保存，不随账号同步；组名为纯文本（最多 8 字），同名组自动合并为同一组；
+- 本轮为纯前端改动，后端无需发布。
+

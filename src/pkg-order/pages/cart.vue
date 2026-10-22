@@ -42,7 +42,13 @@
                 <text class="cart-line__price">¥{{ fen(l.linePriceWithTax ?? l.unitPriceWithTax * l.quantity) }}</text>
                 <text v-if="lineIssue(l, g) === 'priceChanged'" class="cart-line__old">{{ $t('cart.oldPrice').replace('{d}', fen(prevPriceOf(l, g) * l.quantity)) }}</text>
               </view>
-              <text class="cart-line__qty">×{{ l.quantity }}</text>
+              <view v-if="!lineIssue(l, g)" class="cart-line__ops">
+                <text class="cart-line__step" :class="{ busy: busyKey === g.token + ':' + l.id }" @click.stop="decLine(g, l)">−</text>
+                <text class="cart-line__qty">{{ l.quantity }}</text>
+                <text class="cart-line__step" :class="{ busy: busyKey === g.token + ':' + l.id }" @click.stop="incLine(g, l)">＋</text>
+                <text class="cart-line__rm" @click.stop="removeLine(g, l)">🗑</text>
+              </view>
+              <text v-else class="cart-line__qty">×{{ l.quantity }}</text>
             </view>
           </view>
         </view>
@@ -82,7 +88,7 @@ import { ref } from 'vue';
 import { onShow, onUnload } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { getActiveOrderForChannel } from '../../api/queries/order';
-import { removeAllOrderLinesForChannel, removeOrderLineForChannel } from '../../api/mutations/cart';
+import { adjustOrderLineForChannel, removeAllOrderLinesForChannel, removeOrderLineForChannel } from '../../api/mutations/cart';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
@@ -234,6 +240,69 @@ async function cleanInvalid(g: CartGroup) {
   void load();
 }
 
+/** 正在调整的行（token:lineId），防连点重复请求 */
+const busyKey = ref('');
+
+/** 调整单行数量：成功后原地替换该店购物车，金额/满减档位/凑单进度实时联动 */
+async function changeQty(g: CartGroup, l: any, qty: number) {
+    const key = `${g.token}:${l.id}`;
+    if (busyKey.value) return;
+    busyKey.value = key;
+    try {
+        const res: any = await adjustOrderLineForChannel(g.token, l.id, qty);
+        const order = res?.adjustOrderLine;
+        if (!order?.id) throw new Error(order?.message || '');
+        applyOrder(g, order);
+    } catch (e: any) {
+        uni.showToast({ title: e?.message || locale.t('cart.qtyFail'), icon: 'none' });
+    } finally {
+        busyKey.value = '';
+    }
+}
+
+function incLine(g: CartGroup, l: any) {
+    void changeQty(g, l, Number(l.quantity) + 1);
+}
+
+/** 数量减到 0 视为删除该行（与店内减号一致） */
+function decLine(g: CartGroup, l: any) {
+    if (Number(l.quantity) <= 1) { void removeLine(g, l); return; }
+    void changeQty(g, l, Number(l.quantity) - 1);
+}
+
+/** 删除单行：成功后替换购物车；该店最后一行删完则整卡移除 */
+async function removeLine(g: CartGroup, l: any) {
+    if (busyKey.value) return;
+    busyKey.value = `${g.token}:${l.id}`;
+    try {
+        const res: any = await removeOrderLineForChannel(g.token, l.id);
+        const order = res?.removeOrderLine;
+        if (!order?.id) throw new Error(order?.message || '');
+        applyOrder(g, order);
+        uni.showToast({ title: locale.t('cart.lineDeleted'), icon: 'none' });
+    } catch (e: any) {
+        uni.showToast({ title: e?.message || locale.t('cart.removeFail'), icon: 'none' });
+    } finally {
+        busyKey.value = '';
+    }
+}
+
+/** 用服务端返回的最新订单替换分组，并同步全局角标与单价快照（避免自家调量被误判变价） */
+function applyOrder(g: CartGroup, order: any) {
+    g.order = order;
+    if (tenant.token === g.token) cart.setOrder(order);
+    const snap: PriceMap = { ...readLinePrices() };
+    for (const line of order?.lines ?? []) {
+        const vid = line?.productVariant?.id;
+        if (vid != null) snap[`${g.token}:${vid}`] = linePriceFen(line);
+    }
+    writeLinePrices(snap);
+    prevPrices.value = snap;
+    if (!(order?.lines ?? []).length) {
+        groups.value = groups.value.filter(x => x.token !== g.token);
+    }
+}
+
 /** 打烊提示：仅 closed 才拦截提交，closing 由店铺页提示 */
 function closedText(g: CartGroup): string {
   const st = getStoreStatus(g.businessHours);
@@ -362,6 +431,10 @@ function goHome() {
   &__price { font-size: 26rpx; color: $price-color; }
   &__old { font-size: 20rpx; color: $text-color-placeholder; text-decoration: line-through; }
   &__qty { font-size: 24rpx; color: $text-color-secondary; }
+  &__ops { display: flex; align-items: center; gap: 8rpx; }
+  &__step { width: 44rpx; height: 44rpx; line-height: 42rpx; text-align: center; font-size: 30rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 50%; box-sizing: border-box;
+    &.busy { opacity: 0.4; } }
+  &__rm { font-size: 26rpx; color: $text-color-placeholder; padding: 4rpx 8rpx; }
   &--invalid { opacity: 0.55;
     & .cart-line__price { text-decoration: line-through; color: $text-color-secondary; } }
 }

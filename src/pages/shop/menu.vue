@@ -43,6 +43,27 @@
             <text class="notice-bar__txt">{{ storeNotice }}</text>
             <text class="notice-bar__more">{{ $t('menu.noticeMore') }} ›</text>
         </view>
+        <!-- 常点搭配：按本店历史订单高频共现组合一键整组加购 -->
+        <view v-if="combo" class="combo">
+            <view class="combo__head">
+                <text class="combo__title">🍱 {{ $t('menu.comboTitle') }}</text>
+                <text class="combo__hint">{{ $t('menu.comboHint').replace('{n}', String(combo.orders)) }}</text>
+            </view>
+            <view class="combo__row">
+                <view v-for="it in combo.items" :key="'combo-' + it.variantId" class="combo__item">
+                    <image v-if="it.image" class="combo__img" :src="it.image" mode="aspectFill" />
+                    <view v-else class="combo__img combo__img--txt">{{ (it.name || '?').slice(0, 1) }}</view>
+                    <view class="combo__info">
+                        <text class="combo__name">{{ it.name }}</text>
+                        <text class="combo__price">¥{{ comboPrice(it.price) }}</text>
+                    </view>
+                </view>
+            </view>
+            <view class="combo__foot">
+                <text class="combo__sum">¥{{ comboPrice(combo.total) }}</text>
+                <view class="combo__btn" :class="{ busy: comboBusy }" @tap="addCombo">{{ $t('menu.comboAdd') }}</view>
+            </view>
+        </view>
         <!-- 三 Tab -->
         <view class="tabs">
             <view class="tb" :class="{ on: tab === 'goods' }" @tap="switchTab('goods')">{{ $t('menu.tabGoods') }}</view>
@@ -282,7 +303,7 @@ import { theme, initTheme } from '../../utils/theme';
 import { sharePage } from '../../utils/share';
 import { addItemToOrder } from '../../api/mutations/cart';
 import { claimProductCoupon } from '../../api/mutations/coupon';
-import { getActiveOrder } from '../../api/queries/order';
+import { getActiveOrder, getOrdersForChannel } from '../../api/queries/order';
 import VImage from '../../components/VImage.vue';
 import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
@@ -655,6 +676,7 @@ onLoad(async (q: any) => {
         products.value = await fetchProductList();
         cats.value = buildCats(products.value);
         loadProductCoupons(goodsOf(activeCat.value));
+        void loadCombo();
         // 首页「常买商品」点进来的 add 参数：加载完成后自动加购 1 件（仅消费一次）
         if (pendingAdd) {
             const ok = await doAddItem(pendingAdd, 1);
@@ -878,6 +900,77 @@ async function onSkuAction(v: { action: 'cart' | 'buy'; variantId: string; quant
     }
 }
 
+// ── 常点搭配：近 20 单中本店高频共现的一对在售商品，一键整组加购 ──
+interface ComboItem { variantId: string; name: string; image?: string; price: number }
+const combo = ref<{ items: ComboItem[]; total: number; orders: number } | null>(null);
+const comboBusy = ref(false);
+
+function comboPrice(v: number): string {
+    return (Number(v || 0) / 100).toFixed(2);
+}
+
+async function loadCombo() {
+    combo.value = null;
+    if (!authStore.isLoggedIn) return;
+    try {
+        const res: any = await getOrdersForChannel(shopToken.value, { take: 20, skip: 0 });
+        const orders = (res?.myOrders?.items ?? []).filter((o: any) => !!o && String(o.state) !== 'Cancelled');
+        if (!orders.length) return;
+        // variantId → 当前在售商品信息（下架/售罄不参与搭配）
+        const map = new Map<string, ComboItem>();
+        for (const p of products.value) {
+            for (const v of p.variants ?? []) {
+                if (!variantAvailable(v) || Number(v.priceWithTax) <= 0) continue;
+                map.set(String(v.id), {
+                    variantId: String(v.id),
+                    name: p.name || v.name || '',
+                    image: p.featuredAsset?.preview || '',
+                    price: Number(v.priceWithTax),
+                });
+            }
+        }
+        const pairFreq = new Map<string, number>();
+        for (const o of orders) {
+            const ids = Array.from(new Set(
+                (o.lines ?? []).map((l: any) => String(l?.productVariant?.id ?? '')).filter((id: string) => map.has(id)),
+            ));
+            for (let i = 0; i < ids.length; i++) {
+                for (let j = i + 1; j < ids.length; j++) {
+                    const k = [ids[i], ids[j]].sort().join('|');
+                    pairFreq.set(k, (pairFreq.get(k) || 0) + 1);
+                }
+            }
+        }
+        let bestKey = '';
+        let bestCount = 0;
+        for (const [k, c] of pairFreq) if (c > bestCount) { bestCount = c; bestKey = k; }
+        if (!bestKey) return;
+        const [a, b] = bestKey.split('|');
+        const ia = map.get(a);
+        const ib = map.get(b);
+        if (!ia || !ib) return;
+        combo.value = { items: [ia, ib], total: ia.price + ib.price, orders: bestCount };
+    } catch {
+        combo.value = null;
+    }
+}
+
+async function addCombo() {
+    if (!combo.value || comboBusy.value) return;
+    comboBusy.value = true;
+    const items = combo.value.items;
+    let ok = 0;
+    try {
+        for (const it of items) {
+            if (await doAddItem(it.variantId, 1)) ok++;
+        }
+    } finally {
+        comboBusy.value = false;
+    }
+    const title = ok === items.length ? locale.t('menu.comboAdded') : ok ? locale.t('menu.comboPartAdded') : locale.t('menu.addFail');
+    uni.showToast({ title, icon: 'none' });
+}
+
 function callStore() {
     const p = storeInfo.value?.storePhone;
     if (p) uni.makePhoneCall({ phoneNumber: p });
@@ -979,6 +1072,22 @@ function goCheckout() {
 .notice-bar__ico { font-size: 24rpx; flex-shrink: 0; }
 .notice-bar__txt { flex: 1; min-width: 0; font-size: 24rpx; color: #8a5a1f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notice-bar__more { flex-shrink: 0; font-size: 22rpx; color: #ff6600; }
+/* 常点搭配：历史高频组合一键加购 */
+.combo { margin: 12rpx 24rpx 0; padding: 18rpx 20rpx; border-radius: 14rpx; background: #fff8ef; border: 1rpx solid #ffe2c2; flex-shrink: 0; }
+.combo__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
+.combo__title { font-size: 26rpx; font-weight: 600; color: #8a5a1f; }
+.combo__hint { font-size: 20rpx; color: #b07a3c; }
+.combo__row { display: flex; gap: 14rpx; margin-top: 12rpx; }
+.combo__item { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12rpx; background: #fff; border-radius: 10rpx; padding: 10rpx; }
+.combo__img { width: 64rpx; height: 64rpx; border-radius: 8rpx; flex-shrink: 0; background: #fff1e2;
+  &--txt { display: flex; align-items: center; justify-content: center; font-size: 28rpx; color: #ff6600; } }
+.combo__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.combo__name { font-size: 22rpx; color: #1f2329; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo__price { font-size: 22rpx; color: #ff6600; font-weight: 600; }
+.combo__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12rpx; }
+.combo__sum { font-size: 28rpx; font-weight: 600; color: #ff6600; }
+.combo__btn { padding: 10rpx 32rpx; border-radius: 999rpx; background: #ff6600; color: #fff; font-size: 24rpx; font-weight: 600;
+  &.busy { opacity: 0.5; } }
 .notice-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 260; display: flex; align-items: center; justify-content: center; padding: 0 60rpx; }
 .notice-sheet { width: 100%; max-height: 70vh; background: #fff; border-radius: 24rpx; padding: 36rpx 32rpx 28rpx; display: flex; flex-direction: column; gap: 20rpx; box-sizing: border-box; }
 .notice-sheet__head { display: flex; align-items: center; gap: 12rpx; }

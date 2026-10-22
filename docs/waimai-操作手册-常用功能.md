@@ -1635,3 +1635,95 @@
 - 线上当前秒杀/拼团/抢券/抽奖数据均为空（后台未配置活动），页面为空态；截图使用模拟响应，后台配置活动后即真实展示；
 - 本轮为纯前端改动，复用线上已启用的秒杀/拼团/券/抽奖插件，无需发布后端。
 
+## 99 购券商城
+
+入口：领券中心顶部「购券商城」；「我的购券」页右上角「去购券商城」。
+
+- 顶部活动 hero：活动名（无活动时用「购券商城」）、副标题、活动剩余倒计时（秒级刷新，结束显示「活动已结束」）；
+- 首单立减条：`firstBuyEligible=true` 时展示「首单购券立减 ¥x」；
+- 双 Tab「单券 / 券包」：
+  - 单券卡：左侧票根按券类型渲染面额（满减/无门槛 ¥x、折扣 x 折、免配送费「免」）与门槛，右侧展示名称、标签、描述、售价、划线原价、已售数量；
+  - 券包卡：名称、描述、售价、券张数（按 `items.quantity` 汇总）、已售数量；
+- 「立即购买」打开支付弹层：券名、应付金额、账户余额（`getMyBalance().myBalanceWithFrozen.balance`），可选「余额支付 / 微信支付」；
+  - 余额支付：`createCouponSaleOrder` → `payCouponSaleWithBalance`，成功后跳「我的购券」；
+  - 微信支付：`createCouponSaleOrder` → `createWechatCouponPayment(saleOrderId,'H5')`，复用统一收银台 `handlePayment`（jsapi 走 WeixinJSBridge，H5 走 payUrl 跳转）；
+- 失败文案：余额不足 / 不可售 / 达购买上限 / 其他统一「支付失败，请重试」。
+
+截图：[109-coupon-mall.png](screenshots/common-features-v20/109-coupon-mall.png)、[110-coupon-mall-bundle.png](screenshots/common-features-v20/110-coupon-mall-bundle.png)、[111-coupon-mall-pay.png](screenshots/common-features-v20/111-coupon-mall-pay.png)
+
+## 100 我的购券
+
+入口：领券中心「我的购券」、购券商城右上角「我的购券 ›」、每日领券右上角「我的券包」。
+
+- 顶部汇总当前渠道的购券记录，Tab 四态：全部 / 待支付 / 已支付 / 已关闭（已取消 + 已退款），Tab 带数量角标；
+- 卡片展示：单券/券包类型、状态（待支付 / 已支付 / 已取消 / 已退款 / 随单待付）、券名（由券目录 `templates`/`bundles` 映射 templateId/bundleId）、单号、创建时间、金额；已支付补充支付时间；
+- 操作：
+  - 待支付（在线购券）：取消订单（`cancelCouponSaleOrder`）、去支付（余额或微信）；
+  - 已支付：申请退款（`refundCouponSaleOrder`）；
+  - 随单待付（加价购挂到购物车订单的券费）：仅展示说明「随主订单支付，不支持单独退款」；
+- 未登录展示登录引导；无记录展示空态并提供「去购券商城」。
+
+截图：[112-coupon-sale-orders.png](screenshots/common-features-v20/112-coupon-sale-orders.png)
+
+## 101 每日领券
+
+入口：领券中心「每日领券」。
+
+- 顶部 hero：活动名、副标题、活动阶段（未开始 / 距结束倒计时 / 已结束）；
+- 规则条：活动 `rules` 文案；
+- 券卡按券类型渲染面额与门槛，并展示剩余张数（`totalCount - claimedCount`）；
+- 按钮四态：立即领取 / 今日已领 / 已领完 / 未开始（或已结束）；
+- 领取调用 `claimDailyCoupon(templateId)`，按返回 `status` 映射：OK（成功并置为今日已领）、ALREADY_CLAIMED、SOLD_OUT、NOT_STARTED、ENDED、PER_USER_LIMIT、MEMBER_LEVEL_BLOCKED、INACTIVE/NOT_IN_ACTIVITY；
+- 活动未配置时展示空态并提供「去购券商城」；未登录点领取先跳登录。
+
+截图：[113-daily-coupon.png](screenshots/common-features-v20/113-daily-coupon.png)
+
+## 102 积分兑券
+
+入口：领券中心第三个 Tab「积分兑券」。
+
+- 领券中心顶部新增三入口：购券商城 / 每日领券 / 我的购券；
+- 「积分兑券」Tab 拉取 `pointsMallTemplates`（后端按 `pointsPrice` 升序、仅 POINTS/ONLINE 场景、已启用且在有效窗口内），卡片展示面额、门槛、名称、描述与所需积分；
+- 「积分兑换」先二次确认「使用 n 积分兑换「券名」？」，确认后调用 `exchangeCouponWithPoints(templateId)`；
+- 成功 toast「兑换成功」，券自动进入券包；失败按 message 分流：积分不足 / 已达兑换上限 / 已领完 / 其他统一「兑换失败，请稍后重试」。
+
+截图：[114-coupon-centre-points.png](screenshots/common-features-v20/114-coupon-centre-points.png)
+
+## 103 加价购挂券（购物车）
+
+入口：购物车每个店铺卡片底部「加价购好券」。
+
+- 按店铺渠道分别拉取 `couponSaleCatalogue.templates` 与本店 `myCouponSaleOrders`，仅把 `payMode=ORDER_SURCHARGE`、`status=PENDING` 且 `orderId` 等于当前 activeOrder 的记录视为「已挂」；
+- 券 chip 展示券面额与加价售价（如「¥10券 ¥5.99」），已挂 chip 高亮并打勾；
+- 点击 chip：已挂则 `detachCouponFromOrder`（移除 surcharge），未挂则 `attachCouponToOrder`（新增 surcharge 到本单）；操作后重新拉取 activeOrder 与挂券状态，并在 chip 下方汇总「已加购 n 张 · ¥x」；
+- 券费以 surcharge 形式计入订单，结算页总金额自动包含；主订单支付成功后由后端统一结算加价购券（发券），无需额外支付动作；
+- 失败文案：已在本单 / 暂不可加购 / 其他统一「操作失败，请重试」。
+
+截图：[115-cart-addon.png](screenshots/common-features-v20/115-cart-addon.png)、[116-cart-addon-attach.png](screenshots/common-features-v20/116-cart-addon-attach.png)
+
+## 104 验收记录与边界（第二十轮，2026-10-22）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，本地 serve 最新构建产物；购券/每日领券/积分券/加价购数据为脚本注入的模拟 GraphQL 响应（13 条 query/mutation 文档已逐条对线上 schema 校验通过）。
+
+| 项目 | 结果 |
+|---|---|
+| 购券商城 | 4 张单券卡、活动位「午市购券节」+ 倒计时、首单立减 ¥5.00、券包 Tab 显示「含 5 张券」（断言通过） |
+| 支付弹层 | 券名「满50减10元券」、余额 ¥123.45、余额/微信两种支付方式（断言通过） |
+| 我的购券 | 4 条记录、类型单券/券包、状态待支付/已支付/已退款/随单待付、券包名称映射正确；待支付筛选 2 条（断言通过） |
+| 每日领券 | 3 张券卡、倒计时 02:59:51、按钮「立即领取 / 今日已领 / 已领完」、剩余张数（断言通过） |
+| 积分兑券 | 领券中心三入口、第三 Tab 4 张券、所需积分 300、按钮「积分兑换」（断言通过） |
+| 加价购 | 购物车 1 店 4 个券 chip、初始已挂 1 张 ¥3.99；点击未挂券后变 2 张、合计 ¥9.98（断言通过） |
+| 接口核对 | 线上校验 `couponSaleCatalogue`、`myCouponSaleOrders`、`couponDailyClaimActivity`、`pointsMallTemplates`、`createCouponSaleOrder`、`payCouponSaleWithBalance`、`createWechatCouponPayment`、`cancelCouponSaleOrder`、`refundCouponSaleOrder`、`claimDailyCoupon`、`exchangeCouponWithPoints`、`attachCouponToOrder`、`detachCouponFromOrder` 均无 schema 错误 |
+| i18n | 新增 `couponMall`（34 条）、`couponSaleOrders`（41 条）、`dailyCoupon`（26 条），`couponCentre` 扩至 31 条、`cart.addon*` 11 条，`nav.*` 4 条，中英双语同步 |
+| 构建/部署 | `pnpm build:h5` 通过，`deploy-waimai.mjs` 部署成功，线上 3 个新页面 chunk 均 200 |
+| 手机视口截图 | 390×844 dpr=2，共 8 张（109-116，存放 `docs/screenshots/common-features-v20/`） |
+
+边界与已知限制：
+- 购券/加价购均按店铺渠道隔离：商城目录、我的购券、挂券/摘券使用独立 GraphQL 客户端固定 `vendure-token`，购物车按店铺分组时不会串店；
+- 购券金额单位为分，前端统一 `/100` 展示；首单立减、购买上限、券包券张数均由后端计算，前端只做展示；
+- 加价购券费是订单级 surcharge，购物车仅提示「结算时计入」，实际总额以结算页 `order.totalWithTax` 为准；主单支付成功后才发券，主单取消/退款时按后端规则处理；
+- 每日领券的「今日已领」「已领完」由后端 `claimedToday`/`soldOut` 返回，前端领取成功后仅本地置位，不做乐观计数；
+- 积分兑券成功后不返回剩余积分，前端不自行扣减，切回会员中心/积分明细时以后端数据为准；
+- 线上当前购券商城目录、每日领券活动、积分券模板均为空（后台未配置），页面为空态；截图使用模拟响应，后台配置后即真实展示；
+- 本轮为纯前端改动，复用线上已启用的券/余额/微信支付插件，无需发布后端。
+

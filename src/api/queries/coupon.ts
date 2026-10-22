@@ -6,7 +6,7 @@ const COUPON_TEMPLATE_FIELDS = `
     id name description type discountValue minSpend
     startsAt endsAt totalCount claimedCount perUserLimit
     scope categoryId variantId enabled usageScene
-    claimable claimCode validDays newCustomerOnly
+    claimable claimCode validDays newCustomerOnly pointsPrice
 `;
 
 /** 领券中心：当前可领取的券模板（仅已开始的；即将开始走 couponCentreUpcoming） */
@@ -45,4 +45,54 @@ export async function getProductCoupons(productId: string) {
         }
     }`;
     return client.request(query, { productId });
+}
+
+/** 积分兑券目录：渠道内可兑券模板（按 pointsPrice 升序，后端已做场景/等级过滤） */
+export async function getPointsMallTemplates() {
+    const client = getGraphQLClient();
+    const query = `query PointsMallTemplates { pointsMallTemplates { ${COUPON_TEMPLATE_FIELDS} } }`;
+    const res: any = await client.request(query);
+    return res?.pointsMallTemplates || [];
+}
+
+/** 积分兑换优惠券：返回券 + 实际扣减积分 */
+export async function exchangeCouponWithPoints(templateId: string) {
+    const client = getGraphQLClient();
+    const query = `mutation ExchangeCouponWithPoints($templateId: ID!) {
+        exchangeCouponWithPoints(templateId: $templateId) {
+            spentPoints
+            coupon { id code status expiredAt }
+        }
+    }`;
+    const res: any = await client.request(query, { templateId });
+    return res?.exchangeCouponWithPoints;
+}
+
+/** 每日领券专场（未配置返回 null） */
+export async function getCouponDailyClaimActivity() {
+    const client = getGraphQLClient();
+    const query = `query CouponDailyClaimActivity {
+        couponDailyClaimActivity {
+            name subtitle rules startsAt endsAt
+            items {
+                claimedToday soldOut
+                template { ${COUPON_TEMPLATE_FIELDS} }
+            }
+        }
+    }`;
+    const res: any = await client.request(query);
+    return res?.couponDailyClaimActivity || null;
+}
+
+/** 每日领券：同一模板每天限领 1 张，status 复用领取结果枚举 */
+export async function claimDailyCoupon(templateId: string) {
+    const client = getGraphQLClient();
+    const query = `mutation ClaimDailyCoupon($templateId: ID!) {
+        claimDailyCoupon(templateId: $templateId) {
+            status
+            coupon { id code status expiredAt }
+        }
+    }`;
+    const res: any = await client.request(query, { templateId });
+    return res?.claimDailyCoupon || { status: 'UNKNOWN', coupon: null };
 }

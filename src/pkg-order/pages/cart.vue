@@ -67,6 +67,23 @@
           <text class="cart-progress__txt" :class="{ ok: progress(g).ok }">{{ progress(g).text }}</text>
         </view>
 
+        <!-- 加价购好券：券费随单支付，挂到本店 activeOrder 上 -->
+        <view class="cart-addons" v-if="addonTemplates(g).length">
+          <view class="cart-addons__head">
+            <text class="cart-addons__title">{{ $t('cart.addonTitle') }}</text>
+            <text class="cart-addons__tip">{{ $t('cart.addonTip') }}</text>
+          </view>
+          <view class="cart-addons__list">
+            <view v-for="t in addonTemplates(g)" :key="'addon-' + t.id" class="addon-chip"
+              :class="{ on: isAttached(g, t), busy: addonBusy === g.token + ':' + t.id }" @click.stop="toggleAddon(g, t)">
+              <text class="addon-chip__amt">{{ addonAmount(t) }}</text>
+              <text class="addon-chip__price">¥{{ fen(t.salePrice) }}</text>
+              <text class="addon-chip__state" v-if="isAttached(g, t)">✓</text>
+            </view>
+          </view>
+          <text v-if="attachedCount(g) > 0" class="cart-addons__sum">{{ $t('cart.addonAttached').replace('{n}', String(attachedCount(g))).replace('{d}', fen(attachedSum(g))) }}</text>
+        </view>
+
         <view class="cart-card__foot">
           <view class="cart-card__sum">
             <text class="cart-card__total">¥{{ fen(g.order.subTotalWithTax) }}</text>
@@ -89,6 +106,12 @@ import { onShow, onUnload } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { getActiveOrderForChannel } from '../../api/queries/order';
 import { adjustOrderLineForChannel, removeAllOrderLinesForChannel, removeOrderLineForChannel } from '../../api/mutations/cart';
+import {
+  getCouponSaleCatalogueInChannel,
+  getMyCouponSaleOrdersInChannel,
+  attachCouponToOrderInChannel,
+  detachCouponFromOrderInChannel,
+} from '../../api/queries/couponSale';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
@@ -123,6 +146,98 @@ const loading = ref(false);
 /** 上次打开购物车时的单价快照（token:variantId → 分），仅用于变价提示 */
 const prevPrices = ref<PriceMap>({});
 
+/** 每个店铺的加价购目录与已挂券单 */
+interface GroupAddons {
+  templates: any[];
+  attached: any[];
+}
+const addons = ref<Record<string, GroupAddons>>({});
+const addonBusy = ref('');
+
+function addonTemplates(g: CartGroup): any[] {
+  return addons.value[g.token]?.templates || [];
+}
+
+function isAttached(g: CartGroup, t: any): boolean {
+  return (addons.value[g.token]?.attached || []).some((o: any) => String(o.templateId) === String(t.id));
+}
+
+function attachedCount(g: CartGroup): number {
+  return (addons.value[g.token]?.attached || []).length;
+}
+
+function attachedSum(g: CartGroup): number {
+  return (addons.value[g.token]?.attached || []).reduce((s: number, o: any) => s + Number(o.amount || 0), 0);
+}
+
+function addonAmount(t: any): string {
+  if (t?.type === 'PERCENT') return (t.discountValue / 10).toFixed(1).replace(/\.0$/, '') + locale.t('cart.addonUnitPercent');
+  if (t?.type === 'FREE_SHIPPING') return locale.t('cart.addonFree');
+  const yuan = Number(t?.discountValue || 0) / 100;
+  return '¥' + (Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2)) + locale.t('cart.addonCouponSuffix');
+}
+
+async function loadAddons() {
+  if (!authStore.isLoggedIn || !groups.value.length) {
+    addons.value = {};
+    return;
+  }
+  const entries = await Promise.all(
+    groups.value.map(async (g) => {
+      const state = await fetchAddonState(g);
+      return [g.token, state] as const;
+    }),
+  );
+  const next: Record<string, GroupAddons> = {};
+  for (const [token, state] of entries) next[token] = state;
+  addons.value = next;
+}
+
+async function fetchAddonState(g: CartGroup): Promise<GroupAddons> {
+  const [catRes, orderRes] = await Promise.allSettled([
+    getCouponSaleCatalogueInChannel(g.token),
+    getMyCouponSaleOrdersInChannel(g.token),
+  ]);
+  const templates = catRes.status === 'fulfilled' ? (catRes.value?.templates || []) : (addons.value[g.token]?.templates || []);
+  const saleOrders = orderRes.status === 'fulfilled' ? (orderRes.value || []) : [];
+  const attached = saleOrders.filter(
+    (o: any) => o?.payMode === 'ORDER_SURCHARGE' && o?.status === 'PENDING' && String(o.orderId) === String(g.order?.id),
+  );
+  return { templates, attached };
+}
+
+async function toggleAddon(g: CartGroup, t: any) {
+  if (addonBusy.value) return;
+  if (!authStore.requireLogin('/pkg-order/pages/cart')) return;
+  const key = `${g.token}:${t.id}`;
+  addonBusy.value = key;
+  try {
+    if (isAttached(g, t)) {
+      await detachCouponFromOrderInChannel(g.token, g.order.id, String(t.id));
+      uni.showToast({ title: locale.t('cart.addonDetachOk'), icon: 'none' });
+    } else {
+      await attachCouponToOrderInChannel(g.token, g.order.id, String(t.id));
+      uni.showToast({ title: locale.t('cart.addonAttachOk'), icon: 'none' });
+    }
+    const fresh: any = await getActiveOrderForChannel(g.token);
+    if (fresh?.activeOrder?.id) applyOrder(g, fresh.activeOrder);
+    const state = await fetchAddonState(g);
+    addons.value = { ...addons.value, [g.token]: state };
+  } catch (e: any) {
+    const msg = String(e?.response?.errors?.[0]?.message || e?.message || '');
+    if (/already attached/i.test(msg)) {
+      await loadAddons();
+      uni.showToast({ title: locale.t('cart.addonAlready'), icon: 'none' });
+    } else if (/not saleable|not available/i.test(msg)) {
+      uni.showToast({ title: locale.t('cart.addonNotSaleable'), icon: 'none' });
+    } else {
+      uni.showToast({ title: locale.t('cart.addonFail'), icon: 'none' });
+    }
+  } finally {
+    addonBusy.value = '';
+  }
+}
+
 onShow(() => {
   prevPrices.value = readLinePrices();
   void load();
@@ -132,6 +247,7 @@ onUnload(() => { void tenant.backToDefault(); });
 async function load() {
   if (!authStore.isLoggedIn && !getSessionToken()) {
     groups.value = [];
+    addons.value = {};
     return;
   }
   loading.value = true;
@@ -173,6 +289,7 @@ async function load() {
   } finally {
     loading.value = false;
   }
+  void loadAddons();
 }
 
 function fen(v: any): string {
@@ -446,6 +563,21 @@ function goHome() {
   &__gap { font-size: 18rpx; color: #b45309; }
   &.hit { border-color: $brand-color; background: $brand-color-light; color: $brand-color; }
   &.next { border-style: dashed; border-color: #ffb27a; color: #b45309; }
+}
+/* 加价购好券 */
+.cart-addons { margin-top: 14rpx; padding-top: 14rpx; border-top: 1rpx dashed $border-color;
+  &__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
+  &__title { font-size: 22rpx; font-weight: 600; color: #b45309; }
+  &__tip { font-size: 18rpx; color: $text-color-placeholder; }
+  &__list { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 10rpx; }
+  &__sum { display: block; margin-top: 8rpx; font-size: 18rpx; color: #b45309; }
+}
+.addon-chip { display: flex; align-items: center; gap: 6rpx; padding: 5rpx 12rpx; border-radius: 8rpx; border: 1rpx solid #ffd2a8; background: #fffaf5;
+  &__amt { font-size: 20rpx; color: #b45309; font-weight: 600; }
+  &__price { font-size: 20rpx; color: #ff4d4f; }
+  &__state { font-size: 18rpx; color: $brand-color; }
+  &.on { border-color: $brand-color; background: $brand-color-light; }
+  &.busy { opacity: .5; }
 }
 .cart-btn { height: 72rpx; line-height: 72rpx; padding: 0 32rpx; border-radius: 999rpx; font-size: 26rpx; text-align: center;
   &--ghost { background: $bg-color; color: $text-color-secondary; border: 1rpx solid $border-color; }

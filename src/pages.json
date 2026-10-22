@@ -87,7 +87,10 @@
                 { "path": "pages/my-coupons", "style": { "navigationBarTitleText": "%nav.myCoupons%" } },
                 { "path": "pages/flash-sale", "style": { "navigationBarTitleText": "%nav.flashSale%" } },
                 { "path": "pages/group-buy", "style": { "navigationBarTitleText": "%nav.groupBuy%" } },
-                { "path": "pages/coupon-flash", "style": { "navigationBarTitleText": "%nav.couponFlash%" } }
+                { "path": "pages/coupon-flash", "style": { "navigationBarTitleText": "%nav.couponFlash%" } },
+                { "path": "pages/coupon-mall", "style": { "navigationBarTitleText": "%nav.couponMall%" } },
+                { "path": "pages/coupon-sale-orders", "style": { "navigationBarTitleText": "%nav.couponSaleOrders%" } },
+                { "path": "pages/daily-coupon", "style": { "navigationBarTitleText": "%nav.dailyCoupon%" } }
             ]
         }
     ],

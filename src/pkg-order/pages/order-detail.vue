@@ -191,6 +191,14 @@
       </view>
       <text class="plan-card__hint">{{ $t('orderDetail.planHint') }}</text>
     </view>
+    <!-- 配送进度：有配送包裹档案时展示骑手/运单与轨迹入口 -->
+    <view class="section plan-card" v-if="hasPackages" @tap="goDeliveryTrack">
+      <view class="plan-card__row">
+        <text class="plan-card__title">{{ $t('orderDetail.trackTitle') }}</text>
+        <text class="plan-card__link">{{ $t('orderDetail.trackView') }} ›</text>
+      </view>
+      <text class="plan-card__hint">{{ packageHint || $t('orderDetail.trackHint') }}</text>
+    </view>
     <view class="section" v-if="order.couponCodes?.length">
       <text class="section__title">{{ $t('orderDetail.couponTitle') }}</text>
       <text v-for="c in order.couponCodes" :key="c" class="coupon-tag">{{ c }}</text>
@@ -274,6 +282,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getOrderByCode, getOrdersForChannel } from '../../api/queries/order';
 import { getPaymentSchedule } from '../../api/queries/paymentSchedule';
+import { getOrderPackages } from '../../api/queries/package';
 import { addItemToOrder } from '../../api/mutations/cart';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
@@ -352,6 +361,9 @@ const discountTotal = computed(() => order.value?.discounts?.reduce((s:number,d:
 const afterSale = ref<AfterSaleRequest | null>(null);
 // 预售/分期订单存在支付计划时展示尾款入口（paymentSchedule 依赖登录态，未登录静默）
 const hasSchedule = ref(false);
+// 配送包裹：有包裹档案时展示配送进度入口（含骑手/运单/轨迹）
+const hasPackages = ref(false);
+const firstPackage = ref<any>(null);
 // 售后状态映射：值存 i18n 键
 const asStateLabels: Record<string, string> = {
     Pending: 'asPending', Approved: 'asApproved', Received: 'asReceived', Refunded: 'asRefunded',
@@ -518,6 +530,7 @@ onMounted(async () => {
     } catch (e) { /* 未登录等场景静默 */ }
     loadPickupCode();
     void loadScheduleFlag();
+    void loadPackageFlag();
     startRiderPolling();
     startEtaTicker();
     void loadEtaMinutes();
@@ -741,6 +754,40 @@ async function loadScheduleFlag() {
         const s = await getPaymentSchedule(order.value.id);
         hasSchedule.value = !!s?.id;
     } catch { hasSchedule.value = false; }
+}
+// 配送包裹探测：有包裹记录才展示进度入口；未登录/无档案静默
+const PKG_ST: Record<string, string> = {
+    pending: 'deliveryTrack.stPending',
+    packed: 'deliveryTrack.stPacked',
+    shipped: 'deliveryTrack.stShipped',
+    delivering: 'deliveryTrack.stDelivering',
+    delivered: 'deliveryTrack.stDelivered',
+    cancelled: 'deliveryTrack.stCancelled',
+    returned: 'deliveryTrack.stReturned',
+};
+const packageHint = computed(() => {
+    const p = firstPackage.value;
+    if (!p) return '';
+    const parts: string[] = [];
+    if (p.courierName) parts.push(String(p.courierName));
+    const key = PKG_ST[String(p.status || '').toLowerCase()];
+    if (key) parts.push(locale.t(key));
+    if (p.etaMinutes != null) parts.push(locale.t('deliveryTrack.etaMin').replace('{n}', String(p.etaMinutes)));
+    return parts.join(' · ');
+});
+async function loadPackageFlag() {
+    if (!auth.isLoggedIn || !order.value?.id) return;
+    try {
+        const list = await getOrderPackages(order.value.id);
+        hasPackages.value = list.length > 0;
+        firstPackage.value = list[0] || null;
+    } catch { hasPackages.value = false; firstPackage.value = null; }
+}
+function goDeliveryTrack() {
+    if (!order.value?.id) return;
+    uni.navigateTo({
+        url: `/pkg-order/pages/delivery-track?orderId=${order.value.id}&code=${encodeURIComponent(order.value.code || '')}`,
+    });
 }
 // 支付计划（尾款/分期账单）：按订单 id 查询，附带订单号用于页面展示
 function goPaymentSchedule() {

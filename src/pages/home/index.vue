@@ -23,6 +23,25 @@
             />
         </view>
         <view class="body">
+            <!-- 运营位：公告条（后台 operations-plugin 发布内容，无配置时隐藏） -->
+            <view v-if="cmsNotices.length" class="cms-notice" @tap="openNoticeItem">
+                <text class="cms-notice__ico">📢</text>
+                <text class="cms-notice__txt">{{ cmsNotices[0].data.content }}</text>
+                <text class="cms-notice__more">{{ $t('cms.more') }} ›</text>
+            </view>
+            <!-- 运营位：轮播 Banner -->
+            <scroll-view v-if="cmsBanners.length" scroll-x class="cms-banner" :show-scrollbar="false">
+                <view
+                    v-for="b in cmsBanners" :key="b.id" class="cms-banner__item"
+                    @tap="openCmsLink(b.data?.link)"
+                >
+                    <image class="cms-banner__img" :src="b.data.imageUrl" mode="aspectFill" />
+                    <view v-if="b.data.title" class="cms-banner__mask">
+                        <text class="cms-banner__title">{{ b.data.title }}</text>
+                        <text v-if="b.data.subtitle" class="cms-banner__sub">{{ b.data.subtitle }}</text>
+                    </view>
+                </view>
+            </scroll-view>
             <view class="quick">
                 <view class="qk" @tap="goOrders">
                     <view class="qico">🧾</view>
@@ -48,13 +67,25 @@
                     <view class="qico">🎟️<text class="qk-badge" v-if="unusedCouponCount > 0">{{ unusedCouponCount > 99 ? '99+' : unusedCouponCount }}</text></view>
                     <text class="qtxt">{{ $t('home.couponCentre') }}</text>
                 </view>
+                <view class="qk" @tap="goCircle">
+                    <view class="qico">📸</view>
+                    <text class="qtxt">{{ $t('home.circle') }}</text>
+                </view>
                 <view class="qk" v-if="jianghuEntry" @tap="goJianghu">
                     <view class="qico">🗡️</view>
                     <text class="qtxt">江湖</text>
                 </view>
             </view>
+            <!-- 运营位：图标宫格（后台 IconGrid 优先，未配置时回落到内置活动宫格） -->
+            <view v-if="cmsIcons.length" class="cms-grid">
+                <view v-for="(it, i) in cmsIcons" :key="i" class="cms-grid__item" @tap="openCmsLink(it.link)">
+                    <image v-if="isIconImage(it.icon)" class="cms-grid__img" :src="it.icon" mode="aspectFit" />
+                    <text v-else class="cms-grid__ico">{{ it.icon || '✨' }}</text>
+                    <text class="cms-grid__txt">{{ it.label || '' }}</text>
+                </view>
+            </view>
             <!-- 营销活动入口：秒杀 / 拼团 / 整点抢券 / 积分抽奖 -->
-            <view class="acts">
+            <view class="acts" v-if="!cmsIcons.length">
                 <view class="act" @tap="goFlashSale">
                     <view class="act-ico act-ico--flash">⚡</view>
                     <text class="act-txt">{{ $t('home.actFlash') }}</text>
@@ -367,6 +398,7 @@ import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
 import { getMyCoupons } from '../../api/queries/coupon';
+import { getPublishedContent, type ContentItemPublic } from '../../api/queries/operations';
 import { readSearchHistory, pushSearchHistory, clearSearchHistory, buildHotWords, matchesProduct } from '../../utils/search';
 import { filterStores, applyStoreFilters, sortStores, type StoreSort, type StoreFilterOptions } from '../../utils/store-filter';
 import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
@@ -789,10 +821,63 @@ function goCouponFlash() { uni.navigateTo({ url: '/pkg-promotion/pages/coupon-fl
 function goLottery() { uni.navigateTo({ url: '/pkg-user/pages/lottery' }); }
 function goPreSale() { uni.navigateTo({ url: '/pkg-promotion/pages/pre-sale' }); }
 function goLive() { uni.navigateTo({ url: '/pkg-promotion/pages/live-list' }); }
+function goCircle() { uni.navigateTo({ url: '/pkg-user/pages/circle' }); }
 function goMyCoupons() { uni.navigateTo({ url: '/pkg-promotion/pages/my-coupons' }); }
 function goJianghu() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-hall' }); }
 function goMessages() { uni.navigateTo({ url: '/pkg-user/pages/messages' }); }
 function goCart() { uni.navigateTo({ url: '/pkg-order/pages/cart' }); }
+
+// ─── 运营位（operations-plugin publishedContent）──────────────────
+// Banner / Notice / IconGrid 均为后台发布内容；未配置或接口异常时静默回落到内置入口。
+const cmsBanners = ref<ContentItemPublic[]>([]);
+const cmsNotices = ref<ContentItemPublic[]>([]);
+const cmsGrids = ref<ContentItemPublic[]>([]);
+const cmsIcons = computed<Array<{ icon?: string; label?: string; link?: string }>>(() => {
+    const items = cmsGrids.value[0]?.data?.items;
+    if (!Array.isArray(items)) return [];
+    return items.filter((it: any) => it && (it.icon || it.label));
+});
+
+async function loadCms() {
+    try {
+        const [banners, notices, grids] = await Promise.all([
+            getPublishedContent('Banner'),
+            getPublishedContent('Notice'),
+            getPublishedContent('IconGrid'),
+        ]);
+        cmsBanners.value = banners.filter(b => !!b.data?.imageUrl);
+        cmsNotices.value = notices.filter(n => !!n.data?.content);
+        cmsGrids.value = grids;
+    } catch { /* 运营位异常不影响首页主体 */ }
+}
+
+function isIconImage(icon?: string) {
+    return !!icon && /^(https?:\/\/|\/)/.test(icon);
+}
+
+function openCmsLink(link?: string) {
+    const raw = String(link || '').trim();
+    if (!raw) return;
+    if (/^https?:\/\//.test(raw)) {
+        uni.navigateTo({ url: '/pages/webview/index?url=' + encodeURIComponent(raw) });
+        return;
+    }
+    let path = raw.replace(/^#/, '');
+    if (!path.startsWith('/')) path = '/' + path;
+    uni.navigateTo({ url: path, fail: () => uni.switchTab({ url: path }) });
+}
+
+function openNoticeItem() {
+    const first = cmsNotices.value[0];
+    if (!first) return;
+    if (first.data?.link) { openCmsLink(first.data.link); return; }
+    uni.showModal({
+        title: first.data?.title || locale.t('home.notice'),
+        content: String(first.data?.content || ''),
+        showCancel: false,
+        confirmText: locale.t('home.noticeOk'),
+    });
+}
 
 /** 未使用券角标 + 临期券提示：同一次 myCoupons 返回计算两项；未登录不请求；失败静默置 0，不阻塞首页店铺加载 */
 async function loadCouponBadge() {
@@ -835,6 +920,7 @@ function enterStore(s: any) {
 onMounted(() => {
     initTheme();
     void favorites.loadRemote();
+    void loadCms();
     load();
     mealTimer = setInterval(() => { nowTick.value = Date.now(); }, 60000);
 });
@@ -899,6 +985,38 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .search :deep(.uni-input-placeholder) { color: var(--w-text-muted); }
 .body { padding: 0 24rpx; }
 .quick { margin-top: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx 0; display: flex; }
+/* 运营位：公告条 / 轮播 Banner / 图标宫格（后台发布内容驱动） */
+.cms-notice {
+    display: flex; align-items: center; gap: 10rpx; margin-top: 20rpx;
+    background: var(--w-surface); border-radius: $radius-card; padding: 18rpx 22rpx;
+}
+.cms-notice__ico { font-size: 28rpx; flex-shrink: 0; }
+.cms-notice__txt {
+    flex: 1; min-width: 0; font-size: 24rpx; color: var(--w-text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cms-notice__more { font-size: 22rpx; color: var(--w-text-muted); flex-shrink: 0; }
+.cms-banner { white-space: nowrap; margin-top: 20rpx; }
+.cms-banner__item {
+    position: relative; display: inline-block; width: 640rpx; height: 240rpx; margin-right: 16rpx;
+    border-radius: $radius-card; overflow: hidden; background: var(--w-surface);
+}
+.cms-banner__img { width: 100%; height: 100%; }
+.cms-banner__mask {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 18rpx 22rpx;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.55) 100%);
+    display: flex; flex-direction: column; gap: 4rpx; white-space: normal;
+}
+.cms-banner__title { font-size: 28rpx; font-weight: 700; color: #fff; }
+.cms-banner__sub { font-size: 22rpx; color: rgba(255, 255, 255, 0.85); }
+.cms-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16rpx 8rpx;
+    margin-top: 16rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx 12rpx;
+}
+.cms-grid__item { display: flex; flex-direction: column; align-items: center; gap: 10rpx; }
+.cms-grid__ico { width: 76rpx; height: 76rpx; border-radius: 24rpx; background: var(--w-brand-soft); display: flex; align-items: center; justify-content: center; font-size: 34rpx; }
+.cms-grid__img { width: 76rpx; height: 76rpx; border-radius: 24rpx; }
+.cms-grid__txt { font-size: 22rpx; color: var(--w-text); text-align: center; }
 .qk { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
 .qico { position: relative; flex-shrink: 0; width: 76rpx; height: 76rpx; border-radius: 999rpx; background: var(--w-brand-soft); display: flex; align-items: center; justify-content: center; font-size: 38rpx; }
 .qtxt { max-width: 100%; font-size: 22rpx; color: var(--w-text); text-align: center; }

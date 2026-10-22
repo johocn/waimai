@@ -1973,3 +1973,100 @@
 - 多店铺/多租户：三个页面均使用 `getGraphQLClient()`（随当前租户闸门与渠道），订阅套餐与提货券按渠道可见；模拟数据仅用于截图，线上以后端返回为准；
 - 本轮为纯前端改动，复用线上已启用的 checkin-plugin / voucher-plugin / subscription-plugin，无需发布后端。
 
+
+
+## 118 购物圈（晒单社区）
+
+入口：首页快捷入口「购物圈」 / 我的 → 购物圈；发布按钮进入「发布晒单」。
+
+### 118.1 信息流
+
+- 顶部渐变头图展示「购物圈」与副标题；右上「✍️ 发布」未登录时先走登录（`auth.requireLogin`），登录后跳 `pkg-user/pages/circle-publish`；
+- 两个 Tab：最新动态（`circleFeed`，公开）/ 我的晒单（`myCirclePosts`，需登录）；「我的晒单」未登录展示 🔐 登录引导；
+- 卡片：昵称首字头像、昵称、相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前 / 日期）、置顶标签、标题、正文、图片（最多展示 3 张，点击 `uni.previewImage` 预览）、点赞与收藏；
+- 点赞 / 收藏调用 `toggleCircleLike` / `toggleCircleFavorite`，用返回值回写图标、计数与高亮；失败 toast 后端信息或「操作失败」；
+- 分页：每页 10 条，`hasMore` 时底部「加载更多」；空态展示 🫧 + 「去发布第一条」；
+- `onShow` 重新拉取，发布返回后自动刷新。
+
+截图：[150-circle-feed.png](screenshots/common-features-v24/150-circle-feed.png)、[151-circle-liked.png](screenshots/common-features-v24/151-circle-liked.png)、[152-circle-mine.png](screenshots/common-features-v24/152-circle-mine.png)、[153-circle-guest.png](screenshots/common-features-v24/153-circle-guest.png)
+
+### 118.2 发布晒单
+
+- 三个卡片：标题（选填，≤50 字）、正文（必填，≤500 字，实时字数）、图片（`VImageUpload`，最多 9 张，选图即上传并回填 URL）；
+- 正文为空提交 → toast「请填写晒单内容」；成功后 toast「发布成功」并在 600ms 后返回上一页；
+- 失败分流：标题超长 / 正文缺失 / 其他后端错误信息。
+
+截图：[154-circle-publish.png](screenshots/common-features-v24/154-circle-publish.png)
+
+## 119 首页运营位（CMS 驱动）
+
+入口：首页（无需跳转）。
+
+- 公告条：读取 `publishedContent(type: "Notice")`，取第一条 `data.content`，点击若有 `data.link` 则跳转，否则 `uni.showModal` 展示标题+全文；
+- 轮播 Banner：读取 `publishedContent(type: "Banner")`，横向 scroll-view，每张 640×240rpx，图片 + 标题/副标题遮罩，点击按 `data.link` 跳转（http → 内置 webview，内部路由自动补 `/` 并 `switchTab` 兜底）；
+- 图标宫格：读取 `publishedContent(type: "IconGrid")`，取第一条 `data.items`（`icon` 为 URL 时渲染图片，否则按 emoji 展示）；后台配置了宫格时**替换**内置营销宫格（秒杀/拼团/整点抢券/积分抽奖），未配置时回落内置；
+- 三项并行加载，接口异常或未配置时静默隐藏对应运营位，不影响首页主体与店铺列表。
+
+截图：[157-home-cms.png](screenshots/common-features-v24/157-home-cms.png)
+
+## 120 消息收件箱（站内通知）
+
+入口：我的 → 消息（页面内双 Tab）。
+
+- Tab 1「订单消息」：沿用既有 message-plugin（`myMessages` / `myUnreadMessageCount` / `markMessageRead`）；
+- Tab 2「系统通知」：读取 notification-plugin `myInbox`，Tab 上展示未读角标（>99 显示 99+），首次切换懒加载；
+- 通知卡片按 `scene` 取图标（order 🧾 / pay、refund 💳 / coupon 🎟️ / deliver 🛵 / member ⭐ / 其他 📣），未读卡片高亮并带红点；
+- 点击卡片：先本地置已读并调用 `markInboxRead`（失败不阻塞阅读），有 `link` 直接跳转，无 `link` 展开/收起全文；
+- 「全部已读」按当前 Tab 分流：订单消息走 `markAllRead`，系统通知逐条 `markInboxRead`；未登录展示登录引导。
+
+截图：[155-messages-inbox.png](screenshots/common-features-v24/155-messages-inbox.png)、[156-messages-inbox-read.png](screenshots/common-features-v24/156-messages-inbox-read.png)
+
+## 121 订单配送轨迹
+
+入口：订单详情 → 配送进度卡「查看轨迹」。
+
+### 121.1 订单详情入口
+
+- 订单详情加载后并行查询 `myOrderPackages(orderId)`；存在包裹档案时展示「配送进度 / 查看轨迹」卡片；
+- 卡片提示行拼装「骑手名 · 状态 · 约 N 分钟」（缺字段自动省略）；点击跳 `pkg-order/pages/delivery-track?orderId=…`；
+- 查询失败或无包裹时整卡隐藏，不影响订单详情其他内容。
+
+### 121.2 配送轨迹页
+
+- 并行请求 `myOrderPackages` + `myOrderTracks`，`allSettled` 单边失败仍展示另一半；
+- 包裹卡：配送单号、配送方式（配送 / 自提 / 快递）、状态胶囊（待配送 / 已打包 / 已发货 / 配送中 / 已送达 / 已取消 / 已退回）、骑手头像/姓名/承运商、📞 拨号（`uni.makePhoneCall`）、预计送达「约 N 分钟」、运单号（点击复制）、配送费（分转元）、发货/送达时间、商品行（品名 × 数量）；
+- 时间线：解析 `trackInfo`（JSON 数组或纯文本），支持 `desc/context/status/remark` 与 `time/acceptTime/ftime/datetime` 字段；最新节点高亮（红点 + 加粗）；无 `trackInfo` 时回落「承运商 + 状态 + 同步时间」；
+- 无任何包裹与轨迹时展示 🛵 空态与提示；未登录/无权限时按空态处理。
+
+截图：[158-order-detail-package.png](screenshots/common-features-v24/158-order-detail-package.png)、[159-delivery-track.png](screenshots/common-features-v24/159-delivery-track.png)、[160-delivery-track-empty.png](screenshots/common-features-v24/160-delivery-track-empty.png)
+
+## 122 验收记录与边界（第二十四轮，2026-10-22）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，本地 serve 最新构建产物（`pnpm build:h5` 产物经临时静态服务挂 `/waimai` 前缀，端口 52207）；购物圈 / 运营位 / 收件箱 / 配送轨迹数据为脚本注入的模拟 GraphQL 响应（查询与 mutation 文档已对线上 `https://www.yourbao.cn/shop-api` introspection 校验通过）。交互回归断言 23 条，全部通过。
+
+| 项目 | 结果 |
+|---|---|
+| 购物圈信息流 | 3 条晒单渲染、置顶标签 1 个、点赞/收藏计数正确（断言通过） |
+| 点赞交互 | 点击后图标高亮，计数 12→13（断言通过） |
+| 我的晒单 | 切换 Tab 展示本人 2 条（断言通过） |
+| 未登录态 | 我的晒单展示「登录后查看我的晒单 / 去登录」（断言通过） |
+| 发布晒单 | 标题/正文输入、字数计数 22/500、点击发布调用 `createCirclePost`（断言通过） |
+| 消息收件箱 | 通知 Tab 渲染 3 条、未读 2 条、角标 2、场景图标 🧾/🎫/⭐（断言通过） |
+| 全部已读 | 点击后未读清零、角标消失（断言通过） |
+| 首页运营位 | 公告条、2 张 Banner、IconGrid 4 项替换内置宫格、快捷入口含「购物圈」（断言通过） |
+| 订单详情入口 | 「配送进度 · 李师傅 · 配送中 · 约 18 分钟 · 查看轨迹」（断言通过） |
+| 配送轨迹页 | 包裹单号、状态「配送中」、骑手、预计 18 分钟、时间线 3 节点（断言通过） |
+| 配送空态 | 无包裹时展示「暂无配送信息」（断言通过） |
+| 页面标题 | 购物圈 / 发布晒单 / 配送轨迹 均正确取 `nav.*` 文案（断言通过） |
+| 接口核对 | `circleFeed`、`myCirclePosts`、`createCirclePost`、`toggleCircleLike`、`toggleCircleFavorite`、`publishedContent`、`myInbox`、`inboxUnreadCount`、`markInboxRead`、`myOrderPackages`、`myOrderTracks` 均无 schema 错误 |
+| i18n | 新增 `cms`(1)、`circle`(21)、`circlePublish`(13)、`deliveryTrack`(27)，及 `home.circle`、`profile.circle`、`orderDetail.track*` 3 条、`messages.tab*/notice*` 4 条、`nav.*` 3 条，中英双语同步 |
+| 构建/部署 | `pnpm build:h5` 通过，线上新增页面 chunk 与路由均 200 |
+| 手机视口截图 | 390×844 dpr=2，共 11 张（150-160，存放 `docs/screenshots/common-features-v24/`） |
+
+边界与已知限制：
+- 购物圈为公开阅读 + 登录后互动：`circleFeed` 匿名可读，点赞/收藏/发布/我的晒单需登录；图片走 `uploadCustomerAsset` 上传，最多 9 张；本轮未做删除/举报/评论（后端暂未开放对应 mutation）；
+- 运营位为「后台可选配置」：未发布内容时不占位、自动回落到内置营销宫格；`data` 字段按 JSON 解析，坏 JSON 静默为空对象，不影响首页；
+- 消息收件箱与既有「订单消息」并存：前者为 notification-plugin 站内通知（含跳转链接），后者为 message-plugin 订单类消息；两套未读角标独立计算；
+- 配送轨迹依赖配送档案（`orderPackage`）与物流同步任务：无档案时订单详情不展示入口；轨迹节点解析兼容 JSON 数组与纯文本，第三方字段名差异由前端兼容映射；
+- 团长中心本轮未接入：线上 introspect 确认 `community-plugin` 的 `myActivities` / `myCommission` / `applyLeader` 未启用，故改为订单配送轨迹；待插件上线后可复用 `pkg-user` 分包补页面；
+- 本轮为纯前端改动，复用线上已启用的 shopping-circle-plugin / operations-plugin / notification-plugin / 配送档案接口，无需发布后端。

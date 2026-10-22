@@ -64,6 +64,9 @@
         "nav.billPay": "Bill Pay",
         "nav.checkin": "Daily Check-in",
         "nav.vouchers": "Pickup Vouchers",
-        "nav.subscriptions": "My Subscriptions"
+        "nav.subscriptions": "My Subscriptions",
+        "nav.circle": "Shopping Circle",
+        "nav.circlePublish": "Post Review",
+        "nav.deliveryTrack": "Delivery Track"
     }
 }

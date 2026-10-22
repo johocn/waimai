@@ -22,7 +22,8 @@
                 { "path": "pages/my-reviews", "style": { "navigationBarTitleText": "%nav.myReviews%" } },
                 { "path": "pages/cart", "style": { "navigationBarTitleText": "%nav.cart%" } },
                 { "path": "pages/receipt", "style": { "navigationBarTitleText": "%nav.receipt%" } },
-                { "path": "pages/payment-schedule", "style": { "navigationBarTitleText": "%nav.paymentSchedule%" } }
+                { "path": "pages/payment-schedule", "style": { "navigationBarTitleText": "%nav.paymentSchedule%" } },
+                { "path": "pages/delivery-track", "style": { "navigationBarTitleText": "%nav.deliveryTrack%" } }
             ]
         },
         {
@@ -53,6 +54,8 @@
                 { "path": "pages/invite", "style": { "navigationBarTitleText": "%nav.invite%" } },
                 { "path": "pages/about", "style": { "navigationBarTitleText": "%nav.about%" } },
                 { "path": "pages/messages", "style": { "navigationBarTitleText": "%nav.messages%" } },
+                { "path": "pages/circle", "style": { "navigationBarTitleText": "%nav.circle%" } },
+                { "path": "pages/circle-publish", "style": { "navigationBarTitleText": "%nav.circlePublish%" } },
                 { "path": "pages/favorites", "style": { "navigationBarTitleText": "%nav.favorites%" } },
                 { "path": "pages/history", "style": { "navigationBarTitleText": "%nav.history%" } },
                 { "path": "pages/spending", "style": { "navigationBarTitleText": "%nav.spending%" } },

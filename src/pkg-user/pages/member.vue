@@ -107,6 +107,15 @@
           <text class="mbr-link__arrow">›</text>
         </view>
       </view>
+
+      <!-- 积分抽奖入口 -->
+      <view class="mbr-card mbr-link" @tap="goLottery">
+        <text class="mbr-link__label">{{ $t('member.lottery') }}</text>
+        <view class="mbr-link__right">
+          <text class="mbr-link__value">{{ $t('member.lotteryHint') }}</text>
+          <text class="mbr-link__arrow">›</text>
+        </view>
+      </view>
     </template>
   </view>
 </template>
@@ -262,6 +271,9 @@ function goPointsHistory() {
 }
 function goPointsMall() {
   uni.navigateTo({ url: '/pkg-user/pages/points-mall' });
+}
+function goLottery() {
+  uni.navigateTo({ url: '/pkg-user/pages/lottery' });
 }
 function goLogin() {
   auth.requireLogin();

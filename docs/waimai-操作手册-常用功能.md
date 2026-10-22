@@ -1559,3 +1559,79 @@
 - 电子小票为前端本地渲染（订单详情数据实时查询），不做服务端存档；复制内容为纯文本，不包含营销二维码；
 - 本轮为纯前端改动，复用线上已启用的余额/积分商城/发票插件，无需发布后端。
 
+## 94 限时秒杀
+
+入口：首页「限时秒杀」活动入口（快捷区下方四宫格）。
+
+- 按店铺渠道逐个拉取进行中的秒杀活动（`activeFlashSaleActivities`），并用 `products(filter.id)` 批量补商品名/图/原价；已结束场次过滤不展示；
+- 卡片展示店铺、商品名、秒杀价、划线原价、折扣角标、已抢进度条与「已抢 a/b」、结束倒计时（秒级刷新）；
+- 「立即抢」：未登录先跳登录；已登录先按店铺渠道加购变体，再调用 `applyFlashSale(activityId)` 应用秒杀价，成功后跳购物车结算；
+- 失败文案按后端 message 分流：售罄「已抢光」、达限购「已达限购数量」、变体下架「商品已下架」、其他统一「抢购失败」；
+- 售罄场次按钮置灰显示「已抢光」。
+
+截图：[102-flash-sale.png](screenshots/common-features-v19/102-flash-sale.png)
+
+## 95 拼团专区
+
+入口：首页「拼团专区」活动入口。
+
+- 双 Tab：「可参与拼团 / 我的拼团」；
+- 可参与：按店铺渠道拉取进行中的拼团（`activeGroupBuyActivities`）并补商品信息；卡片展示成团价、原价、成团人数、成团进度条与「已参团 a/b」、结束倒计时、团长优惠额；
+- 按钮语义：当前参团人数为 0 显示「我要开团」（isLeader=true），否则「参与拼团」（isLeader=false）；操作流程同为「加购 → `joinGroupBuy(activityId, orderId, isLeader)` → 跳购物车」；
+- 我的拼团：`myGroupBuyOrders(isLeader=true/false)` 合并去重，展示活动名、订单号、团长/团员身份、成团进度、状态（待成团 / 已成团 / 未成团）；
+- 失败文案：满员「该团已满员」、活动结束「活动已结束」、变体下架「商品已下架」。
+
+截图：[103-group-buy.png](screenshots/common-features-v19/103-group-buy.png)、[104-group-buy-mine.png](screenshots/common-features-v19/104-group-buy-mine.png)
+
+## 96 整点抢券
+
+入口：首页「整点抢券」活动入口；页面底部可跳「我的优惠券」。
+
+- 顶部展示场次名、副标题、规则、按场次起止计算的阶段倒计时（未开始 → 距开始 / 进行中 → 距结束 / 已结束）；
+- 券卡按券类型渲染：满减（¥4 满 20 可用）、折扣（8.5 折）、免配送费（免），并展示领取后有效天数与剩余张数；
+- 按钮状态四态：立即抢 / 已抢光（soldOut）/ 已抢（个人已达 `perUserLimit`）/ 未开始或已结束；
+- 抢券调用 `claimFlashCoupon(templateId)`，按返回 `status` 映射提示：OK / 未登录 / 未开始 / 已结束 / 达限 / 已抢光；
+- 活动未配置时展示空态并提供「查看我的优惠券」跳转。
+
+截图：[105-coupon-flash.png](screenshots/common-features-v19/105-coupon-flash.png)
+
+## 97 积分抽奖
+
+入口：首页「积分抽奖」活动入口；会员中心「积分抽奖」卡片。
+
+- 顶部展示当前积分；奖池按 `myLotteryPrizes` 渲染为三列网格（奖品图/名 + 按奖品模式展示单次积分消耗）；
+- 消耗说明按 `lotteryCostConfig.mode` 区分：fixed（每次固定消耗 n 积分，0 则显示免费）/ perPrize（按中奖奖品扣积分，未中奖不扣）；
+- 「立即抽奖」：未登录先跳登录；开奖期间奖格高亮滚动（≥0.9s），落点定位到后端返回 `prizeIndex` 并弹出中奖弹窗（奖品图/名 + 本次消耗），关闭后刷新积分与记录；
+- 失败文案：积分不足 / 奖池未配置 / 其他统一「抽奖失败」；
+- 我的中奖记录：每页 10 条，展示奖品名、时间、消耗积分，「查看更多」累加加载。
+
+截图：[106-lottery.png](screenshots/common-features-v19/106-lottery.png)、[107-lottery-result.png](screenshots/common-features-v19/107-lottery-result.png)、[108-member-lottery.png](screenshots/common-features-v19/108-member-lottery.png)
+
+## 98 验收记录与边界（第十九轮，2026-10-22）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，本地 serve 最新构建产物；秒杀/拼团/抢券/抽奖/会员数据为脚本注入的模拟 GraphQL 响应（查询与 mutation 文档已逐条对线上 schema 校验）。
+
+| 项目 | 结果 |
+|---|---|
+| 首页活动入口 | 「限时秒杀 / 拼团专区 / 整点抢券 / 积分抽奖」四宫格渲染，图标与文案不挤压（断言通过） |
+| 限时秒杀 | 三张卡片：¥12.90 秒杀价 + 原价 ¥26.00 + 省 50%、进度 62/100、倒计时；售罄卡按钮「已抢光」置灰（断言通过） |
+| 拼团专区 | 成团价 ¥19.90、3 人团、进度 2/3、团长优惠 ¥2.00、「参与拼团」；0 人团显示「我要开团」（断言通过） |
+| 我的拼团 | 团长/团员身份、订单号、待成团 / 已成团状态（断言通过） |
+| 整点抢券 | 三张券卡（满减/折扣/免配送费）、剩余张数、按钮「立即抢 / 已抢光 / 已抢」、场次倒计时（断言通过） |
+| 积分抽奖 | 积分 320、6 个奖品格、固定消耗 50 积分提示、中奖记录 3 条（断言通过） |
+| 中奖弹窗 | 「恭喜中奖 / 藤椒鸡腿饭 / 本次消耗 50 积分」、积分由 320 递减为 270（断言通过） |
+| 会员页入口 | 「积分抽奖 / 积分转盘抽好礼」卡片展示（断言通过） |
+| 接口核对 | 线上校验 `activeFlashSaleActivities`、`activeGroupBuyActivities`、`myGroupBuyOrders`、`couponFlashSaleActivity`、`myLotteryPrizes`、`lotteryCostConfig`、`myLotteryRecords`、`applyFlashSale`、`joinGroupBuy`、`claimFlashCoupon`、`drawLottery` 均为 200 且无 schema 错误 |
+| i18n | `flashSale`（18 条）、`groupBuy`（31 条）、`couponFlash`（19 条）、`lottery`（23 条）与 `home.act*`、`member.lottery*`、`nav.*` 中英双语同步 |
+| 构建/部署 | `pnpm build:h5` 通过（两次构建均成功），`deploy-waimai.mjs` 部署成功，线上 4 个新页面 chunk 均 200 |
+| 手机视口截图 | 390×844 dpr=2，共 8 张（101-108，存放 `docs/screenshots/common-features-v19/`） |
+
+边界与已知限制：
+- 秒杀/拼团活动严格按「店铺渠道」隔离：列表、加购、应用活动价/参团都必须带该店铺的 `vendure-token`，因此使用独立 GraphQL 客户端，不受当前站点默认渠道影响；
+- 秒杀下单是「加购 + applyFlashSale」两步，活动库存与限购由后端在下单/创建订单时最终校验，前端只做展示与按钮置灰；
+- 拼团以「当前参团人数为 0」判定开团（isLeader=true），成团失败自动退款由后端定时任务处理，前端不轮询；
+- 抢券按活动级 `perUserLimit` 判断「已抢」，券模板级限领仍以后端 `claimFlashCoupon` 返回为准；
+- 抽奖消耗与扣减全部由后端按 `lotteryCostConfig` 执行，前端仅按返回的奖品 `consume` 做展示与本地积分即时扣减；
+- 线上当前秒杀/拼团/抢券/抽奖数据均为空（后台未配置活动），页面为空态；截图使用模拟响应，后台配置活动后即真实展示；
+- 本轮为纯前端改动，复用线上已启用的秒杀/拼团/券/抽奖插件，无需发布后端。
+

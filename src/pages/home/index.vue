@@ -53,6 +53,25 @@
                     <text class="qtxt">江湖</text>
                 </view>
             </view>
+            <!-- 营销活动入口：秒杀 / 拼团 / 整点抢券 / 积分抽奖 -->
+            <view class="acts">
+                <view class="act" @tap="goFlashSale">
+                    <view class="act-ico act-ico--flash">⚡</view>
+                    <text class="act-txt">{{ $t('home.actFlash') }}</text>
+                </view>
+                <view class="act" @tap="goGroupBuy">
+                    <view class="act-ico act-ico--group">👥</view>
+                    <text class="act-txt">{{ $t('home.actGroup') }}</text>
+                </view>
+                <view class="act" @tap="goCouponFlash">
+                    <view class="act-ico act-ico--cf">🎟️</view>
+                    <text class="act-txt">{{ $t('home.actCouponFlash') }}</text>
+                </view>
+                <view class="act" @tap="goLottery">
+                    <view class="act-ico act-ico--lottery">🎰</view>
+                    <text class="act-txt">{{ $t('home.actLottery') }}</text>
+                </view>
+            </view>
             <!-- 时段推荐：按当前时间（早餐/午餐/下午茶/晚餐/夜宵）推荐应景店铺 -->
             <view v-if="!keyword && !showSearchPanel && mealPicks.length" class="recent meal">
                 <view class="sec">
@@ -756,6 +775,10 @@ function goRider() {
 }
 function goErrand() { uni.navigateTo({ url: '/pkg-campus/errand/create' }); }
 function goCouponCentre() { uni.navigateTo({ url: '/pkg-promotion/pages/coupon-centre' }); }
+function goFlashSale() { uni.navigateTo({ url: '/pkg-promotion/pages/flash-sale' }); }
+function goGroupBuy() { uni.navigateTo({ url: '/pkg-promotion/pages/group-buy' }); }
+function goCouponFlash() { uni.navigateTo({ url: '/pkg-promotion/pages/coupon-flash' }); }
+function goLottery() { uni.navigateTo({ url: '/pkg-user/pages/lottery' }); }
 function goMyCoupons() { uni.navigateTo({ url: '/pkg-promotion/pages/my-coupons' }); }
 function goJianghu() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-hall' }); }
 function goMessages() { uni.navigateTo({ url: '/pkg-user/pages/messages' }); }
@@ -870,6 +893,14 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .qico { position: relative; flex-shrink: 0; width: 76rpx; height: 76rpx; border-radius: 999rpx; background: var(--w-brand-soft); display: flex; align-items: center; justify-content: center; font-size: 38rpx; }
 .qtxt { max-width: 100%; font-size: 22rpx; color: var(--w-text); text-align: center; }
 .qk-badge { position: absolute; top: -8rpx; right: -12rpx; min-width: 32rpx; height: 32rpx; line-height: 32rpx; padding: 0 6rpx; border-radius: 16rpx; background: #ff4d4f; color: #fff; font-size: 20rpx; font-weight: 600; text-align: center; }
+.acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8rpx; margin-top: 16rpx; background: var(--w-surface); border-radius: $radius-card; padding: 22rpx 8rpx; }
+.act { display: flex; flex-direction: column; align-items: center; gap: 10rpx; }
+.act-ico { width: 76rpx; height: 76rpx; border-radius: 26rpx; display: flex; align-items: center; justify-content: center; font-size: 36rpx; color: #fff; }
+.act-ico--flash { background: linear-gradient(135deg, #ff4d2e, #ff8a3d); }
+.act-ico--group { background: linear-gradient(135deg, #7b4dff, #b06bff); }
+.act-ico--cf { background: linear-gradient(135deg, #ff8a00, #ff5f6d); }
+.act-ico--lottery { background: linear-gradient(135deg, #ffb300, #ff7a00); }
+.act-txt { font-size: 22rpx; color: var(--w-text); text-align: center; }
 .pills { white-space: nowrap; padding: 20rpx 0 4rpx; }
 .pill { display: inline-flex; align-items: center; gap: 6rpx; padding: 10rpx 24rpx; margin-right: 16rpx; border-radius: 999rpx; font-size: 24rpx; color: var(--w-text-muted); background: var(--w-surface); border: 1rpx solid var(--w-border); }
 .pill.on { background: $brand; border-color: $brand; color: #fff; }

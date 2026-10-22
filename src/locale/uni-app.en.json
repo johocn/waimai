@@ -47,6 +47,10 @@
         "nav.pointsMall": "Points Mall",
         "nav.pointsOrders": "My Redemptions",
         "nav.invoiceCenter": "Invoices",
+        "nav.lottery": "Points Lottery",
+        "nav.flashSale": "Flash Sale",
+        "nav.groupBuy": "Group Buy",
+        "nav.couponFlash": "Coupon Rush",
         "nav.receipt": "E-Receipt"
     }
 }

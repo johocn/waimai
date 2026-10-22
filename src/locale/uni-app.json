@@ -37,6 +37,10 @@
         "nav.pointsMall": "积分商城",
         "nav.pointsOrders": "我的兑换",
         "nav.invoiceCenter": "发票中心",
+        "nav.lottery": "积分抽奖",
+        "nav.flashSale": "限时秒杀",
+        "nav.groupBuy": "拼团专区",
+        "nav.couponFlash": "整点抢券",
         "nav.receipt": "电子小票"
     }
 }

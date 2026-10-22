@@ -7,6 +7,6 @@
 - [x] T5 i18n：zh-Hans.json / en.json 同步新增 10 个词条
 - [x] T6 前端构建 + Playwright 截图 74-77 + 断言 + 部署（.secrets/deploy-waimai.mjs）
 - [x] T7 后端插件构建 + deploy-pack 部署 + pm2 restart + 线上 phone 字段验证（受阻则降级并告知）
-- [ ] T8 手册 §73-76 + 验收表；waimai（排除 address-book.vue）/ vendure 分别提交推送；线上回归；清临时脚本；中文汇报
+- [x] T8 手册 §73-76 + 验收表；waimai（排除 address-book.vue）/ vendure 分别提交推送；线上回归；清临时脚本；中文汇报
 
 执行顺序：T1 → T2 → T3 → T4 → T5 → T6 → T7 → T8

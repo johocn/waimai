@@ -76,12 +76,13 @@
           <scroll-view scroll-x class="cart-recs__row">
             <view
               v-for="it in recState(g).items"
-              :key="'rec-' + it.v.id"
+              :key="'rec-' + it.p.id"
               class="rec-item"
-              @click.stop="addRec(g, it)"
+              @click.stop="onRecTap(g, it)"
             >
               <VImage :src="it.p.featuredAsset?.preview" width="112rpx" height="112rpx" class="rec-item__img" />
               <text class="rec-item__name">{{ it.p.name }}</text>
+              <text v-if="recVariantCount(g, it) > 1" class="rec-item__badge">{{ $t('cart.recSpecBadge') }}</text>
               <view class="rec-item__foot">
                 <text class="rec-item__price">¥{{ fen(it.price) }}</text>
                 <text class="rec-item__add" :class="{ busy: recBusy === g.token + ':' + it.v.id }">+</text>
@@ -118,6 +119,33 @@
             <view class="cart-btn cart-btn--primary" :class="{ disabled: !!closedText(g) || invalidCount(g) > 0 }" @click="goCheckout(g)">{{ closedText(g) ? $t('cart.closedBtn') : $t('cart.checkout') }}</view>
           </view>
         </view>
+      </view>
+    </view>
+
+    <!-- 凑单推荐规格弹层：多规格商品先选规格再加购 -->
+    <view class="rec-mask" v-if="recPick" @click="recPick = null">
+      <view class="rec-sheet" @click.stop>
+        <view class="rec-sheet__head">
+          <text class="rec-sheet__title">{{ recPick.item.p.name }}</text>
+          <text class="rec-sheet__close" @click="recPick = null">✕</text>
+        </view>
+        <text class="rec-sheet__hint">{{ recPick.hint }}</text>
+        <view class="rec-sheet__list">
+          <view
+            v-for="v in recPick.options"
+            :key="'rvo-' + v.id"
+            class="rec-opt"
+            :class="{ on: recPick.variantId === String(v.id) }"
+            @click="recPick.variantId = String(v.id)"
+          >
+            <text class="rec-opt__name">{{ variantLabel(v) }}</text>
+            <text class="rec-opt__stock">{{ $t('cart.recSpecStock').replace('{n}', String(v.stockLevel ?? '')) }}</text>
+            <text class="rec-opt__price">¥{{ fen(v.priceWithTax) }}</text>
+          </view>
+        </view>
+        <button class="rec-sheet__btn" :disabled="!!recBusy" @click="confirmRec">
+          {{ recBusy ? $t('cart.recSpecAdding') : $t('cart.recSpecConfirm') }}
+        </button>
       </view>
     </view>
   </view>
@@ -270,11 +298,28 @@ onShow(() => {
 onUnload(() => { void tenant.backToDefault(); });
 
 // ── 智能凑单推荐：按差额门槛（起送 > 满减下一档 > 免运费）推荐店内低价商品 ──
-interface RecState { items: any[]; hint: string }
+/** 推荐项按「商品」聚合：vars 为该商品全部可售规格（价格升序），v/price 为其中未加购的最低价规格 */
+interface RecItem { p: any; vars: any[]; v: any; price: number }
+interface RecState { items: RecItem[]; hint: string }
+interface RecPick { token: string; hint: string; item: RecItem; options: any[]; variantId: string }
 const recs = ref<Record<string, RecState>>({});
 const recBusy = ref('');
+const recPick = ref<RecPick | null>(null);
 function recState(g: CartGroup): RecState {
   return recs.value[g.token] || { items: [], hint: '' };
+}
+/** 该商品还有多少规格未在购物车中（>1 时先弹规格选择） */
+function recVariantCount(g: CartGroup, it: RecItem): number {
+  const inCart = new Set((g.order?.lines ?? []).map((l: any) => String(l?.productVariant?.id ?? '')));
+  return it.vars.filter((v: any) => !inCart.has(String(v.id))).length;
+}
+function variantLabel(v: any): string {
+  const opts = (v?.options ?? []).map((o: any) => o?.name).filter(Boolean);
+  return opts.length ? opts.join(' / ') : String(v?.name ?? '');
+}
+/** 判断规格可售：上架、有库存、价格有效 */
+function saleableVariant(v: any): boolean {
+  return v?.enabled !== false && Number(v?.stockLevel) > 0 && Number(v?.priceWithTax) > 0;
 }
 function recGap(g: CartGroup): { fen: number; kind: 'min' | 'tier' | 'ship'; tier?: any } | null {
   const minFen = gapFen(g);
@@ -303,12 +348,14 @@ async function loadRecs() {
       const inCart = new Set((g.order?.lines ?? []).map((l: any) => String(l?.productVariant?.id ?? '')));
       const items = products
         .map((p: any) => {
-          const vs = (p.variants ?? []).filter((v: any) => v.enabled !== false && Number(v.stockLevel) > 0 && Number(v.priceWithTax) > 0);
-          if (!vs.length) return null;
-          const v = vs.reduce((a: any, b: any) => (Number(b.priceWithTax) < Number(a.priceWithTax) ? b : a));
-          return { p, v, price: Number(v.priceWithTax) || 0 };
+          const vars = (p.variants ?? [])
+            .filter(saleableVariant)
+            .sort((a: any, b: any) => Number(a.priceWithTax) - Number(b.priceWithTax));
+          const avail = vars.filter((v: any) => !inCart.has(String(v.id)));
+          if (!avail.length) return null;
+          return { p, vars, v: avail[0], price: Number(avail[0].priceWithTax) || 0 } as RecItem;
         })
-        .filter((it: any) => it && !inCart.has(String(it.v.id)))
+        .filter((it: any) => it)
         .sort((a: any, b: any) => a.price - b.price)
         .slice(0, 6);
       return [g.token, { items, hint: recHint(g, gap) }] as const;
@@ -318,32 +365,65 @@ async function loadRecs() {
   }));
   recs.value = Object.fromEntries(entries);
 }
-/** 加购成功后同步推荐：剔除已在购物车商品，门槛已达成则清空 */
+/** 加购成功后同步推荐：剔除已加购规格并重算该商品最低价，门槛已达成则清空 */
 function refreshRecs(g: CartGroup) {
   const st = recs.value[g.token];
   if (!st) return;
   const gap = recGap(g);
   const inCart = new Set((g.order?.lines ?? []).map((l: any) => String(l?.productVariant?.id ?? '')));
+  const items = st.items
+    .map((it: RecItem) => {
+      const avail = it.vars.filter((v: any) => !inCart.has(String(v.id)));
+      if (!avail.length) return null;
+      return { ...it, v: avail[0], price: Number(avail[0].priceWithTax) || 0 };
+    })
+    .filter((it): it is RecItem => !!it)
+    .sort((a, b) => a.price - b.price);
   recs.value = {
     ...recs.value,
-    [g.token]: gap
-      ? { items: st.items.filter((it: any) => !inCart.has(String(it.v.id))), hint: recHint(g, gap) }
-      : { items: [], hint: '' },
+    [g.token]: gap ? { items, hint: recHint(g, gap) } : { items: [], hint: '' },
   };
 }
-async function addRec(g: CartGroup, it: any) {
+function groupOf(token: string): CartGroup | undefined {
+  return groups.value.find((x) => x.token === token);
+}
+/** 点击推荐项：仅 1 个可选规格直接加购，多规格先弹规格选择 */
+function onRecTap(g: CartGroup, it: RecItem) {
   if (recBusy.value) return;
-  const key = `${g.token}:${it.v.id}`;
-  recBusy.value = key;
+  const inCart = new Set((g.order?.lines ?? []).map((l: any) => String(l?.productVariant?.id ?? '')));
+  const options = it.vars.filter((v: any) => !inCart.has(String(v.id)));
+  if (!options.length) { refreshRecs(g); return; }
+  if (options.length === 1) { void addRec(g.token, String(options[0].id)); return; }
+  recPick.value = {
+    token: g.token,
+    hint: recState(g).hint,
+    item: it,
+    options,
+    variantId: String(options[0].id),
+  };
+}
+async function confirmRec() {
+  const pick = recPick.value;
+  if (!pick || recBusy.value) return;
+  const ok = await addRec(pick.token, pick.variantId);
+  if (ok) recPick.value = null;
+}
+async function addRec(token: string, variantId: string): Promise<boolean> {
+  if (recBusy.value) return false;
+  const g = groupOf(token);
+  if (!g || !variantId) return false;
+  recBusy.value = `${token}:${variantId}`;
   try {
-    const res: any = await addItemToOrderInChannel(g.token, it.v.id, 1);
+    const res: any = await addItemToOrderInChannel(token, variantId, 1);
     const order = res?.addItemToOrder;
     if (!order?.id) throw new Error(order?.message || '');
     applyOrder(g, order);
     refreshRecs(g);
     uni.showToast({ title: locale.t('cart.recAdded'), icon: 'none' });
+    return true;
   } catch (e: any) {
     uni.showToast({ title: e?.message || locale.t('cart.recAddFail'), icon: 'none' });
+    return false;
   } finally {
     recBusy.value = '';
   }
@@ -684,10 +764,35 @@ function goHome() {
 .rec-item { display: inline-flex; flex-direction: column; width: 150rpx; margin-right: 14rpx; vertical-align: top;
   &__img { border-radius: $radius-sm; }
   &__name { display: block; margin-top: 6rpx; font-size: 20rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__badge { align-self: flex-start; margin-top: 3rpx; padding: 0 6rpx; font-size: 17rpx; line-height: 26rpx;
+    color: $brand-color; border: 1rpx solid $brand-color; border-radius: 4rpx; }
   &__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4rpx; }
   &__price { font-size: 21rpx; font-weight: 600; color: $price-color; }
   &__add { width: 34rpx; height: 34rpx; line-height: 32rpx; text-align: center; font-size: 24rpx; color: #fff;
     background: $brand-color; border-radius: 50%; &.busy { opacity: .5; } }
+}
+/* 凑单规格弹层 */
+.rec-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 900; background: rgba(0, 0, 0, .45);
+  display: flex; align-items: flex-end; }
+.rec-sheet { width: 100%; background: $surface; border-radius: 24rpx 24rpx 0 0;
+  padding: 28rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
+  &__head { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+  &__title { flex: 1; font-size: 30rpx; font-weight: 600; color: $text-color; }
+  &__close { font-size: 28rpx; color: $text-color-placeholder; padding: 4rpx 8rpx; }
+  &__hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: $brand-color; }
+  &__list { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 18rpx; max-height: 46vh; overflow-y: auto; }
+  &__btn { margin-top: 24rpx; height: 84rpx; line-height: 84rpx; border-radius: 42rpx; background: $brand-color;
+    color: #fff; font-size: 28rpx; font-weight: 600; border: none;
+    &::after { border: none; }
+    &[disabled] { opacity: .6; }
+  }
+}
+.rec-opt { display: flex; flex-direction: column; gap: 4rpx; min-width: 30%; padding: 12rpx 18rpx;
+  border: 1rpx solid $border-color; border-radius: $radius-md; background: $bg-color;
+  &__name { font-size: 24rpx; color: $text-color; }
+  &__stock { font-size: 18rpx; color: $text-color-placeholder; }
+  &__price { font-size: 24rpx; font-weight: 600; color: $price-color; }
+  &.on { border-color: $brand-color; background: $brand-color-light; }
 }
 .cart-addons { margin-top: 14rpx; padding-top: 14rpx; border-top: 1rpx dashed $border-color;
   &__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }

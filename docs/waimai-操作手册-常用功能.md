@@ -2158,11 +2158,12 @@
 使用方式：
 1. 购物车按店铺分组，每个店铺卡片在「起送/免配送费进度」下方出现「凑单推荐」区块，右上角显示当前差额提示；
 2. 差额优先级：**起送价差额 > 下一档满减差额 > 免配送费差额**，三者都满足则不展示推荐；
-3. 推荐商品取该店在售商品的最低可售 SKU（`enabled !== false`、库存 > 0、价格 > 0），剔除已在购物车中的商品，按价格升序最多 6 个；
-4. 点击商品卡右下角「+」即跨渠道加购（固定 `vendure-token` 指向该店铺），成功后本地剔除该商品、重算差额（提示从「再买 ¥10.00 即可起送」变为「再买 ¥3.00 即可起送」），达门槛后区块自动消失；
-5. 商品目录按「店铺集合签名」缓存，同一组店铺只拉取一次，加购后不重复请求。
+3. 推荐按**商品**聚合：卡片展示该商品「未加购规格中的最低价」，并按该价升序最多 6 个商品；
+4. 商品有多个可售规格时卡片带「多规格」标识，点击弹出规格选择弹层（规格名/库存/价格，默认选中最低价规格），确认后加购所选规格；仅剩 1 个可售规格时点击直接加购；
+5. 加购成功后本地剔除该规格并重算：若该商品还有其他未加购规格，卡片价格切换为剩余最低价规格；全部规格已加购则卡片消失；同时刷新差额提示（如「再买 ¥10.00 即可起送」→「再买 ¥1.00 即可起送」），达门槛后区块自动消失；
+6. 商品目录按「店铺集合签名」缓存，同一组店铺只拉取一次，加购后不重复请求。
 
-截图：[171-cart-recs-hint.png](screenshots/common-features-v26/171-cart-recs-hint.png)、[172-cart-recs-added.png](screenshots/common-features-v26/172-cart-recs-added.png)
+截图：[171-cart-recs-hint.png](screenshots/common-features-v26/171-cart-recs-hint.png)、[172-cart-recs-added.png](screenshots/common-features-v26/172-cart-recs-added.png)、[182-rec-multi-variant-badge.png](screenshots/common-features-v26/182-rec-multi-variant-badge.png)、[183-rec-variant-sheet.png](screenshots/common-features-v26/183-rec-variant-sheet.png)、[184-rec-variant-added.png](screenshots/common-features-v26/184-rec-variant-added.png)
 
 ## 129 常用备注与配送偏好
 
@@ -2229,9 +2230,26 @@
 | 手机视口截图 | 390×844 dpr=2，共 11 张（171-181，存放 `docs/screenshots/common-features-v26/`） |
 
 边界与已知限制：
-- 凑单推荐取每个商品的**最低价 SKU**，多规格商品不展开规格选择；点击即按该 SKU 加购 1 件，需要选规格请进店下单；
+- 凑单推荐按商品聚合、多规格可展开选择（见 §128）；加购数量固定 1 件，需加量请在购物车行内用「＋」；
 - 推荐以「差额最小化」为目标，不做口味/搭配类个性化排序；商品目录按店铺集合缓存，店内改价/下架后需刷新购物车才会更新；
 - 配送偏好仅保存在本机 `localStorage`，换设备/清缓存后失效；提交时以备注首段并入 `customFields.note`，若用户当次留言过长（>200）会截断尾部；
 - 取餐凭证分享链接中的取餐码可被转发，**仅凭该链接即可展示码**，依赖店员核销时校验订单状态；核销后状态转为已取餐，凭证自动失效；
 - 开票入口以 `invoiceApplied` 判重，同一订单申请后不再展示「开发票」；发票抬头管理、PDF 下载复用既有 invoice 插件能力；
 - 本轮为纯前端改动，复用线上已启用的 pickup-plugin / invoice-plugin 及 Order customFields（`note`、`invoiceApplied`、`invoiceInfo`），无需发布后端与新增字段。
+
+## 133 补丁验收：凑单推荐支持多规格选择（2026-10-23）
+
+改动：`src/pkg-order/pages/cart.vue`（推荐项按商品聚合并保留全部可售规格；新增规格弹层 `.rec-sheet`）、`src/locale/zh-Hans.json` / `en.json`（`cart.recSpecBadge` / `recSpecStock` / `recSpecConfirm` / `recSpecAdding`）。
+
+验收方式：Playwright 390×844 dpr=2，测试账号登录；购物车/商品/加购响应由脚本注入（多规格商品「珍珠鲜奶茶」中杯 ¥7、大杯 ¥9、超大杯 ¥12），加购请求体被完整捕获核对。
+
+| 断言项 | 结果 |
+|---|---|
+| 多规格标识 | 仅「珍珠鲜奶茶」卡片显示「多规格」，单规格「冰镇酸梅汤」不显示（通过） |
+| 卡片取价 | 多规格卡片展示未加购规格中最低价 ¥7.00（中杯），列表按价升序（通过） |
+| 规格弹层 | 点击后弹层标题「珍珠鲜奶茶」、差额提示「再买 ¥10.00 即可起送」、三行规格「中杯 库存 40 ¥7.00 / 大杯 库存 21 ¥9.00 / 超大杯 库存 8 ¥12.00」，默认选中中杯（通过） |
+| 所选规格加购 | 选「大杯」确认后请求体 `{"productVariantId":"v-tea-m","quantity":1}`，购物车新增「珍珠鲜奶茶 大杯 ¥9.00」（通过） |
+| 加购后重算 | 弹层自动关闭；该商品仍可选（剩余中杯/超大杯），卡片价仍为剩余最低 ¥7.00；差额提示更新为「再买 ¥1.00 即可起送」（通过） |
+| 对称场景 | 单规格商品点击不弹层、直接加购；全部规格加入后卡片消失（逻辑与首轮断言一致） |
+| 构建/部署 | `pnpm build:h5` 通过并已部署；线上购物车页回归无报错 |
+| 手机视口截图 | [182-rec-multi-variant-badge.png](screenshots/common-features-v26/182-rec-multi-variant-badge.png)、[183-rec-variant-sheet.png](screenshots/common-features-v26/183-rec-variant-sheet.png)、[184-rec-variant-added.png](screenshots/common-features-v26/184-rec-variant-added.png) |

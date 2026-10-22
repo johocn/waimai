@@ -1591,7 +1591,11 @@
     "recHintTier": "再买 ¥{d} 可享满 ¥{t} 减",
     "recHintShip": "再买 ¥{d} 可免配送费",
     "recAdded": "已加入购物车",
-    "recAddFail": "加购失败，请重试"
+    "recAddFail": "加购失败，请重试",
+    "recSpecBadge": "多规格",
+    "recSpecStock": "库存 {n}",
+    "recSpecConfirm": "加入购物车",
+    "recSpecAdding": "加购中…"
   },
   "favorites": {
     "stores": "收藏店铺",

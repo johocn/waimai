@@ -1591,7 +1591,11 @@
     "recHintTier": "Add ¥{d} more for the ¥{t} tier discount",
     "recHintShip": "Add ¥{d} more for free delivery",
     "recAdded": "Added to cart",
-    "recAddFail": "Failed to add, please retry"
+    "recAddFail": "Failed to add, please retry",
+    "recSpecBadge": "Options",
+    "recSpecStock": "{n} left",
+    "recSpecConfirm": "Add to cart",
+    "recSpecAdding": "Adding…"
   },
   "favorites": {
     "stores": "Favorite shops",

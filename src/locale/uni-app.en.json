@@ -61,6 +61,9 @@
         "nav.paymentSchedule": "Balance Schedule",
         "nav.live": "Store Live",
         "nav.liveRoom": "Live Room",
-        "nav.billPay": "Bill Pay"
+        "nav.billPay": "Bill Pay",
+        "nav.checkin": "Daily Check-in",
+        "nav.vouchers": "Pickup Vouchers",
+        "nav.subscriptions": "My Subscriptions"
     }
 }

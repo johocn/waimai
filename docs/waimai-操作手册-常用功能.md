@@ -1893,3 +1893,83 @@
 - 线上当前支付计划、直播间、代买单均可能为空（后台未配置/未开播），页面为空态；截图使用模拟响应，后台配置后即真实展示；
 - 本轮为纯前端改动，复用线上已启用的 payment-schedule / live-streaming / bill-pay 插件，无需发布后端。
 
+## 114 每日签到
+
+入口：我的 → 每日签到。
+
+- 顶部展示当前连签天数（`checkinToday.streak`）；7 天为一循环，已完成的格子高亮，第 7 天为礼包图标；下方展示已完成轮数（`streak ÷ 7` 取整）；
+- 「立即签到」仅在 `canCheckin=true` 时可点，调用 `checkin` mutation；成功后弹窗展示本次获得的积分、成长值与当前连签天数（`checkin.okBody` 替换 `{p}/{g}/{s}`），并把按钮置为「今日已签到」；
+- 失败分流：`already` → 「今日已签到」；其他 → 「签到失败，请稍后重试」+ 重新拉取状态；
+- 每日任务读取 `myTasks`：任务码映射文案（`daily_share` 分享店铺 / `daily_login` 每日登录 / `daily_profile` 完善个人资料 / `bind_phone` 绑定手机号），每行展示「+积分 · +成长值」；
+- 任务状态：`claimed` 显示「已领取」（绿色）、`not_met` 显示「未达成」、`available` 显示「领取」按钮；点击调用 `claimTask(taskCode)`，成功后 toast 本次积分并刷新列表；
+- 未登录展示登录引导（`auth.requireLogin()`）。
+
+截图：[139-checkin-not-signed.png](screenshots/common-features-v23/139-checkin-not-signed.png)、[140-checkin-reward-modal.png](screenshots/common-features-v23/140-checkin-reward-modal.png)、[141-checkin-task-claim.png](screenshots/common-features-v23/141-checkin-task-claim.png)
+
+## 115 提货券
+
+入口：我的 → 提货券。
+
+- 四个 Tab：可使用（含 `active`）/ 已使用（`used`）/ 已过期（`expired`）/ 已退款（`refunded` + `voided`）；「可使用」Tab 带数量角标；
+- 券卡展示：商品名（`productVoucherName`）、券码（等宽字体，点击 `uni.setClipboardData` 复制并提示「券码已复制」）、有效期文案：
+  - 已使用 → 「使用于 {t}」（`usedAt`）；
+  - 已退款/作废 → 「退款于 {t}」（`refundedAt`）；
+  - 有固定到期日 → 「有效期至 {t}」（`expiresAt`）；
+  - 否则 → 「自购买起 {n} 天有效」（`effectiveDays`）；
+- 状态徽标：可使用 / 已使用 / 已过期 / 已退款 / 已作废；非可用 Tab 的卡片左侧色条转灰、整体降透明度；
+- 可使用券右侧提示「到店出示券码」；底部说明核销规则；
+- 未登录展示登录引导；各 Tab 空态独立文案。
+
+截图：[142-vouchers-active.png](screenshots/common-features-v23/142-vouchers-active.png)、[143-vouchers-used.png](screenshots/common-features-v23/143-vouchers-used.png)、[144-vouchers-expired.png](screenshots/common-features-v23/144-vouchers-expired.png)、[145-vouchers-refunded.png](screenshots/common-features-v23/145-vouchers-refunded.png)
+
+## 116 周期购订阅
+
+入口：我的 → 我的订阅。
+
+### 116.1 我的订阅
+
+- 读取 `mySubscriptions`：订阅号（`code`）、状态徽标（订阅中 / 待续订 / 已结束 / 已取消）、下期配送日、总期数（`scheduleJson.length`）、预存余额（分转元）、周期区间（起始日 ~ 结束日）；
+- 「查看期次」展开时调用 `mySubscriptionOccurrences(subscriptionId)`：期次号、排期日期、状态（待生成 / 已跳过 / 已生成订单 / 已取消）；再次点击收起；
+- `renewalPending` 状态展示「续订支付」按钮，调用 `confirmRenewal(id)`，成功 toast「续订成功」并刷新列表；
+- 未登录展示登录引导。
+
+### 116.2 订阅套餐
+
+- 读取 `availablePlans`（过滤 `enabled === false`）：套餐名、每期价格（分转元 + 「/期」）、描述、总期数、合计金额（`periods × periodPrice`）、「立即订阅」；
+- 开通弹层：展示套餐名、期数与合计，`picker mode="date"` 选择起始日期（最早为明天），提示「开通即一次性支付全部期次金额」；
+- 确认调用 `createSubscription(planId, input.startDate)`，起始日期按本地零点转 ISO（`new Date('YYYY-MM-DDT00:00:00').toISOString()`）提交，成功后 toast「订阅开通成功」并刷新订阅列表；
+- 失败透传后端错误信息，兜底「开通失败，请稍后重试」。
+
+截图：[146-subscriptions.png](screenshots/common-features-v23/146-subscriptions.png)、[147-subscriptions-periods.png](screenshots/common-features-v23/147-subscriptions-periods.png)、[148-subscriptions-sheet.png](screenshots/common-features-v23/148-subscriptions-sheet.png)
+
+## 117 验收记录与边界（第二十三轮，2026-10-22）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，本地 serve 最新构建产物（`pnpm build:h5` 产物经临时静态服务挂 `/waimai` 前缀）；签到 / 提货券 / 订阅数据为脚本注入的模拟 GraphQL 响应（查询与 mutation 文档已对线上 schema 校验通过）。交互回归断言 33 条，全部通过。
+
+| 项目 | 结果 |
+|---|---|
+| 签到页渲染 | 标题、副标题、连签天数 3、7 天格子（前 3 天高亮、第 7 天礼包）（断言通过） |
+| 签到按钮 | `canCheckin=true` 时显示「立即签到」（断言通过） |
+| 任务列表 | 4 条任务（分享店铺 / 每日登录 / 完善个人资料 / 绑定手机号），已领取与未达成状态正确（断言通过） |
+| 签到提交 | 点击后调用 `checkin`，弹窗展示积分/成长值/连签天数，重新进入显示「今日已签到」（断言通过） |
+| 任务领取 | 点击「领取」调用 `claimTask`，可领取按钮数量由 2 减为 1（断言通过） |
+| 提货券 Tab | 可使用 / 已使用 / 已过期 / 已退款 四 Tab 可切换（断言通过） |
+| 提货券渲染 | 商品名、券码、到店提示；已使用显示核销时间；作废券归入已退款 Tab（断言通过） |
+| 订阅列表 | 2 条订阅（订阅中 / 待续订）、下期配送、总期数、预存余额 ¥207.00、周期区间（断言通过） |
+| 订阅期次 | 展开 4 期，状态「已生成订单 / 已跳过 / 待生成」正确（断言通过） |
+| 订阅套餐 | 2 个套餐、每期价格与合计金额（¥207.00 / ¥312.00）（断言通过） |
+| 开通弹层 | 起始日期默认明天，确认调用 `createSubscription`（断言通过） |
+| 我的菜单入口 | 每日签到 / 提货券 / 我的订阅 三项可见，点击可跳转提货券页（断言通过） |
+| 接口核对 | `checkinToday`、`myTasks`、`checkin`、`claimTask`、`myVouchers`、`availablePlans`、`mySubscriptions`、`mySubscriptionOccurrences`、`createSubscription`、`confirmRenewal` 均无 schema 错误 |
+| i18n | 新增 `checkin`（38 条）、`voucher`（26 条）、`subscription`（47 条），`profile.*` 3 条，`nav.*` 3 条，中英双语同步 |
+| 构建/部署 | `pnpm build:h5` 通过，`deploy-waimai.mjs` 部署成功，线上新增页面 chunk 均 200 |
+| 手机视口截图 | 390×844 dpr=2，共 11 张（139-149，存放 `docs/screenshots/common-features-v23/`） |
+
+边界与已知限制：
+- 拼团（外卖拼单）为既有能力：`pkg-promotion/pages/group-buy.vue` 已完整接入跨店聚合、开团/参团、我的拼团，本轮未重复开发，本次仅补齐签到 / 提货券 / 周期购三项；
+- 签到与任务奖励直接进入会员积分 / 成长值，具体数值由 checkin-plugin 后台配置；断签后连签天数由后端重置，前端仅按返回值展示；
+- 提货券由服务类订单支付成功后自动发放，C 端只读；核销需商家后台扫码，本轮未开放用户自助核销/转让；
+- 周期购为买断制：开通即一次性支付全部期次金额（预存余额抵扣），期次由后端按频次展开并逐期生成订单；跳过/暂停/退款未在本轮开放（需商家后台操作，文案已提示联系客服）；
+- 多店铺/多租户：三个页面均使用 `getGraphQLClient()`（随当前租户闸门与渠道），订阅套餐与提货券按渠道可见；模拟数据仅用于截图，线上以后端返回为准；
+- 本轮为纯前端改动，复用线上已启用的 checkin-plugin / voucher-plugin / subscription-plugin，无需发布后端。
+

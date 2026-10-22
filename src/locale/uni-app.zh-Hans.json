@@ -61,6 +61,9 @@
         "nav.paymentSchedule": "尾款账单",
         "nav.live": "店铺直播",
         "nav.liveRoom": "直播间",
-        "nav.billPay": "账单代付"
+        "nav.billPay": "账单代付",
+        "nav.checkin": "每日签到",
+        "nav.vouchers": "提货券",
+        "nav.subscriptions": "我的订阅"
     }
 }

@@ -39,6 +39,9 @@
         "nav.afterSales": "After-sales",
         "nav.help": "Help & Support",
         "nav.history": "History",
-        "nav.spending": "Spending"
+        "nav.spending": "Spending",
+        "nav.member": "Membership",
+        "nav.pointsHistory": "Points History",
+        "nav.feedback": "Feedback"
     }
 }

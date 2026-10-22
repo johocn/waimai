@@ -44,6 +44,7 @@
     </view>
 
     <view class="profile-page__menu">
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/member')"><text>{{ $t('profile.member') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/messages')">
         <view class="menu-item__lbl">
           <text>{{ $t('profile.messages') }}</text>
@@ -65,6 +66,7 @@
       </view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-campus/pages/errand/list')"><text>{{ $t('profile.myErrands') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="nav('/pkg-user/pages/help')"><text>{{ $t('profile.help') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" @click="nav('/pkg-user/pages/feedback')"><text>{{ $t('profile.feedback') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="nav('/pkg-user/pages/about')"><text>{{ $t('profile.about') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="switchLang"><text>{{ $t('profile.language') }}</text><text class="menu-value">{{ langName }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="goRiderCenter"><text>{{ $t('profile.becomeRider') }}</text><text class="menu-arrow">></text></view>

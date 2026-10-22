@@ -54,6 +54,9 @@
                 { "path": "pages/favorites", "style": { "navigationBarTitleText": "%nav.favorites%" } },
                 { "path": "pages/history", "style": { "navigationBarTitleText": "%nav.history%" } },
                 { "path": "pages/spending", "style": { "navigationBarTitleText": "%nav.spending%" } },
+                { "path": "pages/member", "style": { "navigationBarTitleText": "%nav.member%" } },
+                { "path": "pages/points-history", "style": { "navigationBarTitleText": "%nav.pointsHistory%" } },
+                { "path": "pages/feedback", "style": { "navigationBarTitleText": "%nav.feedback%" } },
                 { "path": "pages/help", "style": { "navigationBarTitleText": "%nav.help%" } }
             ]
         },

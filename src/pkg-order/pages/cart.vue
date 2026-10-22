@@ -67,6 +67,29 @@
           <text class="cart-progress__txt" :class="{ ok: progress(g).ok }">{{ progress(g).text }}</text>
         </view>
 
+        <!-- 智能凑单推荐：未达起送/满减/免运费门槛时，推荐店内低价商品一键加购 -->
+        <view class="cart-recs" v-if="recState(g).items.length">
+          <view class="cart-recs__head">
+            <text class="cart-recs__title">{{ $t('cart.recTitle') }}</text>
+            <text class="cart-recs__hint">{{ recState(g).hint }}</text>
+          </view>
+          <scroll-view scroll-x class="cart-recs__row">
+            <view
+              v-for="it in recState(g).items"
+              :key="'rec-' + it.v.id"
+              class="rec-item"
+              @click.stop="addRec(g, it)"
+            >
+              <VImage :src="it.p.featuredAsset?.preview" width="112rpx" height="112rpx" class="rec-item__img" />
+              <text class="rec-item__name">{{ it.p.name }}</text>
+              <view class="rec-item__foot">
+                <text class="rec-item__price">¥{{ fen(it.price) }}</text>
+                <text class="rec-item__add" :class="{ busy: recBusy === g.token + ':' + it.v.id }">+</text>
+              </view>
+            </view>
+          </scroll-view>
+        </view>
+
         <!-- 加价购好券：券费随单支付，挂到本店 activeOrder 上 -->
         <view class="cart-addons" v-if="addonTemplates(g).length">
           <view class="cart-addons__head">
@@ -103,9 +126,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow, onUnload } from '@dcloudio/uni-app';
-import { fetchStoreList } from '../../api/queries/waimai';
+import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { getActiveOrderForChannel } from '../../api/queries/order';
-import { adjustOrderLineForChannel, removeAllOrderLinesForChannel, removeOrderLineForChannel } from '../../api/mutations/cart';
+import { adjustOrderLineForChannel, removeAllOrderLinesForChannel, removeOrderLineForChannel, addItemToOrderInChannel } from '../../api/mutations/cart';
 import {
   getCouponSaleCatalogueInChannel,
   getMyCouponSaleOrdersInChannel,
@@ -143,6 +166,8 @@ interface CartGroup {
 
 const groups = ref<CartGroup[]>([]);
 const loading = ref(false);
+/** 推荐加载去重键：店铺集合变化才重新拉商品（避免每次加购都请求商品目录） */
+let lastRecToken = '';
 /** 上次打开购物车时的单价快照（token:variantId → 分），仅用于变价提示 */
 const prevPrices = ref<PriceMap>({});
 
@@ -244,6 +269,86 @@ onShow(() => {
 });
 onUnload(() => { void tenant.backToDefault(); });
 
+// ── 智能凑单推荐：按差额门槛（起送 > 满减下一档 > 免运费）推荐店内低价商品 ──
+interface RecState { items: any[]; hint: string }
+const recs = ref<Record<string, RecState>>({});
+const recBusy = ref('');
+function recState(g: CartGroup): RecState {
+  return recs.value[g.token] || { items: [], hint: '' };
+}
+function recGap(g: CartGroup): { fen: number; kind: 'min' | 'tier' | 'ship'; tier?: any } | null {
+  const minFen = gapFen(g);
+  if (minFen > 0) return { fen: minFen, kind: 'min' };
+  const next = tiersOf(g).find((t: any) => t.next && Number(t.gapFen) > 0);
+  if (next) return { fen: Number(next.gapFen), kind: 'tier', tier: next };
+  const free = Number(g.freeShipping);
+  if (Number.isFinite(free) && free > 0) {
+    const d = Math.max(0, Math.round(free) - Number(g.order?.subTotalWithTax || 0));
+    if (d > 0) return { fen: d, kind: 'ship' };
+  }
+  return null;
+}
+function recHint(g: CartGroup, gap: { fen: number; kind: string; tier?: any }): string {
+  if (gap.kind === 'min') return locale.t('cart.recHintMin').replace('{d}', yuan(gap.fen));
+  if (gap.kind === 'tier') return locale.t('cart.recHintTier').replace('{t}', tierYuan(gap.tier.thresholdFen)).replace('{d}', yuan(gap.fen));
+  return locale.t('cart.recHintShip').replace('{d}', yuan(gap.fen));
+}
+async function loadRecs() {
+  if (!groups.value.length) { recs.value = {}; return; }
+  const entries = await Promise.all(groups.value.map(async (g) => {
+    const gap = recGap(g);
+    if (!gap) return [g.token, { items: [], hint: '' }] as const;
+    try {
+      const products = await fetchProductListForChannel(g.token);
+      const inCart = new Set((g.order?.lines ?? []).map((l: any) => String(l?.productVariant?.id ?? '')));
+      const items = products
+        .map((p: any) => {
+          const vs = (p.variants ?? []).filter((v: any) => v.enabled !== false && Number(v.stockLevel) > 0 && Number(v.priceWithTax) > 0);
+          if (!vs.length) return null;
+          const v = vs.reduce((a: any, b: any) => (Number(b.priceWithTax) < Number(a.priceWithTax) ? b : a));
+          return { p, v, price: Number(v.priceWithTax) || 0 };
+        })
+        .filter((it: any) => it && !inCart.has(String(it.v.id)))
+        .sort((a: any, b: any) => a.price - b.price)
+        .slice(0, 6);
+      return [g.token, { items, hint: recHint(g, gap) }] as const;
+    } catch {
+      return [g.token, { items: [], hint: '' }] as const;
+    }
+  }));
+  recs.value = Object.fromEntries(entries);
+}
+/** 加购成功后同步推荐：剔除已在购物车商品，门槛已达成则清空 */
+function refreshRecs(g: CartGroup) {
+  const st = recs.value[g.token];
+  if (!st) return;
+  const gap = recGap(g);
+  const inCart = new Set((g.order?.lines ?? []).map((l: any) => String(l?.productVariant?.id ?? '')));
+  recs.value = {
+    ...recs.value,
+    [g.token]: gap
+      ? { items: st.items.filter((it: any) => !inCart.has(String(it.v.id))), hint: recHint(g, gap) }
+      : { items: [], hint: '' },
+  };
+}
+async function addRec(g: CartGroup, it: any) {
+  if (recBusy.value) return;
+  const key = `${g.token}:${it.v.id}`;
+  recBusy.value = key;
+  try {
+    const res: any = await addItemToOrderInChannel(g.token, it.v.id, 1);
+    const order = res?.addItemToOrder;
+    if (!order?.id) throw new Error(order?.message || '');
+    applyOrder(g, order);
+    refreshRecs(g);
+    uni.showToast({ title: locale.t('cart.recAdded'), icon: 'none' });
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || locale.t('cart.recAddFail'), icon: 'none' });
+  } finally {
+    recBusy.value = '';
+  }
+}
+
 async function load() {
   if (!authStore.isLoggedIn && !getSessionToken()) {
     groups.value = [];
@@ -290,6 +395,11 @@ async function load() {
     loading.value = false;
   }
   void loadAddons();
+  const recToken = groups.value.map((g) => g.token).join('|');
+  if (recToken !== lastRecToken) {
+    lastRecToken = recToken;
+    void loadRecs();
+  }
 }
 
 function fen(v: any): string {
@@ -564,7 +674,21 @@ function goHome() {
   &.hit { border-color: $brand-color; background: $brand-color-light; color: $brand-color; }
   &.next { border-style: dashed; border-color: #ffb27a; color: #b45309; }
 }
-/* 加价购好券 */
+/* 智能凑单推荐 */
+.cart-recs { margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx dashed $border-color;
+  &__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
+  &__title { font-size: 23rpx; font-weight: 600; color: $text-color; }
+  &__hint { font-size: 19rpx; color: $brand-color; }
+  &__row { white-space: nowrap; margin-top: 12rpx; }
+}
+.rec-item { display: inline-flex; flex-direction: column; width: 150rpx; margin-right: 14rpx; vertical-align: top;
+  &__img { border-radius: $radius-sm; }
+  &__name { display: block; margin-top: 6rpx; font-size: 20rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4rpx; }
+  &__price { font-size: 21rpx; font-weight: 600; color: $price-color; }
+  &__add { width: 34rpx; height: 34rpx; line-height: 32rpx; text-align: center; font-size: 24rpx; color: #fff;
+    background: $brand-color; border-radius: 50%; &.busy { opacity: .5; } }
+}
 .cart-addons { margin-top: 14rpx; padding-top: 14rpx; border-top: 1rpx dashed $border-color;
   &__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
   &__title { font-size: 22rpx; font-weight: 600; color: #b45309; }

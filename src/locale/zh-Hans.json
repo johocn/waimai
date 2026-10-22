@@ -359,6 +359,7 @@
     "reviewAll": "查看全部",
     "stateUpdated": "订单状态已更新",
     "trackBtn": "追踪骑手",
+    "invoiceBtn": "开发票",
     "reorderShort": "再来一单",
     "etaArrive": "预计 {t} 送达 · 还有 {n} 分钟",
     "etaOverdue": "预计送达已超时 {n} 分钟"
@@ -414,7 +415,8 @@
     "pointsMall": "积分商城",
     "invoiceCenter": "发票中心",
     "feedback": "意见反馈",
-    "studentVerify": "学生认证"
+    "studentVerify": "学生认证",
+    "deliveryPrefs": "配送偏好"
   },
   "login": {
     "brand": "拾光达",
@@ -474,6 +476,49 @@
     "entryTitle": "免登录查单",
     "entrySub": "订单号 + 手机号，快速查看访客订单",
     "loginLink": "免登录查单 ›"
+  },
+  "deliveryPrefs": {
+    "title": "配送偏好",
+    "subtitle": "保存常用收货习惯，下单时一键带入",
+    "pickLabel": "收货方式",
+    "manage": "管理",
+    "noteLabel": "常用配送说明",
+    "notePh": "如：放在门口鞋柜第二层",
+    "noteHint": "保存后会在结算页备注中自动带上，可随时修改",
+    "save": "保存偏好",
+    "saved": "已保存",
+    "tip": "偏好仅保存在本机，不会上传；每笔订单仍可在结算页单独修改。",
+    "optDefault": "默认",
+    "optDefaultDesc": "按地址与骑手沟通送达",
+    "optDoor": "放门口",
+    "optDoorDesc": "无接触配送，送到门口即可",
+    "optReception": "放前台",
+    "optReceptionDesc": "送到前台 / 门卫处代收",
+    "optCall": "电话联系",
+    "optCallDesc": "到达前请先电话联系我",
+    "chipNone": "默认"
+  },
+  "pickupPass": {
+    "brand": "取餐凭证",
+    "orderNo": "订单号",
+    "pickupAt": "自提点",
+    "address": "地址",
+    "hours": "营业时间",
+    "copy": "复制取餐码",
+    "copied": "取餐码已复制",
+    "share": "分享给同学代取",
+    "shareTitle": "取餐码 {k}，麻烦帮我取下餐",
+    "shareDesc": "自提点：{n}",
+    "linkCopied": "链接已复制，发给同学即可",
+    "tipsTitle": "使用说明",
+    "tip1": "到店后向店员报出上方取餐码即可取餐，请勿泄露给陌生人。",
+    "tip2": "代取时请让同学出示本页面，店员核销后凭证即失效。",
+    "tip3": "如取餐码无法识别，请出示订单号由店员人工核对。",
+    "empty": "未获取到取餐码，请从订单详情重新进入",
+    "stRedeemed": "已核销取餐",
+    "stReady": "备餐完成，可前往取餐",
+    "stGeneric": "请到店出示取餐码",
+    "openBtn": "查看取餐凭证"
   },
   "student": {
     "loginTitle": "登录后申请学生认证",
@@ -747,6 +792,7 @@
     "pickupTitle": "到店自取核销码",
     "redeemed": "已核销",
     "selfRedeem": "自助核销",
+    "pickupPassBtn": "查看取餐凭证",
     "showToStaff": "到店出示给店员核销",
     "riderAvatar": "骑",
     "credit": "信用分 {n}",
@@ -1539,7 +1585,13 @@
     "addonFail": "操作失败，请重试",
     "addonUnitPercent": "折",
     "addonFree": "免",
-    "addonCouponSuffix": "券"
+    "addonCouponSuffix": "券",
+    "recTitle": "凑单推荐",
+    "recHintMin": "再买 ¥{d} 即可起送",
+    "recHintTier": "再买 ¥{d} 可享满 ¥{t} 减",
+    "recHintShip": "再买 ¥{d} 可免配送费",
+    "recAdded": "已加入购物车",
+    "recAddFail": "加购失败，请重试"
   },
   "favorites": {
     "stores": "收藏店铺",

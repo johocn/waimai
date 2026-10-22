@@ -64,9 +64,10 @@
             <PriceTag :price="order.totalWithTax" />
           </view>
         </view>
-        <!-- 快捷操作：配送中可直接看骑手地图，已完成/已取消可再来一单 -->
-        <view class="order-card__quick" v-if="canTrack(order) || canReorder(order)">
+        <!-- 快捷操作：配送中可直接看骑手地图，已完成/已取消可再来一单，已支付未开票可开票 -->
+        <view class="order-card__quick" v-if="canTrack(order) || canReorder(order) || canInvoice(order)">
           <text v-if="canTrack(order)" class="quick-btn" @click.stop="goTracking(order)">{{ $t('orders.trackBtn') }}</text>
+          <text v-if="canInvoice(order)" class="quick-btn" @click.stop="goInvoice(order)">{{ $t('orders.invoiceBtn') }}</text>
           <text v-if="canReorder(order)" class="quick-btn quick-btn--primary" @click.stop="goReorder(order)">{{ $t('orders.reorderShort') }}</text>
         </view>
       </view>
@@ -165,6 +166,15 @@ function goReorder(order: any) {
 }
 function goGuestOrder() {
     uni.navigateTo({ url: '/pkg-order/pages/guest-order' });
+}
+/** 已支付且未申请开票：列表直达开票弹层（invoice-center 按 order 参数自动打开） */
+const INVOICE_STATES = ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'];
+function canInvoice(order: any): boolean {
+    return INVOICE_STATES.includes(String(order?.state ?? '')) && !order?.customFields?.invoiceApplied;
+}
+function goInvoice(order: any) {
+    if (!order?.code) return;
+    uni.navigateTo({ url: '/pkg-user/pages/invoice-center?order=' + encodeURIComponent(order.code) });
 }
 function toggleAfterSale() {
     onlyAfterSale.value = !onlyAfterSale.value;

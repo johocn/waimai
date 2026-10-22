@@ -42,6 +42,8 @@
         "nav.afterSales": "After-sales",
         "nav.help": "Help & Support",
         "nav.guestOrder": "Track Guest Order",
+        "nav.pickupPass": "Pickup Pass",
+        "nav.deliveryPrefs": "Delivery Preferences",
         "nav.studentVerify": "Student Verification",
         "nav.history": "History",
         "nav.spending": "Spending",

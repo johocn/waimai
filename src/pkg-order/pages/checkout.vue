@@ -309,6 +309,21 @@
           </view>
         </view>
       </view>
+      <view class="setting-row">
+        <view class="pref-head">
+          <text class="setting-row__label">{{ $t('deliveryPrefs.pickLabel') }}</text>
+          <text class="pref-head__manage" @click="goDeliveryPrefs">{{ $t('deliveryPrefs.manage') }} ›</text>
+        </view>
+        <view class="chip-row setting-row__chips">
+          <view
+            v-for="p in deliveryPrefOptions"
+            :key="'dp-' + (p.key || 'none')"
+            class="chip"
+            :class="{ on: deliveryPref === p.key }"
+            @click="pickDeliveryPref(p.key)"
+          >{{ p.label }}</view>
+        </view>
+      </view>
       <view class="setting-row setting-row--link" @click="openInvoiceSheet">
         <text class="setting-row__label">{{ $t('checkout.invoiceLabel') }}</text>
         <view class="setting-row__value">
@@ -428,6 +443,7 @@ import { useLocaleStore } from '../../stores/locale';
 import { ADDRESS_LABELS, addressLabelKey } from '../../utils/addressLabel';
 import { useFavoritesStore } from '../../stores/favorites';
 import { nextPromoHint, yuan } from '../../utils/promo';
+import { readDeliveryPref, writeDeliveryPref, readDeliveryPrefNote, type DeliveryPrefKey } from '../../utils/delivery-prefs';
 import { getMyCoupons } from '../../api/queries/coupon';
 import { applyCouponToOrder, clearCouponFromOrder } from '../../api/mutations/coupon';
 import { estimateDiscountFen, pickBestCoupon, couponUnavailableReason, type CouponTemplateLike } from '../../utils/coupon-estimate';
@@ -553,6 +569,30 @@ function removeCustomNote(t: string) {
 
 const tablewareOptions = [0, 1, 2, 3, 4, 5]; // 餐具份数选项：0=无需餐具
 const tablewareCount = ref(0);               // 默认无需餐具
+
+// ── 配送偏好：本地记忆（delivery_prefs 页可维护），下单时并入备注首段 ──
+const deliveryPref = ref<DeliveryPrefKey | ''>(readDeliveryPref());
+const deliveryPrefOptions = computed(() => [
+  { key: '' as const, label: locale.t('deliveryPrefs.chipNone') },
+  { key: 'door' as const, label: locale.t('deliveryPrefs.optDoor') },
+  { key: 'reception' as const, label: locale.t('deliveryPrefs.optReception') },
+  { key: 'call' as const, label: locale.t('deliveryPrefs.optCall') },
+]);
+function pickDeliveryPref(key: DeliveryPrefKey | '') {
+  deliveryPref.value = deliveryPref.value === key ? '' : key;
+  writeDeliveryPref(deliveryPref.value);
+}
+function goDeliveryPrefs() {
+  uni.navigateTo({ url: '/pkg-user/pages/delivery-prefs' });
+}
+/** 备注首段拼装：配送偏好 → 自定义配送说明 → 用户备注（≤200） */
+function composeOrderNote(): string | null {
+  const prefKey = deliveryPref.value;
+  const prefLabel = prefKey
+    ? locale.t(prefKey === 'door' ? 'deliveryPrefs.optDoor' : prefKey === 'reception' ? 'deliveryPrefs.optReception' : 'deliveryPrefs.optCall')
+    : '';
+  return [prefLabel, readDeliveryPrefNote(), orderNote.value.trim()].filter(Boolean).join('；').slice(0, 200) || null;
+}
 const invoiceTitles = ref<InvoiceTitle[]>([]);
 const selectedInvoiceIndex = ref(-1);        // -1=不开发票
 const showInvoiceSheet = ref(false);
@@ -1433,7 +1473,7 @@ async function submitOrder() {
         const ok = await prepareOrderAddressAndShipping();
         if (!ok) return;
         // 整单备注 + 餐具份数 + 发票：transition 前写入（总是调用，空值清残留）
-        const note = orderNote.value.trim() ? orderNote.value.trim().slice(0, 200) : null;
+        const note = composeOrderNote();
         const invoiceTitle = selectedInvoiceTitle.value;
         const invoiceFields = invoiceTitle
             ? {
@@ -1553,7 +1593,9 @@ onLoad((q: any) => {
 .note-tpl { display: flex; align-items: center; justify-content: space-between; padding: 20rpx 24rpx; border: 1rpx solid $border-color; border-radius: $radius-md; margin-bottom: 12rpx;
   &__txt { font-size: 26rpx; color: $text-color; }
   &__del { font-size: 26rpx; color: $text-color-placeholder; padding: 4rpx 10rpx; } }
-// ===== 就餐设置：餐具份数 + 发票入口 =====
+// ===== 就餐设置：餐具份数 + 配送偏好 + 发票入口 =====
+.pref-head { display: flex; align-items: center; justify-content: space-between;
+  &__manage { font-size: 22rpx; color: $brand-color; } }
 .setting-card { background: #fff; border-radius: 16rpx; padding: 20rpx 24rpx; margin-top: 20rpx;
   .setting-row { display: flex; flex-direction: column; gap: 12rpx;
     & + .setting-row { margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid $border-color; }

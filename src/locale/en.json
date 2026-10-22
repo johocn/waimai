@@ -359,6 +359,7 @@
     "reviewAll": "Show all",
     "stateUpdated": "Order status updated",
     "trackBtn": "Track rider",
+    "invoiceBtn": "Invoice",
     "reorderShort": "Order again",
     "etaArrive": "ETA {t} · {n} min left",
     "etaOverdue": "Delivery overdue by {n} min"
@@ -414,7 +415,8 @@
     "pointsMall": "Points Mall",
     "invoiceCenter": "Invoice Centre",
     "feedback": "Feedback",
-    "studentVerify": "Student verification"
+    "studentVerify": "Student verification",
+    "deliveryPrefs": "Delivery preferences"
   },
   "login": {
     "brand": "Shiguangda",
@@ -474,6 +476,49 @@
     "entryTitle": "Track guest order",
     "entrySub": "Order number + phone, no login needed",
     "loginLink": "Track guest order ›"
+  },
+  "deliveryPrefs": {
+    "title": "Delivery preferences",
+    "subtitle": "Save your usual drop-off habit and apply it at checkout",
+    "pickLabel": "Drop-off method",
+    "manage": "Manage",
+    "noteLabel": "Standing delivery note",
+    "notePh": "e.g. leave at the second shelf of the shoe cabinet",
+    "noteHint": "Saved notes are added to the checkout note automatically and can be edited anytime",
+    "save": "Save preferences",
+    "saved": "Saved",
+    "tip": "Preferences stay on this device only. Each order can still be adjusted at checkout.",
+    "optDefault": "Default",
+    "optDefaultDesc": "Hand over based on address and courier contact",
+    "optDoor": "Leave at door",
+    "optDoorDesc": "Contactless delivery, leave at the door",
+    "optReception": "Leave at reception",
+    "optReceptionDesc": "Reception or security desk will take it",
+    "optCall": "Call me",
+    "optCallDesc": "Please call before arriving",
+    "chipNone": "Default"
+  },
+  "pickupPass": {
+    "brand": "PICKUP PASS",
+    "orderNo": "Order No.",
+    "pickupAt": "Pickup point",
+    "address": "Address",
+    "hours": "Business hours",
+    "copy": "Copy code",
+    "copied": "Pickup code copied",
+    "share": "Share for pickup",
+    "shareTitle": "Pickup code {k}, please collect for me",
+    "shareDesc": "Pickup point: {n}",
+    "linkCopied": "Link copied, send it to your friend",
+    "tipsTitle": "How to use",
+    "tip1": "Tell the staff the code above to collect your meal. Do not share it with strangers.",
+    "tip2": "Let your friend show this page; the pass expires once redeemed.",
+    "tip3": "If the code is not recognized, show the order number for manual check.",
+    "empty": "No pickup code found. Please open it again from the order detail.",
+    "stRedeemed": "Already collected",
+    "stReady": "Ready for pickup",
+    "stGeneric": "Show this code at the store",
+    "openBtn": "View pickup pass"
   },
   "student": {
     "loginTitle": "Log in to apply for student verification",
@@ -748,6 +793,7 @@
     "redeemed": "Redeemed",
     "selfRedeem": "Self Redeem",
     "showToStaff": "Show this code to staff to redeem",
+    "pickupPassBtn": "View pickup pass",
     "riderAvatar": "R",
     "credit": "Credit {n}",
     "relayRider": " · Relay courier · Leg 2",
@@ -1539,7 +1585,13 @@
     "addonFail": "Operation failed, please retry",
     "addonUnitPercent": "off",
     "addonFree": "Free",
-    "addonCouponSuffix": " coupon"
+    "addonCouponSuffix": " coupon",
+    "recTitle": "Add to unlock",
+    "recHintMin": "Add ¥{d} more to reach the minimum",
+    "recHintTier": "Add ¥{d} more for the ¥{t} tier discount",
+    "recHintShip": "Add ¥{d} more for free delivery",
+    "recAdded": "Added to cart",
+    "recAddFail": "Failed to add, please retry"
   },
   "favorites": {
     "stores": "Favorite shops",

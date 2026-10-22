@@ -84,7 +84,8 @@
       <text class="section__title">{{ $t('orderDetail.pickupTitle') }}</text>
       <text class="code-text">{{ pickupCode.code }}</text>
       <text class="r2-hint" v-if="pickupCode.status === 'redeemed'">{{ $t('orderDetail.redeemed') }}</text>
-      <button class="action-btn r2-btn" v-else-if="canSelfRedeem" @click="selfRedeem">{{ $t('orderDetail.selfRedeem') }}</button>
+      <button class="action-btn r2-btn" @click="openPickupPass">{{ $t('orderDetail.pickupPassBtn') }}</button>
+      <button class="action-btn r2-btn" v-if="canSelfRedeem" @click="selfRedeem">{{ $t('orderDetail.selfRedeem') }}</button>
       <text class="r2-hint" v-else>{{ $t('orderDetail.showToStaff') }}</text>
     </view>
 
@@ -619,6 +620,17 @@ async function selfRedeem() {
 }
 function formatTime(t: string) { return t ? new Date(t).toLocaleString('zh-CN') : ''; }
 function copyCode() { uni.setClipboardData({ data: order.value.code }); uni.showToast({ title: locale.t('orderDetail.copied'), icon: 'success' }); }
+
+/** 取餐凭证：大字码 + 自提点信息，支持分享给同学代取 */
+function openPickupPass() {
+    if (!order.value?.code || !pickupCode.value?.code) return;
+    const params = [
+        'code=' + encodeURIComponent(order.value.code),
+        'k=' + encodeURIComponent(pickupCode.value.code),
+        'st=' + encodeURIComponent(pickupCode.value.status || ''),
+    ].join('&');
+    uni.navigateTo({ url: '/pkg-order/pages/pickup-pass?' + params });
+}
 
 /** 分享订单：微信内发送卡片，其它环境复制订单链接 */
 async function shareOrder() {

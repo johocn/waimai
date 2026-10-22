@@ -45,6 +45,7 @@
           <text class="go-pickup__sub">{{ order.pickupLocation.address }}</text>
           <text v-if="order.pickupLocation.businessHours" class="go-pickup__sub">{{ $t('guestOrder.hours').replace('{v}', order.pickupLocation.businessHours) }}</text>
         </view>
+        <button v-if="order.pickupCode" class="go-pickup__pass" @click="openPickupPass">{{ $t('pickupPass.openBtn') }}</button>
       </view>
 
       <!-- 商品行 -->
@@ -149,6 +150,22 @@ function fmtTime(raw: string): string {
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/** 大字取餐凭证：游客无登录态，全部参数随链接带入，接收者无需登录即可查看 */
+function openPickupPass() {
+    const o = order.value;
+    if (!o?.pickupCode) return;
+    const st = o.pickupClaimed ? 'redeemed' : o.pickupClaimable ? 'ready' : '';
+    const params = [
+        'code=' + encodeURIComponent(o.orderCode || ''),
+        'k=' + encodeURIComponent(o.pickupCode),
+        'st=' + encodeURIComponent(st),
+        'n=' + encodeURIComponent(o.pickupLocation?.name || ''),
+        'a=' + encodeURIComponent(o.pickupLocation?.address || ''),
+        'h=' + encodeURIComponent(o.pickupLocation?.businessHours || ''),
+    ].join('&');
+    uni.navigateTo({ url: '/pkg-order/pages/pickup-pass?' + params });
+}
 </script>
 
 <style lang="scss" scoped>
@@ -205,6 +222,11 @@ function fmtTime(raw: string): string {
   &__loc { display: flex; flex-direction: column; gap: 4rpx; padding-top: 8rpx; border-top: 1rpx solid rgba(255, 102, 0, 0.15); }
   &__name { font-size: 26rpx; font-weight: 600; color: $text-color; }
   &__sub { font-size: 22rpx; color: $text-color-secondary; }
+  &__pass {
+    margin-top: 8rpx; height: 72rpx; line-height: 72rpx; border-radius: 36rpx;
+    background: $brand-color; color: #fff; font-size: 26rpx; font-weight: 600; border: none;
+  }
+  &__pass::after { border: none; }
 }
 .go-lines { display: flex; flex-direction: column; gap: 18rpx; }
 .go-line {

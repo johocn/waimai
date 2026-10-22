@@ -59,6 +59,8 @@
         "nav.circlePublish": "发布晒单",
         "nav.deliveryTrack": "配送轨迹",
         "nav.guestOrder": "免登录查单",
+        "nav.pickupPass": "取餐凭证",
+        "nav.deliveryPrefs": "配送偏好",
         "nav.studentVerify": "学生认证"
     }
 }

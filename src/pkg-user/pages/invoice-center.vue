@@ -89,7 +89,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import { getMyInvoices, downloadInvoicePdf, applyOrderInvoice } from '../../api/queries/invoice';
 import { getOrders, getOrdersForChannel } from '../../api/queries/order';
 import { getActiveCustomer } from '../../api/queries/user';
@@ -188,6 +188,12 @@ function fmtTime(raw?: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** 从订单列表/详情带入的订单号：加载完成后自动打开该单开票弹层 */
+const targetCode = ref('');
+onLoad((q: any) => {
+  targetCode.value = String(q?.order ?? q?.code ?? '');
+});
+
 onShow(async () => {
   if (!logged.value) { loading.value = false; return; }
   loading.value = true;
@@ -196,7 +202,17 @@ onShow(async () => {
   } finally {
     loading.value = false;
   }
+  openTargetOrder();
 });
+
+function openTargetOrder() {
+  if (!targetCode.value) return;
+  const hit = orders.value.find((o: any) => String(o?.code ?? '') === targetCode.value);
+  targetCode.value = '';
+  if (!hit) return;
+  tab.value = 'apply';
+  if (ELIGIBLE.includes(String(hit.state)) && !hit?.customFields?.invoiceApplied) openApply(hit);
+}
 
 async function loadInvoices() {
   try {

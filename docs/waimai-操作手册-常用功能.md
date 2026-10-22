@@ -2149,3 +2149,89 @@
 - FAQ 文案以后台录入为准，前端不再维护内容；分组标题仅对常见 `type` 做本地化映射，未知 `type` 原样展示，建议后台统一使用 `general/pay/delivery/aftersale/invoice/account`；
 - 附近有货受定位授权影响：拒绝定位时仍可查库存，但距离全部为「距离未知」；库存为实时快照，进入弹层/点刷新才重新拉取，未做库存变化订阅；
 - 本轮为纯前端改动，复用线上已启用的 pickup-plugin / coupon-plugin / feedback-plugin(faqs) / 库存插件接口，无需发布后端。
+
+## 128 智能凑单推荐（购物车）
+
+页面：`/pkg-order/pages/cart`（`src/pkg-order/pages/cart.vue`）
+数据：店铺商品 `fetchProductListForChannel(channelToken)`（`src/api/queries/waimai.ts`）+ 跨渠道加购 `addItemToOrderInChannel`（`src/api/mutations/cart.ts`）
+
+使用方式：
+1. 购物车按店铺分组，每个店铺卡片在「起送/免配送费进度」下方出现「凑单推荐」区块，右上角显示当前差额提示；
+2. 差额优先级：**起送价差额 > 下一档满减差额 > 免配送费差额**，三者都满足则不展示推荐；
+3. 推荐商品取该店在售商品的最低可售 SKU（`enabled !== false`、库存 > 0、价格 > 0），剔除已在购物车中的商品，按价格升序最多 6 个；
+4. 点击商品卡右下角「+」即跨渠道加购（固定 `vendure-token` 指向该店铺），成功后本地剔除该商品、重算差额（提示从「再买 ¥10.00 即可起送」变为「再买 ¥3.00 即可起送」），达门槛后区块自动消失；
+5. 商品目录按「店铺集合签名」缓存，同一组店铺只拉取一次，加购后不重复请求。
+
+截图：[171-cart-recs-hint.png](screenshots/common-features-v26/171-cart-recs-hint.png)、[172-cart-recs-added.png](screenshots/common-features-v26/172-cart-recs-added.png)
+
+## 129 常用备注与配送偏好
+
+页面：`/pkg-user/pages/delivery-prefs`（`src/pkg-user/pages/delivery-prefs.vue`），入口：我的 → 配送偏好
+本地存储：`src/utils/delivery-prefs.ts`（`delivery_preference` / `delivery_preference_note`，说明 ≤ 40 字）
+
+使用方式：
+1. 偏好页提供四选一：默认 / 放门口（无接触）/ 放前台（前台代收）/ 电话联系（到达前致电），再次点击已选项可取消；
+2. 「常用配送说明」可填写个性化备注（如「放门口鞋柜第二层」），点击「保存偏好」写入本机并返回；
+3. 结算页「就餐设置」新增「收货方式」行，四个 chip 一键选择并即时记忆（`delivery_preference`），右侧「管理 ›」跳转偏好页；
+4. 提交订单时备注按固定顺序拼接：**配送偏好 → 常用配送说明 → 用户当次留言**（`；` 分隔，总长 ≤ 200），随单写入 Order `customFields.note`；
+5. 口味/忌口快捷标签、常用备注模板沿用原有能力，填写内容与配送偏好按上文顺序合并写入同一条备注。
+
+截图：[173-checkout-delivery-prefs.png](screenshots/common-features-v26/173-checkout-delivery-prefs.png)、[174-delivery-prefs-page.png](screenshots/common-features-v26/174-delivery-prefs-page.png)、[175-delivery-prefs-saved.png](screenshots/common-features-v26/175-delivery-prefs-saved.png)、[180-profile-delivery-prefs-entry.png](screenshots/common-features-v26/180-profile-delivery-prefs-entry.png)
+
+## 130 自提取餐凭证与代取分享
+
+页面：`/pkg-order/pages/pickup-pass`（`src/pkg-order/pages/pickup-pass.vue`）
+入口：订单详情自提核销区「查看取餐凭证」、游客查单自提区块「查看取餐凭证」
+数据：`fetchMyPickupCode(orderId)`（`src/api/queries/pickup.ts`）、`getOrderByCode`、分享 `sharePage()`（`src/utils/share.ts`）
+
+使用方式：
+1. 凭证页以 96rpx 大字展示取餐码，下方虚线分割展示订单号、自提点、地址、营业时间；
+2. 状态文案：`redeemed` → 已核销取餐；`generated/ready` → 备餐完成，可前往取餐；其它 → 请到店出示取餐码；
+3. 「复制取餐码」写入剪贴板并 toast；「分享给同学代取」在微信内走 JS-SDK 卡片，非微信环境复制链接；
+4. 分享链接自带 `code/k/st/n/a/h` 六个参数，**接收者无需登录即可看到大字码**（页面不依赖会话）；
+5. 若链接缺少取餐码且当前已登录，则按订单号回查 `getOrderByCode` + `fetchMyPickupCode` 补齐；非自提单/未支付时保持空态提示。
+
+截图：[176-pickup-pass.png](screenshots/common-features-v26/176-pickup-pass.png)、[177-pickup-pass-guest.png](screenshots/common-features-v26/177-pickup-pass-guest.png)、[181-guest-order-pickup-pass.png](screenshots/common-features-v26/181-guest-order-pickup-pass.png)
+
+## 131 订单开票申请闭环
+
+入口：订单列表卡片快捷操作「开发票」（`src/pages/orders/index.vue`）→ 发票中心（`src/pkg-user/pages/invoice-center.vue`）
+接口：`applyOrderInvoice(orderId, invoiceInfo)`、`myInvoices`、`downloadInvoicePdf`（`src/api/queries/invoice.ts`）
+
+使用方式：
+1. 订单列表仅对 `PaymentAuthorized / PaymentSettled / Shipped / Delivered` 且 `customFields.invoiceApplied=false` 的订单展示「开发票」；
+2. 点击跳转 `/pkg-user/pages/invoice-center?order=<订单号>`，页面加载完成后自动切到「可开票订单」并**直接打开该单申请弹层**（进度自动减去已申请单，避免重复开票）；
+3. 弹层内可选择已保存的发票抬头（个人/企业 + 税号）或手工填写抬头、税号、接收邮箱，提交后写入 `invoiceInfo` 并置 `invoiceApplied=true`；
+4. 「开票记录」同时聚合插件发票实体（issued/pending/failed/voided/reversed 等状态）与已申请订单（商家线下开具），有 PDF 的可下载。
+
+截图：[178-orders-invoice-btn.png](screenshots/common-features-v26/178-orders-invoice-btn.png)、[179-invoice-apply-sheet.png](screenshots/common-features-v26/179-invoice-apply-sheet.png)
+
+## 132 验收记录与边界（第二十六轮，2026-10-23）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，登录态使用测试学生账号（`smoke-track@yourbao.cn`）；店铺/购物车/订单/可凑单商品/游客订单由脚本注入模拟响应，其余请求透传线上真实接口。交互回归断言 28 条，全部通过。
+
+| 项目 | 结果 |
+|---|---|
+| 购物车凑单推荐 | 两个店铺均出现「凑单推荐」，提示分别为「再买 ¥10.00 即可起送」「再买 ¥14.00 可免配送费」，各 3 个商品卡（断言通过） |
+| 凑单加购 | 点击 ¥7.00 推荐商品后购物车行数 1→2，差额提示变为「再买 ¥3.00 即可起送」，已加购商品从推荐中剔除（断言通过） |
+| 结算页收货方式 | 标签「收货方式」+ 四个 chip：默认 / 放门口 / 放前台 / 电话联系（断言通过） |
+| 偏好记忆 | 结算页点选「放门口」后 `delivery_preference=door`，chip 高亮为「放门口」（断言通过） |
+| 偏好页保存 | 选择「放门口」+ 填写说明后保存，`delivery_preference=door`、`delivery_preference_note=放门口鞋柜第二层，谢谢`、选项打勾（断言通过） |
+| 我的入口 | 「我的」菜单出现「配送偏好」并可滚动定位（断言通过） |
+| 取餐凭证页 | 大字码 8842、状态「备餐完成，可前往取餐」、订单号/自提点/地址/营业时间四行、「复制取餐码」「分享给同学代取」（断言通过） |
+| 代取分享链接 | 无登录上下文仅带 `code/k/st` 参数直接展示 8842 与可取餐状态（断言通过） |
+| 订单列表开票 | 两笔已支付订单均展示「开发票」快捷按钮（断言通过） |
+| 开票自动定位 | 点击后 URL 为 `#/pkg-user/pages/invoice-center?order=WM20261022001`，「可开票订单」Tab 激活，弹层标题「WM20261022001 · ¥28.00」（断言通过） |
+| 游客查单凭证入口 | 自提订单查询结果显示取餐码 8842 与「查看取餐凭证」按钮（断言通过） |
+| 页面标题 | 取餐凭证 / 配送偏好 正确取 `nav.pickupPass`、`nav.deliveryPrefs` |
+| i18n | 新增 `deliveryPrefs`(19)、`pickupPass`(20)、`cart.rec*`(6)、`orders.invoiceBtn`(1)、`orderDetail.pickupPassBtn`(1)、`profile.deliveryPrefs`(1) 及 `nav.*` 2 条×3 文件，中英双语同步 |
+| 构建/部署 | `pnpm build:h5` 通过；新增 2 个页面路由与 chunk 线上 200 |
+| 手机视口截图 | 390×844 dpr=2，共 11 张（171-181，存放 `docs/screenshots/common-features-v26/`） |
+
+边界与已知限制：
+- 凑单推荐取每个商品的**最低价 SKU**，多规格商品不展开规格选择；点击即按该 SKU 加购 1 件，需要选规格请进店下单；
+- 推荐以「差额最小化」为目标，不做口味/搭配类个性化排序；商品目录按店铺集合缓存，店内改价/下架后需刷新购物车才会更新；
+- 配送偏好仅保存在本机 `localStorage`，换设备/清缓存后失效；提交时以备注首段并入 `customFields.note`，若用户当次留言过长（>200）会截断尾部；
+- 取餐凭证分享链接中的取餐码可被转发，**仅凭该链接即可展示码**，依赖店员核销时校验订单状态；核销后状态转为已取餐，凭证自动失效；
+- 开票入口以 `invoiceApplied` 判重，同一订单申请后不再展示「开发票」；发票抬头管理、PDF 下载复用既有 invoice 插件能力；
+- 本轮为纯前端改动，复用线上已启用的 pickup-plugin / invoice-plugin 及 Order customFields（`note`、`invoiceApplied`、`invoiceInfo`），无需发布后端与新增字段。

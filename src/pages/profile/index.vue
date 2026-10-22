@@ -75,6 +75,7 @@
       </view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-campus/pages/errand/list')"><text>{{ $t('profile.myErrands') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/student-verify')"><text>{{ $t('profile.studentVerify') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/delivery-prefs')"><text>{{ $t('profile.deliveryPrefs') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="nav('/pkg-user/pages/help')"><text>{{ $t('profile.help') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="nav('/pkg-user/pages/feedback')"><text>{{ $t('profile.feedback') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="nav('/pkg-user/pages/about')"><text>{{ $t('profile.about') }}</text><text class="menu-arrow">></text></view>

@@ -24,7 +24,8 @@
                 { "path": "pages/receipt", "style": { "navigationBarTitleText": "%nav.receipt%" } },
                 { "path": "pages/payment-schedule", "style": { "navigationBarTitleText": "%nav.paymentSchedule%" } },
                 { "path": "pages/delivery-track", "style": { "navigationBarTitleText": "%nav.deliveryTrack%" } },
-                { "path": "pages/guest-order", "style": { "navigationBarTitleText": "%nav.guestOrder%" } }
+                { "path": "pages/guest-order", "style": { "navigationBarTitleText": "%nav.guestOrder%" } },
+                { "path": "pages/pickup-pass", "style": { "navigationBarTitleText": "%nav.pickupPass%" } }
             ]
         },
         {
@@ -65,6 +66,7 @@
                 { "path": "pages/feedback", "style": { "navigationBarTitleText": "%nav.feedback%" } },
                 { "path": "pages/help", "style": { "navigationBarTitleText": "%nav.help%" } },
                 { "path": "pages/student-verify", "style": { "navigationBarTitleText": "%nav.studentVerify%" } },
+                { "path": "pages/delivery-prefs", "style": { "navigationBarTitleText": "%nav.deliveryPrefs%" } },
                 { "path": "pages/wallet", "style": { "navigationBarTitleText": "%nav.wallet%" } },
                 { "path": "pages/points-mall", "style": { "navigationBarTitleText": "%nav.pointsMall%" } },
                 { "path": "pages/points-orders", "style": { "navigationBarTitleText": "%nav.pointsOrders%" } },

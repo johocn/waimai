@@ -32,6 +32,11 @@
         "tab.profile": "我的",
         "nav.couponCentre": "领券中心",
         "nav.myCoupons": "我的优惠券",
-        "nav.riderTracking": "骑手跟踪"
+        "nav.riderTracking": "骑手跟踪",
+        "nav.wallet": "我的余额",
+        "nav.pointsMall": "积分商城",
+        "nav.pointsOrders": "我的兑换",
+        "nav.invoiceCenter": "发票中心",
+        "nav.receipt": "电子小票"
     }
 }

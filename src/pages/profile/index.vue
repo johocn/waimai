@@ -25,7 +25,7 @@
       <view class="asset-item" @click="nav('/pkg-user/pages/address-book')">
         <text class="asset-item__ico">{{ $t('profile.icoAddress') }}</text><text class="asset-item__lbl">{{ $t('profile.addresses') }}</text>
       </view>
-      <view class="asset-item" @click="nav('/pkg-user/pages/invoice-titles')">
+      <view class="asset-item" @click="nav('/pkg-user/pages/invoice-center')">
         <text class="asset-item__ico">{{ $t('profile.icoInvoice') }}</text><text class="asset-item__lbl">{{ $t('profile.invoices') }}</text>
       </view>
       <view class="asset-item" @click="nav('/pkg-user/pages/invite')">
@@ -45,6 +45,9 @@
 
     <view class="profile-page__menu">
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/member')"><text>{{ $t('profile.member') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/wallet')"><text>{{ $t('profile.wallet') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/points-mall')"><text>{{ $t('profile.pointsMall') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/invoice-center')"><text>{{ $t('profile.invoiceCenter') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/messages')">
         <view class="menu-item__lbl">
           <text>{{ $t('profile.messages') }}</text>

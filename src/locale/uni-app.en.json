@@ -42,6 +42,11 @@
         "nav.spending": "Spending",
         "nav.member": "Membership",
         "nav.pointsHistory": "Points History",
-        "nav.feedback": "Feedback"
+        "nav.feedback": "Feedback",
+        "nav.wallet": "My Balance",
+        "nav.pointsMall": "Points Mall",
+        "nav.pointsOrders": "My Redemptions",
+        "nav.invoiceCenter": "Invoices",
+        "nav.receipt": "E-Receipt"
     }
 }

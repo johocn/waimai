@@ -212,6 +212,7 @@
       <button v-if="canReview" class="action-btn" @click="goReview">{{ $t('orderDetail.reviewBtn') }}</button>
       <button class="action-btn action-btn--primary" @click="reorder">{{ $t('orderDetail.reorderBtn') }}</button>
       <button class="action-btn action-btn--ghost" @click="shareOrder">{{ $t('orderDetail.shareOrderBtn') }}</button>
+      <button class="action-btn action-btn--ghost" @click="goReceipt">{{ $t('orderDetail.receiptBtn') }}</button>
     </view>
 
     <!-- 开发票弹层（Task 11）：抬头选择 + 接收邮箱 + 提交申请 -->
@@ -623,6 +624,11 @@ async function shareOrder() {
         image: order.value.lines?.[0]?.featuredAsset?.preview || '',
     });
     if (how === 'copy') uni.showToast({ title: locale.t('orderDetail.shareCopied'), icon: 'none' });
+}
+/** 电子小票：以订单号加载独立小票页，便于复制/存档 */
+function goReceipt() {
+    if (!order.value?.code) return;
+    uni.navigateTo({ url: `/pkg-order/pages/receipt?code=${encodeURIComponent(order.value.code)}` });
 }
 function confirmReceive() { uni.showModal({ title: locale.t('orderDetail.receiveBtn'), content: locale.t('orderDetail.receiveConfirm'), success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { transitionOrderToState(state: "Delivered") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: locale.t('orderDetail.received') }); order.value.state = 'Delivered'; } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
 function cancelOrder() { uni.showModal({ title: locale.t('orderDetail.cancelBtn'), content: locale.t('orderDetail.cancelConfirm'), success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { cancelOrder(orderId: "${order.value.id}") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: locale.t('orderDetail.cancelled') }); order.value.state = 'Cancelled'; stopRiderPolling(); } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }

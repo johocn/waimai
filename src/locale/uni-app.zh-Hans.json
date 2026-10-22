@@ -42,6 +42,11 @@
         "nav.spending": "消费统计",
         "nav.member": "会员中心",
         "nav.pointsHistory": "积分明细",
-        "nav.feedback": "意见反馈"
+        "nav.feedback": "意见反馈",
+        "nav.wallet": "我的余额",
+        "nav.pointsMall": "积分商城",
+        "nav.pointsOrders": "我的兑换",
+        "nav.invoiceCenter": "发票中心",
+        "nav.receipt": "电子小票"
     }
 }

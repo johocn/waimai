@@ -98,6 +98,15 @@
           <text class="mbr-link__arrow">›</text>
         </view>
       </view>
+
+      <!-- 积分商城入口 -->
+      <view class="mbr-card mbr-link" @tap="goPointsMall">
+        <text class="mbr-link__label">{{ $t('member.pointsMall') }}</text>
+        <view class="mbr-link__right">
+          <text class="mbr-link__value">{{ $t('member.pointsMallHint') }}</text>
+          <text class="mbr-link__arrow">›</text>
+        </view>
+      </view>
     </template>
   </view>
 </template>
@@ -250,6 +259,9 @@ async function onClaim(task: any) {
 
 function goPointsHistory() {
   uni.navigateTo({ url: '/pkg-user/pages/points-history' });
+}
+function goPointsMall() {
+  uni.navigateTo({ url: '/pkg-user/pages/points-mall' });
 }
 function goLogin() {
   auth.requireLogin();

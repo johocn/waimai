@@ -20,7 +20,8 @@
                 { "path": "pages/after-sale-detail", "style": { "navigationBarTitleText": "%nav.aftersaleDetail%" } },
                 { "path": "pages/after-sales", "style": { "navigationBarTitleText": "%nav.afterSales%" } },
                 { "path": "pages/my-reviews", "style": { "navigationBarTitleText": "%nav.myReviews%" } },
-                { "path": "pages/cart", "style": { "navigationBarTitleText": "%nav.cart%" } }
+                { "path": "pages/cart", "style": { "navigationBarTitleText": "%nav.cart%" } },
+                { "path": "pages/receipt", "style": { "navigationBarTitleText": "%nav.receipt%" } }
             ]
         },
         {
@@ -57,7 +58,11 @@
                 { "path": "pages/member", "style": { "navigationBarTitleText": "%nav.member%" } },
                 { "path": "pages/points-history", "style": { "navigationBarTitleText": "%nav.pointsHistory%" } },
                 { "path": "pages/feedback", "style": { "navigationBarTitleText": "%nav.feedback%" } },
-                { "path": "pages/help", "style": { "navigationBarTitleText": "%nav.help%" } }
+                { "path": "pages/help", "style": { "navigationBarTitleText": "%nav.help%" } },
+                { "path": "pages/wallet", "style": { "navigationBarTitleText": "%nav.wallet%" } },
+                { "path": "pages/points-mall", "style": { "navigationBarTitleText": "%nav.pointsMall%" } },
+                { "path": "pages/points-orders", "style": { "navigationBarTitleText": "%nav.pointsOrders%" } },
+                { "path": "pages/invoice-center", "style": { "navigationBarTitleText": "%nav.invoiceCenter%" } }
             ]
         },
         {

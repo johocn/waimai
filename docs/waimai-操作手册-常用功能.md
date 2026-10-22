@@ -1810,3 +1810,86 @@
 - 线上当前消息、裂变活动、推广员资料、预售活动均可能为空（后台未配置），页面为空态；截图使用模拟响应，后台配置后即真实展示；
 - 本轮为纯前端改动，复用线上已启用的 message / coupon-fission / distribution / pre-sale 插件，无需发布后端。
 
+## 110 尾款账单（预售 / 分期 / 租赁）
+
+入口：订单详情「支付计划 · 查看账单」（仅该订单存在支付计划时出现），或直接访问 `/pkg-order/pages/payment-schedule?orderId=<订单ID>&code=<订单号>`。
+
+- 顶部总览：账单类型（预售 / 分期 / 租赁）、账单状态（待开始 / 进行中 / 已完成 / 已违约 / 已取消）、已付金额 / 总额、已付进度条、发货承诺时间；违约单额外展示违约原因（买家逾期 / 卖家未发货 / 拼团失败）；
+- 期次列表按 `seq` 顺序展示：期次序号、款项类型（定金 / 尾款 / 首付 / 分期 / 租金 / 买断）、应付金额、期次状态（未解锁 / 待支付 / 已支付 / 已逾期 / 已没收 / 已退款 / 已免除）、应付至时间或支付时间、逾期违约金；
+- 「余额支付」按钮仅在期次状态为 `payable` / `overdue` / `locked` 且账单未取消时展示；`locked` 期次点击提示「尚未解锁」，由后端在支付时刻按触发条件（到点 / 到间隔）补偿解锁；
+- 支付弹层：展示本期应付（含违约金）、账户余额（`myBalanceWithFrozen.balance`），余额不足时展示「余额不足，去充值」跳钱包；调用 `paySchedulePeriod(orderId, seq, 'balance-pay')`，成功后刷新账单与余额；
+- 失败分流：该期已支付 / 暂不可支付 / 尚未解锁 / 余额不足，均有对应中文提示；
+- 「取消账单」：普通（诚意金）单提示未付期次终止、已付按规则退回；法定定金单（`depositRule.kind === 'legal_deposit'`）提示定金不退，弹窗确认后以 `confirmForfeit=true` 调用 `cancelSchedule`；
+- 订单无支付计划时展示空态「该订单暂无分期或尾款账单」。
+
+截图：[128-payment-schedule.png](screenshots/common-features-v22/128-payment-schedule.png)、[129-payment-schedule-pay-sheet.png](screenshots/common-features-v22/129-payment-schedule-pay-sheet.png)、[130-payment-schedule-empty.png](screenshots/common-features-v22/130-payment-schedule-empty.png)
+
+## 111 店铺直播
+
+入口：首页活动宫格「店铺直播」。
+
+### 111.1 直播列表
+
+- 三个分组 Tab：直播中（`status=live`）/ 预告（`status=upcoming`，映射后端 `scheduled`）/ 回放（`status=replay`，映射后端 `ended`）；
+- 按店铺渠道聚合：先取 `waimaiStoreList`（过滤暂停店铺），再逐店用固定 `vendure-token` 调用 `liveRooms(status)`，单店失败不影响其他店铺；
+- 卡片展示：封面（无封面时用名称首字占位）、状态角标、店铺名、直播标题、简介、观看/点赞数（预告展示开播时间）、右侧动作文案（进入直播间 / 已预约 / 看回放）。
+
+### 111.2 直播间
+
+- 播放区：直播中优先使用 `enterLiveRoom` 下发的 `playUrl`，回放使用 `replayUrl`；均无地址时展示封面 + 状态占位文案（直播尚未开始 / 暂无回放 / 正在进入直播间）；
+- 房间信息：标题、主播（`streamerName`，缺省「店铺主播」）、开播时间或预告开播时间、简介、外部平台同播入口（`platforms`，点击跳 webview）；
+- 商品墙读取 `liveRoomProducts(id)`：图片（缺省首字占位）、名称、价格、「加购」按钮；
+- 加购链路：`addItemToOrder`（该店铺渠道）→ `setOrderLiveRoom(roomId)` 标记订单来源直播间（直播佣金归因，失败不阻断）→ 重新拉取该渠道 activeOrder 写入购物车 → 提示「已加入购物车」；仅直播中可加购，预告/回放按钮置灰显示「未开播」；
+- 失败分流：未登录跳登录 / 库存不足 / 其他「加购失败」。
+
+截图：[131-live-list.png](screenshots/common-features-v22/131-live-list.png)、[132-live-list-upcoming.png](screenshots/common-features-v22/132-live-list-upcoming.png)、[133-live-room.png](screenshots/common-features-v22/133-live-room.png)
+
+## 112 账单代付
+
+入口：我的 → 账单代付。
+
+- 规则区读取 `billPayConfig`：单笔限额（最低 ~ 最高）、单日累计限额、报价方式（自动报价含有效期分钟数 / 人工报价）、会员折扣百分比、满减阈值列表（阈值文案为 `LocalizedText`，按当前语言逐级回退）；
+- 提交代买单：填写商户名称（必填）、账单金额（元，前端 `Math.round(元×100)` 转分）、备注（选填），前端校验必填、金额有效且落在 `[minAmount, maxAmount]`，调用 `createBillPayOrder`；提交成功后清空表单并刷新列表；
+- 「我的代买单」读取 `billPayOrders({ take: 50 })`：商户名、状态徽标（待报价 / 待支付 / 已支付 / 服务中 / 已完成 / 已结算 / 已取消 / 已退款）、账单金额、应付金额（未报价显示「待报价」）、备注、报价说明、报价有效期、单号；
+- 「去支付」仅在 `QUOTED` 状态展示，支付弹层展示应付金额、优惠明细合计（`discountDetail` 求和）、账户余额：
+  - 余额支付 `payBillPayOrderWithBalance(id)`，即时结算，成功后刷新列表与余额；
+  - 微信支付 `createWechatBillPayment(id, tradeType)`：默认先按 `JSAPI` 请求，普通浏览器取不到 openid 时回落 `H5`；JSAPI 走 WeixinJSBridge 收银台同步返回，H5 为跳转支付、返回页面时刷新；
+- 「取消」在 `PENDING_QUOTE` / `QUOTED` 状态可用，二次确认后调用 `cancelBillPayOrder(id)`；
+- 未登录展示登录引导。
+
+截图：[134-bill-pay.png](screenshots/common-features-v22/134-bill-pay.png)、[135-bill-pay-pay-sheet.png](screenshots/common-features-v22/135-bill-pay-pay-sheet.png)、[136-bill-pay-submit.png](screenshots/common-features-v22/136-bill-pay-submit.png)
+
+## 113 验收记录与边界（第二十二轮，2026-10-22）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，本地 serve 最新构建产物（`pnpm build:h5` 产物经临时静态服务挂 `/waimai` 前缀）；尾款账单 / 直播 / 账单代付数据为脚本注入的模拟 GraphQL 响应（查询与 mutation 文档已对线上 schema 校验通过）。交互回归断言 17 条，全部通过，无 console 报错。
+
+| 项目 | 结果 |
+|---|---|
+| 尾款账单总览 | 预售账单 / 进行中 / ¥19.90 of ¥89.90 / 已付 22% / 发货承诺 2026-11-05 10:00（断言通过） |
+| 期次列表 | 3 期（定金已支付、尾款待支付、分期已逾期含违约金 ¥1.50），逾期提示与付款按钮齐全（断言通过） |
+| 余额付尾款 | 点击「余额支付 ¥50.00」→ 调用 `paySchedulePeriod(orderId, seq, 'balance-pay')`（断言通过） |
+| 尾款账单空态 | 无支付计划时展示「该订单暂无分期或尾款账单」+ 说明（断言通过） |
+| 直播列表 | 直播中 2 场（标题/店铺/观看点赞/进入直播间）、预告 1 场（断言通过） |
+| 直播间 | 商品墙 3 件、`enterLiveRoom` 进房（无 playUrl 时封面占位）、加购调用 `addItemToOrder` + `setOrderLiveRoom`（断言通过） |
+| 账单代付规则 | 单笔 ¥10.00 ~ ¥1000.00、单日 ¥2000.00、自动报价 30 分钟、会员减 5%、满减 2 档（断言通过） |
+| 代买单列表 | 3 条（待支付 / 待报价 / 已完成），状态徽标与应付金额正确（断言通过） |
+| 代买单余额支付 | 点击「去支付」→ 弹层 → 余额支付调用 `payBillPayOrderWithBalance`（断言通过） |
+| 提交代买单 | 填写商户与金额 → 调用 `createBillPayOrder`（断言通过） |
+| 首页入口 | 活动宫格 6 项，新增「店铺直播」图标正常（断言通过） |
+| 我的菜单入口 | 「账单代付」菜单项可见（断言通过） |
+| 接口核对 | `paymentSchedule`、`paySchedulePeriod`、`cancelSchedule`、`liveRooms`、`liveRoom`、`liveRoomProducts`、`enterLiveRoom`、`setOrderLiveRoom`、`billPayConfig`、`billPayOrders`、`createBillPayOrder`、`cancelBillPayOrder`、`createWechatBillPayment`、`payBillPayOrderWithBalance` 均无 schema 错误 |
+| i18n | 新增 `paymentSchedule`（49 条）、`live`（34 条）、`billPay`（62 条），`home.actLive`、`profile.billPay`、`orderDetail.plan*` 3 条，`nav.*` 4 条，中英双语同步 |
+| 构建/部署 | `pnpm build:h5` 通过，`deploy-waimai.mjs` 部署成功，线上新增页面 chunk 均 200 |
+| 手机视口截图 | 390×844 dpr=2，共 11 张（128-138，存放 `docs/screenshots/common-features-v22/`） |
+
+边界与已知限制：
+- 尾款账单仅支持余额支付（项目需求，微信支付期次扣款需后端补 createPayment 的期次回调结算，暂未开放）；订单详情的「支付计划」入口通过 `paymentSchedule(orderId)` 探测，未登录或非计划单不展示；
+- 期次解锁为后端补偿扫描（最长 1 分钟延迟），前端在支付时刻由后端兜底补偿解锁，`locked` 期次点击提示「尚未解锁」；
+- 法定定金单取消前必须二次确认（前端按 `depositRule.kind === 'legal_deposit'` 传 `confirmForfeit=true`），失信后果由弹窗文案明示；
+- 直播列表为跨店铺聚合，逐店请求（店铺数多时首屏请求数随之增加）；单店直播查询失败静默跳过，不影响其他店铺展示；
+- 直播间播放地址来自 `enterLiveRoom`（仅 `live` 房间下发 `playUrl`），当前后端返回 null 时以封面占位，接入推流地址后即可播放；点赞/连麦等互动能力未开放；
+- 直播加购会切换到该店铺渠道并写入该店铺购物车，与当前所在店铺购物车相互独立；
+- 账单代付的优惠明细、报价有效期、满减文案均以后端返回为准；金额单位「分」，前端仅做展示与输入转换；
+- 线上当前支付计划、直播间、代买单均可能为空（后台未配置/未开播），页面为空态；截图使用模拟响应，后台配置后即真实展示；
+- 本轮为纯前端改动，复用线上已启用的 payment-schedule / live-streaming / bill-pay 插件，无需发布后端。
+

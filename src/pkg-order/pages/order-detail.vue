@@ -183,6 +183,14 @@
       <view class="summary__row summary__row--total"><text>{{ $t('orderDetail.paid') }}</text><text class="summary__total">¥{{ (order.totalWithTax / 100).toFixed(2) }}</text></view>
       <text class="summary__saved" v-if="discountTotal > 0">{{ $t('orderDetail.savedTotal').replace('{y}', (discountTotal / 100).toFixed(2)) }}</text>
     </view>
+    <!-- 支付计划（预售尾款/分期/租赁）：有账单时提供入口 -->
+    <view class="section plan-card" v-if="hasSchedule" @tap="goPaymentSchedule">
+      <view class="plan-card__row">
+        <text class="plan-card__title">{{ $t('orderDetail.planTitle') }}</text>
+        <text class="plan-card__link">{{ $t('orderDetail.planView') }} ›</text>
+      </view>
+      <text class="plan-card__hint">{{ $t('orderDetail.planHint') }}</text>
+    </view>
     <view class="section" v-if="order.couponCodes?.length">
       <text class="section__title">{{ $t('orderDetail.couponTitle') }}</text>
       <text v-for="c in order.couponCodes" :key="c" class="coupon-tag">{{ c }}</text>
@@ -265,6 +273,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getOrderByCode, getOrdersForChannel } from '../../api/queries/order';
+import { getPaymentSchedule } from '../../api/queries/paymentSchedule';
 import { addItemToOrder } from '../../api/mutations/cart';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
@@ -341,6 +350,8 @@ const exceptionResultText = computed(() => {
 const discountTotal = computed(() => order.value?.discounts?.reduce((s:number,d:any)=>s+d.amountWithTax,0) || 0);
 // —— 售后（送达后 24h 内，整单/按行部分退）——
 const afterSale = ref<AfterSaleRequest | null>(null);
+// 预售/分期订单存在支付计划时展示尾款入口（paymentSchedule 依赖登录态，未登录静默）
+const hasSchedule = ref(false);
 // 售后状态映射：值存 i18n 键
 const asStateLabels: Record<string, string> = {
     Pending: 'asPending', Approved: 'asApproved', Received: 'asReceived', Refunded: 'asRefunded',
@@ -506,6 +517,7 @@ onMounted(async () => {
             ?? mine.find(r => r.order?.id === order.value?.id) ?? null;
     } catch (e) { /* 未登录等场景静默 */ }
     loadPickupCode();
+    void loadScheduleFlag();
     startRiderPolling();
     startEtaTicker();
     void loadEtaMinutes();
@@ -722,6 +734,21 @@ function goAfterSaleDetail() {
     if (!afterSale.value?.id) return;
     uni.navigateTo({ url: `/pkg-order/pages/after-sale-detail?id=${afterSale.value.id}` });
 }
+/** 是否有支付计划（尾款/分期）：仅登录后查询，失败视为无 */
+async function loadScheduleFlag() {
+    if (!auth.isLoggedIn || !order.value?.id) return;
+    try {
+        const s = await getPaymentSchedule(order.value.id);
+        hasSchedule.value = !!s?.id;
+    } catch { hasSchedule.value = false; }
+}
+// 支付计划（尾款/分期账单）：按订单 id 查询，附带订单号用于页面展示
+function goPaymentSchedule() {
+    if (!order.value?.id) return;
+    uni.navigateTo({
+        url: `/pkg-order/pages/payment-schedule?orderId=${order.value.id}&code=${encodeURIComponent(order.value.code || '')}`,
+    });
+}
 // 全屏骑手跟踪（版式 B）：订单号即可反查，跟踪页自行轮询骑手位置/距离/ETA
 function goTracking() {
     if (!order.value?.code) return;
@@ -877,6 +904,8 @@ async function confirmReorder() {
 .order-detail__actions { padding: 20rpx; display: flex; gap: 16rpx; flex-wrap: wrap; }
 // 售后状态卡
 .as-card { &__row { display: flex; justify-content: space-between; align-items: center; } &__title { font-size: 28rpx; font-weight: bold; } &__amount { font-size: 28rpx; color: $price-color; font-weight: bold; } &__sub { font-size: 24rpx; color: $text-color-secondary; margin-top: 8rpx; display: block; } }
+// 支付计划入口（尾款/分期账单）
+.plan-card { &__row { display: flex; justify-content: space-between; align-items: center; } &__title { font-size: 28rpx; font-weight: bold; } &__link { font-size: 26rpx; color: $brand-color; } &__hint { font-size: 22rpx; color: $text-color-placeholder; margin-top: 8rpx; display: block; } }
 // 开发票（Task 11）：已申请只读条 + 底部弹层
 .invoice-card {
   background: $surface; border-radius: $radius-md; padding: 24rpx 30rpx; margin: 20rpx;

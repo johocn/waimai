@@ -75,6 +75,10 @@
                     <view class="act-ico act-ico--presale">📦</view>
                     <text class="act-txt">{{ $t('home.actPreSale') }}</text>
                 </view>
+                <view class="act" @tap="goLive">
+                    <view class="act-ico act-ico--live">📺</view>
+                    <text class="act-txt">{{ $t('home.actLive') }}</text>
+                </view>
             </view>
             <!-- 时段推荐：按当前时间（早餐/午餐/下午茶/晚餐/夜宵）推荐应景店铺 -->
             <view v-if="!keyword && !showSearchPanel && mealPicks.length" class="recent meal">
@@ -784,6 +788,7 @@ function goGroupBuy() { uni.navigateTo({ url: '/pkg-promotion/pages/group-buy' }
 function goCouponFlash() { uni.navigateTo({ url: '/pkg-promotion/pages/coupon-flash' }); }
 function goLottery() { uni.navigateTo({ url: '/pkg-user/pages/lottery' }); }
 function goPreSale() { uni.navigateTo({ url: '/pkg-promotion/pages/pre-sale' }); }
+function goLive() { uni.navigateTo({ url: '/pkg-promotion/pages/live-list' }); }
 function goMyCoupons() { uni.navigateTo({ url: '/pkg-promotion/pages/my-coupons' }); }
 function goJianghu() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-hall' }); }
 function goMessages() { uni.navigateTo({ url: '/pkg-user/pages/messages' }); }
@@ -898,7 +903,7 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .qico { position: relative; flex-shrink: 0; width: 76rpx; height: 76rpx; border-radius: 999rpx; background: var(--w-brand-soft); display: flex; align-items: center; justify-content: center; font-size: 38rpx; }
 .qtxt { max-width: 100%; font-size: 22rpx; color: var(--w-text); text-align: center; }
 .qk-badge { position: absolute; top: -8rpx; right: -12rpx; min-width: 32rpx; height: 32rpx; line-height: 32rpx; padding: 0 6rpx; border-radius: 16rpx; background: #ff4d4f; color: #fff; font-size: 20rpx; font-weight: 600; text-align: center; }
-.acts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8rpx; margin-top: 16rpx; background: var(--w-surface); border-radius: $radius-card; padding: 22rpx 8rpx; }
+.acts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8rpx; margin-top: 16rpx; background: var(--w-surface); border-radius: $radius-card; padding: 22rpx 8rpx; }
 .act { display: flex; flex-direction: column; align-items: center; gap: 10rpx; }
 .act-ico { width: 68rpx; height: 68rpx; border-radius: 24rpx; display: flex; align-items: center; justify-content: center; font-size: 32rpx; color: #fff; }
 .act-ico--flash { background: linear-gradient(135deg, #ff4d2e, #ff8a3d); }
@@ -906,6 +911,7 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .act-ico--cf { background: linear-gradient(135deg, #ff8a00, #ff5f6d); }
 .act-ico--lottery { background: linear-gradient(135deg, #ffb300, #ff7a00); }
 .act-ico--presale { background: linear-gradient(135deg, #5b6ef5, #8f6cf0); }
+.act-ico--live { background: linear-gradient(135deg, #e0397a, #f0634c); }
 .act-txt { font-size: 22rpx; color: var(--w-text); text-align: center; }
 .pills { white-space: nowrap; padding: 20rpx 0 4rpx; }
 .pill { display: inline-flex; align-items: center; gap: 6rpx; padding: 10rpx 24rpx; margin-right: 16rpx; border-radius: 999rpx; font-size: 24rpx; color: var(--w-text-muted); background: var(--w-surface); border: 1rpx solid var(--w-border); }

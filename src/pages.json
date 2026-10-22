@@ -21,7 +21,8 @@
                 { "path": "pages/after-sales", "style": { "navigationBarTitleText": "%nav.afterSales%" } },
                 { "path": "pages/my-reviews", "style": { "navigationBarTitleText": "%nav.myReviews%" } },
                 { "path": "pages/cart", "style": { "navigationBarTitleText": "%nav.cart%" } },
-                { "path": "pages/receipt", "style": { "navigationBarTitleText": "%nav.receipt%" } }
+                { "path": "pages/receipt", "style": { "navigationBarTitleText": "%nav.receipt%" } },
+                { "path": "pages/payment-schedule", "style": { "navigationBarTitleText": "%nav.paymentSchedule%" } }
             ]
         },
         {
@@ -64,7 +65,8 @@
                 { "path": "pages/points-orders", "style": { "navigationBarTitleText": "%nav.pointsOrders%" } },
                 { "path": "pages/invoice-center", "style": { "navigationBarTitleText": "%nav.invoiceCenter%" } },
                 { "path": "pages/lottery", "style": { "navigationBarTitleText": "%nav.lottery%" } },
-                { "path": "pages/distribution", "style": { "navigationBarTitleText": "%nav.distribution%" } }
+                { "path": "pages/distribution", "style": { "navigationBarTitleText": "%nav.distribution%" } },
+                { "path": "pages/bill-pay", "style": { "navigationBarTitleText": "%nav.billPay%" } }
             ]
         },
         {
@@ -93,7 +95,9 @@
                 { "path": "pages/coupon-sale-orders", "style": { "navigationBarTitleText": "%nav.couponSaleOrders%" } },
                 { "path": "pages/daily-coupon", "style": { "navigationBarTitleText": "%nav.dailyCoupon%" } },
                 { "path": "pages/coupon-fission", "style": { "navigationBarTitleText": "%nav.couponFission%" } },
-                { "path": "pages/pre-sale", "style": { "navigationBarTitleText": "%nav.preSale%" } }
+                { "path": "pages/pre-sale", "style": { "navigationBarTitleText": "%nav.preSale%" } },
+                { "path": "pages/live-list", "style": { "navigationBarTitleText": "%nav.live%" } },
+                { "path": "pages/live-room", "style": { "navigationBarTitleText": "%nav.liveRoom%" } }
             ]
         }
     ],

@@ -2070,3 +2070,82 @@
 - 配送轨迹依赖配送档案（`orderPackage`）与物流同步任务：无档案时订单详情不展示入口；轨迹节点解析兼容 JSON 数组与纯文本，第三方字段名差异由前端兼容映射；
 - 团长中心本轮未接入：线上 introspect 确认 `community-plugin` 的 `myActivities` / `myCommission` / `applyLeader` 未启用，故改为订单配送轨迹；待插件上线后可复用 `pkg-user` 分包补页面；
 - 本轮为纯前端改动，复用线上已启用的 shopping-circle-plugin / operations-plugin / notification-plugin / 配送档案接口，无需发布后端。
+
+## 123 游客查单（免登录）
+
+页面：`/pkg-order/pages/guest-order`（`src/pkg-order/pages/guest-order.vue`）  
+接口：`guestOrderLookup(input: {orderCode, phone})` → `GuestOrderOverview`（`src/api/queries/guest-order.ts`）
+
+使用方式：
+1. 未登录用户在「订单」Tab 顶部看到橙色入口条「免登录查单 · 订单号 + 手机号」，登录页底部也固定一条「免登录查单 ›」；两处均跳转查单页；
+2. 输入订单号与**下单时填写的手机号**，点击「查询订单」；
+3. 命中后展示：订单号、下单时间、状态胶囊、取餐码（自提单：可取自提时高亮 / 已取餐 / 备餐中）、自提点名称/地址/营业时间、商品行（品名 × 数量 × 金额、酒店入住区间）、商品小计 / 配送费 / 合计、支付状态与件数；
+4. 订单号或手机号不匹配时展示「未找到订单，请核对订单号与手机号」，不区分「订单不存在」与「手机号错误」，避免泄露订单信息。
+
+截图：[161-guest-order-form.png](screenshots/common-features-v12/161-guest-order-form.png)、[162-guest-order-result.png](screenshots/common-features-v12/162-guest-order-result.png)、[163-guest-order-notfound.png](screenshots/common-features-v12/163-guest-order-notfound.png)、[164-orders-guest-entry.png](screenshots/common-features-v12/164-orders-guest-entry.png)、[165-login-guest-link.png](screenshots/common-features-v12/165-login-guest-link.png)
+
+## 124 学生认证
+
+页面：`/pkg-user/pages/student-verify`（`src/pkg-user/pages/student-verify.vue`），入口：我的 → 学生认证  
+接口：`myStudentVerification`（查询状态）、`applyStudentVerification(school, studentNo, idImg)`（提交/重提）（`src/api/queries/student.ts`）
+
+使用方式：
+1. 未登录时展示引导卡「登录后申请学生认证 → 去登录」，登录后返回本页；
+2. 未认证/被驳回：填写学校全称、学号，可上传学生证或校园卡照片（`VImageUpload`，最多 1 张）后提交；学校为纯数字时本地拦截提示；
+3. 审核中：顶部状态卡转「审核中」，表单保留可「重新提交」以修正资料；
+4. 已通过：隐藏表单，展示学校 / 学号 / 审核时间与说明，学生价由后端下单时自动校验。
+
+截图：[166-student-form.png](screenshots/common-features-v12/166-student-form.png)、[167-student-pending.png](screenshots/common-features-v12/167-student-pending.png)
+
+## 125 帮助中心后台化（FAQ）
+
+页面：`/pkg-user/pages/help`（`src/pkg-user/pages/help.vue`）  
+接口：`faqs(type, lang)`（`src/api/queries/faq.ts`）
+
+- 打开页面时按当前语言请求后台 FAQ（`zh-Hans → zh-CN`、`en → en`），**有数据即替换内置静态 FAQ**；
+- 按后台 `type` 自动分组，分组标题映射：`general`→通用问题、`pay/payment`→支付与优惠、`delivery/order`→配送与订单、`aftersale/after-sale/refund`→退款与售后、`invoice`→发票、`account`→账号；未命中类型直接以 `type` 原文作标题；
+- 标题/正文取后台纯文本，点击展开/收起；`sort` 由后端排序；
+- 接口失败或无数据（线上 `faqs` 当前返回 `[]`）时**静默回落**内置 5 组共 10 条静态 FAQ，页面不出现空白或报错。
+
+截图：[168-help-server-faq.png](screenshots/common-features-v12/168-help-server-faq.png)、[169-help-fallback.png](screenshots/common-features-v12/169-help-fallback.png)
+
+## 126 附近有货（跨仓/门店库存）
+
+入口：门店页商品卡片价格行右侧「📍 附近有货」按钮；弹层在本页（`src/pages/shop/menu.vue`）  
+接口：`variantNearbyStock(productId, variantId, lat, lng, city)` → `[NearStockLocation]`（`src/api/queries/nearby-stock.ts`）
+
+- 点击后先取定位（`uni.getLocation` gcj02，3 秒超时，失败不阻塞查询），再按当前商品与首个 SKU 查询附近库存；
+- 结果过滤：仅保留**可售合计 > 0** 的门店（多 SKU 时求和 `stockAvailable`），按 `distanceKm` 升序；
+- 距离展示：有效距离显示「0.8 km」，后端无坐标时的哨兵值（JS `MAX_SAFE_INTEGER`）显示「距离未知」并排在有效距离之后；
+- 门店行展示名称、简介、可售件数、服务城市；未取到定位时顶部黄条提示「距离可能不准确」；
+- 弹层底部「刷新库存」重新定位并查询；查询失败仅提示 toast，不破坏店铺页。
+
+截图：[170-nearby-stock-sheet.png](screenshots/common-features-v12/170-nearby-stock-sheet.png)
+
+## 127 验收记录与边界（第二十五轮，2026-10-23）
+
+验收方式：Playwright 390×844 dpr=2 移动视口，本地静态服务挂 `/waimai` 前缀（端口 52207）托管最新 `pnpm build:h5` 产物；四个新查询/变更均先对线上 `https://www.yourbao.cn/shop-api` introspection 校验参数与返回类型，页面数据由脚本注入模拟响应，其余门店/商品请求透传线上真实数据。交互回归断言 20 条，全部通过。
+
+| 项目 | 结果 |
+|---|---|
+| 游客查单表单 | 标题「免登录查单」、订单号/手机号双字段、隐私说明（断言通过） |
+| 游客查单命中 | 取餐码 A138、可自提提示、两条商品行、合计 ¥34.00、已支付（断言通过） |
+| 游客查单未命中 | 手机号不匹配时展示「未找到订单」（断言通过） |
+| 订单页入口 | 未登录展示「免登录查单 · 订单号 + 手机号」入口条（断言通过） |
+| 登录页入口 | 底部「免登录查单 ›」可见，点击跳转查单页（断言通过） |
+| 学生认证表单 | 未认证状态、学校/学号/学生证照片字段、认证说明（断言通过） |
+| 学生认证提交 | 提交后状态转「审核中」并保留重新提交入口（断言通过） |
+| 帮助中心后台化 | 后台 3 条 FAQ 按 type 分组渲染、无静态分组混入、展开显示答案（断言通过） |
+| 帮助中心回落 | FAQ 返回空时展示内置静态 FAQ（断言通过） |
+| 附近有货弹层 | 弹层打开、按距离升序、0.8 km、距离未知、可售 10 件、可售为 0 的门店被过滤（断言通过） |
+| 页面标题 | 免登录查单 / 学生认证 正确取 `nav.guestOrder`、`nav.studentVerify` |
+| i18n | 新增 `guestOrder`(27)、`student`(33)、`menu.nearby*`(9)、`profile.studentVerify`(1)、`help.faqGeneralTitle`(1) 及 `nav.*` 2 条×3 文件，中英双语同步 |
+| 构建/部署 | `pnpm build:h5` 通过；新增 2 个页面路由与 chunk 线上 200 |
+| 手机视口截图 | 390×844 dpr=2，共 10 张（161-170，存放 `docs/screenshots/common-features-v12/`） |
+
+边界与已知限制：
+- 游客查单只对**访客单**（未登录下单）且手机号完全匹配时返回，已登录下单的订单仍需登录后在「订单」查看；后端对不存在/不匹配统一报 `GUEST_ORDER_NOT_FOUND`；
+- 学生认证依赖后端 `coupon-plugin` 的学生认证表与人工审核，前端仅负责提交与状态展示；`idImg` 走 `uploadCustomerAsset`，审核通过前不展示学生价；
+- FAQ 文案以后台录入为准，前端不再维护内容；分组标题仅对常见 `type` 做本地化映射，未知 `type` 原样展示，建议后台统一使用 `general/pay/delivery/aftersale/invoice/account`；
+- 附近有货受定位授权影响：拒绝定位时仍可查库存，但距离全部为「距离未知」；库存为实时快照，进入弹层/点刷新才重新拉取，未做库存变化订阅；
+- 本轮为纯前端改动，复用线上已启用的 pickup-plugin / coupon-plugin / feedback-plugin(faqs) / 库存插件接口，无需发布后端。

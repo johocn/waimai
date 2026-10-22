@@ -57,6 +57,8 @@
         "nav.subscriptions": "我的订阅",
         "nav.circle": "购物圈",
         "nav.circlePublish": "发布晒单",
-        "nav.deliveryTrack": "配送轨迹"
+        "nav.deliveryTrack": "配送轨迹",
+        "nav.guestOrder": "免登录查单",
+        "nav.studentVerify": "学生认证"
     }
 }

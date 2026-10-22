@@ -49,6 +49,7 @@
       <text class="agreement-text">{{ $t('login.and') }}</text>
       <text class="agreement-link">{{ $t('login.privacy') }}</text>
     </view>
+    <text class="login-page__guest" @click="goGuestOrder">{{ $t('guestOrder.loginLink') }}</text>
   </view>
 </template>
 <script setup lang="ts">
@@ -169,6 +170,10 @@ function navigateAfterLogin() {
     } else {
         uni.switchTab({ url: '/pages/home/index' });
     }
+}
+
+function goGuestOrder() {
+    uni.navigateTo({ url: '/pkg-order/pages/guest-order' });
 }
 
 async function sendCode() {
@@ -481,4 +486,6 @@ async function tryUpdateReferredBy(inviteCode: string) {
 .register-link { font-size: 26rpx; color: $brand-color; text-align: center; margin-top: 20rpx; }
 .agreement-text { font-size: 22rpx; color: $text-color-placeholder; }
 .agreement-link { font-size: 22rpx; color: $brand-color; }
+/* 免登录查单入口（固定于协议行上方） */
+.login-page__guest { position: fixed; bottom: 100rpx; left: 0; right: 0; text-align: center; font-size: 24rpx; color: $brand-color; }
 </style>

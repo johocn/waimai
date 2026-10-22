@@ -18,17 +18,17 @@
       </view>
     </view>
 
-    <!-- 常见问题 -->
+    <!-- 常见问题：后台 FAQ 优先，无数据/失败回落内置静态分组 -->
     <view class="faq">
       <text class="faq__title">{{ $t('help.faqTitle') }}</text>
-      <view class="faq__group" v-for="g in FAQ_GROUPS" :key="g.titleKey">
-        <text class="faq__gtitle">{{ $t('help.' + g.titleKey) }}</text>
-        <view class="faq__item" v-for="it in g.items" :key="it.q" @click="toggle(it.q)">
+      <view class="faq__group" v-for="g in faqGroups" :key="g.key">
+        <text class="faq__gtitle">{{ g.title }}</text>
+        <view class="faq__item" v-for="it in g.items" :key="it.key" @click="toggle(it.key)">
           <view class="faq__q">
-            <text class="faq__qtext">{{ $t('help.' + it.q) }}</text>
-            <text class="faq__arrow">{{ openKey === it.q ? '▾' : '›' }}</text>
+            <text class="faq__qtext">{{ it.q }}</text>
+            <text class="faq__arrow">{{ openKey === it.key ? '▾' : '›' }}</text>
           </view>
-          <text class="faq__a" v-if="openKey === it.q">{{ $t('help.' + it.a) }}</text>
+          <text class="faq__a" v-if="openKey === it.key">{{ it.a }}</text>
         </view>
       </view>
     </view>
@@ -38,8 +38,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import { useLocaleStore } from '../../stores/locale';
+import { fetchFaqs } from '../../api/queries/faq';
+import type { FaqItem } from '../../api/queries/faq';
 
 const locale = useLocaleStore();
 // 客服热线走构建环境变量，未配置时给出提示（与「关于」页同一变量）
@@ -52,8 +55,8 @@ const QUICK = [
   { ico: '📦', labelKey: 'quickOrders', url: '__orders__' },
 ];
 
-// 问题/答案均为字典键，展示时经 t() 解析；分组标题同样是键
-const FAQ_GROUPS = [
+// 内置静态 FAQ：问题/答案均为字典键，展示时经 t() 解析；分组标题同样是键
+const STATIC_FAQ_GROUPS = [
   {
     titleKey: 'faqPayTitle',
     items: [
@@ -91,7 +94,52 @@ const FAQ_GROUPS = [
   },
 ];
 
+// 后台 FAQ 的 type → 分组标题（未命中用 type 原文兜底）
+const FAQ_TYPE_TITLE: Record<string, string> = {
+  general: 'help.faqGeneralTitle',
+  pay: 'help.faqPayTitle',
+  payment: 'help.faqPayTitle',
+  delivery: 'help.faqDeliveryTitle',
+  order: 'help.faqDeliveryTitle',
+  aftersale: 'help.faqAfterSaleTitle',
+  'after-sale': 'help.faqAfterSaleTitle',
+  refund: 'help.faqAfterSaleTitle',
+  invoice: 'help.faqInvoiceTitle',
+  account: 'help.faqAccountTitle',
+};
+
+const serverFaqs = ref<FaqItem[]>([]);
+let faqLoaded = false;
+
+const faqGroups = computed(() => {
+  if (serverFaqs.value.length) {
+    const groups: Array<{ key: string; title: string; items: Array<{ key: string; q: string; a: string }> }> = [];
+    const index = new Map<string, number>();
+    for (const f of serverFaqs.value) {
+      if (!index.has(f.type)) {
+        index.set(f.type, groups.length);
+        const titleKey = FAQ_TYPE_TITLE[f.type];
+        groups.push({ key: 's-' + f.type, title: titleKey ? locale.t(titleKey) : f.type, items: [] });
+      }
+      groups[index.get(f.type)!].items.push({ key: 'f-' + f.id, q: f.title, a: f.content });
+    }
+    return groups;
+  }
+  return STATIC_FAQ_GROUPS.map((g) => ({
+    key: 'k-' + g.titleKey,
+    title: locale.t('help.' + g.titleKey),
+    items: g.items.map((it) => ({ key: it.q, q: locale.t('help.' + it.q), a: locale.t('help.' + it.a) })),
+  }));
+});
+
 const openKey = ref('');
+
+onShow(async () => {
+  if (faqLoaded) return;
+  faqLoaded = true;
+  const list = await fetchFaqs(locale.locale);
+  if (list.length) serverFaqs.value = list;
+});
 
 function toggle(key: string) {
   openKey.value = openKey.value === key ? '' : key;

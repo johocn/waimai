@@ -142,6 +142,7 @@
                             </view>
                             <view class="price-row">
                                 <PriceTag :price="g.variants[0]?.priceWithTax || 0" />
+                                <text class="good-nearby" @tap.stop="openNearby(g)">📍 {{ $t('menu.nearbyStock') }}</text>
                             </view>
                         </view>
                         <view class="add-btn spec" :class="{ disabled: goodSoldOut(g) }" v-if="(g.variants?.length ?? 0) > 1" @tap.stop="pickSku(g)">{{ $t('menu.pickSpec') }}</view>
@@ -268,6 +269,38 @@
         </view>
         <SkuSheet v-model:visible="skuOpen" :product="skuProduct" :preferred-variant-id="skuPreferred" @action="onSkuAction" @share="shareProduct" />
 
+        <!-- 附近有货弹层：跨仓/门店库存（按距离升序，仅可售 > 0） -->
+        <view v-if="nearbyOpen" class="nearby-mask" @tap="closeNearby">
+            <view class="nearby-sheet" @tap.stop>
+                <view class="nearby-head">
+                    <view class="nearby-head__col">
+                        <text class="nearby-title">{{ $t('menu.nearbyTitle') }}</text>
+                        <text class="nearby-sub">{{ nearbyProduct?.name }}</text>
+                    </view>
+                    <text class="nearby-close" @tap="closeNearby">✕</text>
+                </view>
+                <text v-if="!nearbyLocated" class="nearby-noloc">{{ $t('menu.nearbyNoLocation') }}</text>
+                <scroll-view scroll-y class="nearby-body">
+                    <view v-if="nearbyLoading" class="nearby-loading">{{ $t('menu.nearbyLoading') }}</view>
+                    <EmptyState v-else-if="!nearbyList.length" :text="$t('menu.nearbyEmpty')" />
+                    <template v-else>
+                        <view v-for="it in nearbyList" :key="it.location.id" class="nearby-item">
+                            <view class="nearby-item__top">
+                                <text class="nearby-item__name">{{ it.location.name }}</text>
+                                <text class="nearby-item__dist">{{ distanceText(it.distanceKm) }}</text>
+                            </view>
+                            <text v-if="it.location.description" class="nearby-item__desc">{{ it.location.description }}</text>
+                            <view class="nearby-item__meta">
+                                <text class="nearby-item__stock">{{ $t('menu.nearbyAvailable').replace('{n}', String(it.available)) }}</text>
+                                <text v-if="it.location.serviceCities?.length" class="nearby-item__city">{{ it.location.serviceCities.join(' / ') }}</text>
+                            </view>
+                        </view>
+                    </template>
+                </scroll-view>
+                <button class="nearby-refresh" :disabled="nearbyLoading" @tap="reloadNearby">{{ $t('menu.nearbyRefresh') }}</button>
+            </view>
+        </view>
+
         <!-- 店铺公告弹层 -->
         <view v-if="noticeOpen" class="notice-mask" @tap="noticeOpen = false">
             <view class="notice-sheet" @tap.stop>
@@ -304,6 +337,7 @@ import { sharePage } from '../../utils/share';
 import { addItemToOrder } from '../../api/mutations/cart';
 import { claimProductCoupon } from '../../api/mutations/coupon';
 import { getActiveOrder, getOrdersForChannel } from '../../api/queries/order';
+import { fetchNearbyStock, isDistanceKnown } from '../../api/queries/nearby-stock';
 import VImage from '../../components/VImage.vue';
 import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
@@ -325,6 +359,13 @@ const storeInfo = ref<any>(null);
 /** 店铺公告（storeInfo 的 storeNotice，空则整块不显示） */
 const storeNotice = computed(() => String(storeInfo.value?.storeNotice || '').trim());
 const noticeOpen = ref(false);
+// 附近有货：商品卡入口 → 弹层按定位查跨仓库存
+const nearbyOpen = ref(false);
+const nearbyLoading = ref(false);
+const nearbyProduct = ref<any>(null);
+const nearbyList = ref<any[]>([]);
+const nearbyLocated = ref(false);
+const nearbyCoords = ref<{ lat: number; lng: number } | null>(null);
 const tab = ref<'goods' | 'reviews' | 'merchant'>('goods');
 const cats = ref([{ id: 'all', name: '全部' }]);
 const activeCat = ref('all');
@@ -759,6 +800,83 @@ function clearProductQuery() {
     loadProductCoupons(goodsOf(activeCat.value));
 }
 
+// —— 附近有货：定位（3s 超时）→ 跨仓库存查询 → 仅展示可售 > 0，按距离升序 ——
+function getLocationFixed(ms = 3000): Promise<{ lat: number; lng: number } | null> {
+    return new Promise((resolve) => {
+        let done = false;
+        const finish = (v: { lat: number; lng: number } | null) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve(v);
+        };
+        const timer = setTimeout(() => finish(null), ms);
+        uni.getLocation({
+            type: 'gcj02',
+            success: (r: any) => finish({ lat: r.latitude, lng: r.longitude }),
+            fail: () => finish(null),
+        } as any);
+    });
+}
+
+async function openNearby(g: any) {
+    nearbyProduct.value = g;
+    nearbyOpen.value = true;
+    nearbyList.value = [];
+    nearbyLoading.value = true;
+    try {
+        if (!nearbyCoords.value) nearbyCoords.value = await getLocationFixed();
+        nearbyLocated.value = !!nearbyCoords.value;
+        await loadNearby(g);
+    } finally {
+        nearbyLoading.value = false;
+    }
+}
+
+async function loadNearby(g: any) {
+    const firstVariant = g?.variants?.[0];
+    const c = nearbyCoords.value;
+    try {
+        const list = await fetchNearbyStock({
+            productId: String(g.id),
+            variantId: firstVariant?.id ? String(firstVariant.id) : undefined,
+            lat: c?.lat,
+            lng: c?.lng,
+        });
+        nearbyList.value = list
+            .map((it) => ({
+                ...it,
+                available: (it.variants ?? []).reduce((sum, v) => sum + (Number(v.stockAvailable) || 0), 0),
+            }))
+            .filter((it) => it.available > 0)
+            .sort((a, b) => a.distanceKm - b.distanceKm);
+    } catch (e) {
+        nearbyList.value = [];
+        uni.showToast({ title: locale.t('menu.nearbyFail'), icon: 'none' });
+    }
+}
+
+async function reloadNearby() {
+    const g = nearbyProduct.value;
+    if (!g || nearbyLoading.value) return;
+    nearbyLoading.value = true;
+    try {
+        if (!nearbyCoords.value) nearbyCoords.value = await getLocationFixed();
+        nearbyLocated.value = !!nearbyCoords.value;
+        await loadNearby(g);
+    } finally {
+        nearbyLoading.value = false;
+    }
+}
+
+function closeNearby() {
+    nearbyOpen.value = false;
+}
+
+function distanceText(km: number): string {
+    return isDistanceKnown(km) ? `${Number(km).toFixed(1)} km` : locale.t('menu.nearbyUnknown');
+}
+
 // ===== 商品专属券 chip：按当前分类商品拉绑定，productId → 绑定（取首个启用项） =====
 const productCouponMap = ref(new Map<string, any>());
 const claimedProductIds = ref(new Set<string>());
@@ -1088,6 +1206,30 @@ function goCheckout() {
 .combo__sum { font-size: 28rpx; font-weight: 600; color: #ff6600; }
 .combo__btn { padding: 10rpx 32rpx; border-radius: 999rpx; background: #ff6600; color: #fff; font-size: 24rpx; font-weight: 600;
   &.busy { opacity: 0.5; } }
+/* ── 附近有货弹层 ── */
+.nearby-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 270; display: flex; align-items: flex-end; }
+.nearby-sheet { width: 100%; max-height: 76vh; background: #fff; border-radius: 24rpx 24rpx 0 0; padding: 32rpx 28rpx calc(28rpx + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 18rpx; box-sizing: border-box; }
+.nearby-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16rpx; }
+.nearby-head__col { display: flex; flex-direction: column; gap: 6rpx; min-width: 0; }
+.nearby-title { font-size: 32rpx; font-weight: 700; color: #222; }
+.nearby-sub { font-size: 24rpx; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nearby-close { font-size: 32rpx; color: #999; padding: 0 8rpx; }
+.nearby-noloc { font-size: 22rpx; color: #b26a00; background: #fff7e6; border-radius: 12rpx; padding: 14rpx 18rpx; line-height: 1.5; }
+.nearby-body { max-height: 50vh; }
+.nearby-loading { text-align: center; font-size: 24rpx; color: #999; padding: 40rpx 0; }
+.nearby-item { padding: 22rpx 0; border-bottom: 1rpx solid #f0f0f0; display: flex; flex-direction: column; gap: 8rpx; }
+.nearby-item:last-child { border-bottom: none; }
+.nearby-item__top { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+.nearby-item__name { font-size: 27rpx; font-weight: 600; color: #222; }
+.nearby-item__dist { flex-shrink: 0; font-size: 22rpx; color: #ff6600; }
+.nearby-item__desc { font-size: 22rpx; color: #999; }
+.nearby-item__meta { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+.nearby-item__stock { font-size: 22rpx; color: #1f8a4c; }
+.nearby-item__city { font-size: 20rpx; color: #bbb; }
+.nearby-refresh { width: 100%; height: 84rpx; line-height: 84rpx; border-radius: 42rpx; background: #ff6600; color: #fff; font-size: 28rpx; border: none; }
+.nearby-refresh::after { border: none; }
+.nearby-refresh[disabled] { background: #ccc; }
+/* ── 店铺公告弹层 ── */
 .notice-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 260; display: flex; align-items: center; justify-content: center; padding: 0 60rpx; }
 .notice-sheet { width: 100%; max-height: 70vh; background: #fff; border-radius: 24rpx; padding: 36rpx 32rpx 28rpx; display: flex; flex-direction: column; gap: 20rpx; box-sizing: border-box; }
 .notice-sheet__head { display: flex; align-items: center; gap: 12rpx; }
@@ -1122,7 +1264,8 @@ function goCheckout() {
 .good-rate__star { color: #f59e0b; font-size: 22rpx; }
 .good-rate__num { color: #f59e0b; font-weight: 600; }
 .good-rate__cnt { color: var(--w-text-muted); }
-.price-row { margin-top: 4rpx; }
+.price-row { margin-top: 4rpx; display: flex; align-items: center; gap: 16rpx; }
+.good-nearby { font-size: 20rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 999rpx; padding: 6rpx 14rpx; white-space: nowrap; }
 .good-coupon { display: inline-flex; align-items: center; gap: 8rpx; margin-top: 8rpx; padding: 2rpx 12rpx; border: 1rpx solid #ff6600; border-radius: 6rpx; background: #fff7f0; }
 .good-coupon__txt { font-size: 20rpx; color: #ff6600; }
 .good-coupon__action { font-size: 20rpx; color: #fff; background: #ff6600; border-radius: 4rpx; padding: 0 8rpx; }

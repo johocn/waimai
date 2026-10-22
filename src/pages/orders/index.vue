@@ -1,5 +1,14 @@
 <template>
   <view class="orders-page">
+    <!-- 免登录查单入口：未登录时展示，订单号 + 手机号即可查（访客单） -->
+    <view v-if="!auth.isLoggedIn" class="guest-entry" @click="goGuestOrder">
+      <text class="guest-entry__ico">🔎</text>
+      <view class="guest-entry__col">
+        <text class="guest-entry__title">{{ $t('guestOrder.entryTitle') }}</text>
+        <text class="guest-entry__sub">{{ $t('guestOrder.entrySub') }}</text>
+      </view>
+      <text class="guest-entry__arrow">›</text>
+    </view>
     <view class="orders-tabs">
       <text v-for="t in tabs" :key="t.value" class="orders-tab" :class="{ active: activeTab === t.value }" @click="switchTab(t.value)">{{ $t(t.label) }}</text>
     </view>
@@ -153,6 +162,9 @@ function goTracking(order: any) {
 function goReorder(order: any) {
     if (!order?.code) return;
     uni.navigateTo({ url: '/pkg-order/pages/order-detail?code=' + order.code + '&reorder=1' });
+}
+function goGuestOrder() {
+    uni.navigateTo({ url: '/pkg-order/pages/guest-order' });
 }
 function toggleAfterSale() {
     onlyAfterSale.value = !onlyAfterSale.value;
@@ -382,6 +394,16 @@ function goDetail(code: string) { uni.navigateTo({ url: '/pkg-order/pages/order-
 <style lang="scss" scoped>
 .orders-page { display: flex; flex-direction: column; height: 100vh; &__scroll { flex: 1; box-sizing: border-box; padding: 0 20rpx; } &__footer { padding: 30rpx; text-align: center; } }
 .orders-tabs { display: flex; background: $surface; border-bottom: 1rpx solid $border-color; }
+/* 未登录查单入口 */
+.guest-entry {
+  display: flex; align-items: center; gap: 16rpx; margin: 16rpx 20rpx 0; padding: 20rpx 24rpx;
+  background: linear-gradient(135deg, #fff3e6, #ffe8d1); border-radius: $radius-md;
+  &__ico { font-size: 32rpx; }
+  &__col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+  &__title { font-size: 26rpx; font-weight: 600; color: #b34a00; }
+  &__sub { font-size: 22rpx; color: #b37400; }
+  &__arrow { font-size: 32rpx; color: #b34a00; }
+}
 .orders-tab { flex: 1; text-align: center; padding: 20rpx 0; font-size: 26rpx; position: relative; &.active { color: $brand-color; &::after { content: ''; position: absolute; bottom: 0; left: 30%; right: 30%; height: 4rpx; background: $brand-color; border-radius: 4rpx; } } }
 .order-card { background: $surface; border-radius: $radius-md; padding: 20rpx; margin-top: 20rpx; &__header { display: flex; justify-content: space-between; margin-bottom: 16rpx; } &__store-col { display: flex; flex-direction: column; gap: 4rpx; } &__store { font-size: 28rpx; font-weight: 600; color: $text-color; } &__code { font-size: 22rpx; color: $text-color-secondary; } &__state { color: $brand-color; font-size: 26rpx; } &__line { display: flex; align-items: center; gap: 16rpx; padding: 8rpx 0; } &__name { flex: 1; font-size: 26rpx; } &__qty { font-size: 24rpx; color: $text-color-placeholder; } &__footer { display: flex; justify-content: space-between; align-items: center; margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid $border-color; } }
 .footer-text { font-size: 24rpx; color: $text-color-placeholder; }

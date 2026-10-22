@@ -51,6 +51,18 @@ export const ORDER_FRAGMENT = `
         couponCodes
         discounts { description amountWithTax }
         customFields { couponCode couponId hallStatus fulfillmentRoute deliveryStatus hallEnteredAt deliverySlotText campusZone orderKind errandKind errandFrom errandTo errandNote tip buildingId leg1Status handoverAt urged exceptionType exceptionAction exceptionCompensation exceptionHandledNote deliveredAt invoiceApplied invoiceInfo }
+        campusOrderDelivery {
+            deliveryPlan
+            handoverMode
+            provider
+            thirdPartyNo
+            state
+            courierName
+            courierPhone
+            handoverPointName
+            handoverPointAddress
+            handoverAt
+        }
     }
 `;
 

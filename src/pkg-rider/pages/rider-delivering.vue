@@ -24,7 +24,7 @@
                     >✓</view>
                     <view class="sub-info">
                         <view class="sub-top">
-                            <text class="code">#{{ o.code }} · {{ o.customFields?.fulfillmentRoute === 'R1' ? $t('riderDelivering.relay') : $t('riderDelivering.direct') }}</text>
+                            <text class="code">#{{ o.code }} · {{ ['R1', 'R2'].includes(o.customFields?.fulfillmentRoute ?? '') ? $t('riderDelivering.relay') : $t('riderDelivering.direct') }}</text>
                             <text class="amt" v-if="o.customFields?.deliveryStatus === 'delivered'">¥{{ fmt(o.customFields?.riderEarning ?? 0) }}</text>
                         </view>
                         <text class="sub-st">{{ statusLabel(o) }}</text>
@@ -56,7 +56,7 @@
 
         <!-- 独立任务卡（无组 / 组内剩余单）：保持原单任务交互 -->
         <view v-for="o in singles" :key="o.id" class="task-card">
-            <text class="code">#{{ o.code }} · {{ o.customFields?.fulfillmentRoute === 'R1' ? $t('riderDelivering.relay') : $t('riderDelivering.direct') }}</text>
+            <text class="code">#{{ o.code }} · {{ ['R1', 'R2'].includes(o.customFields?.fulfillmentRoute ?? '') ? $t('riderDelivering.relay') : $t('riderDelivering.direct') }}</text>
             <text class="addr">📍 {{ o.customFields?.campusZone || '' }} {{ buildingName(o) }}</text>
             <text class="slot" v-if="o.customFields?.deliverySlotText">{{ $t('riderDelivering.expectSlot').replace('{t}', o.customFields.deliverySlotText) }}</text>
             <text class="sla">{{ $t('riderDelivering.sla') }}</text>

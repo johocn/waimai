@@ -23,7 +23,7 @@
                     <text class="fee">¥{{ fmt(runnerFee(t)) }}</text>
                 </view>
                 <text class="task-addr">{{ t.channelName || '' }} · {{ t.customFields?.campusZone || '' }} {{ buildingName(t) }}</text>
-                <text class="task-route">{{ t.customFields?.fulfillmentRoute === 'R1' ? $t('riderHome.routeR1') : $t('riderHome.routeDirect') }}</text>
+                <text class="task-route">{{ ['R1', 'R2'].includes(t.customFields?.fulfillmentRoute ?? '') ? $t('riderHome.routeR1') : $t('riderHome.routeDirect') }}</text>
                 <button class="grab" :disabled="grabbing || takenIds.has(t.id)" @tap="grab(t)">
                     {{ takenIds.has(t.id) ? $t('riderHome.taken') : grabbing ? $t('riderHome.locking') : $t('riderHome.grab') }}
                 </button>

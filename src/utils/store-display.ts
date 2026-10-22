@@ -10,15 +10,16 @@ export function plainDescription(html: string | null | undefined): string {
 }
 
 /**
- * 配送路线语义（campus-delivery-plugin），标准语句与 web-admin「拾光达配置」页逐字一致：
- * R1=商家自送+拾光达接力；R2=快递到校+拾光达接力；R3=档口+拾光达接力；R4=到店自取；R5=校内拾光达。
+ * 配送路线语义（campus-delivery-plugin）：接力与否由路线决定
+ * R1=商户/自营快递+传信者接力；R2=外部快递+传信者接力；R3=传信者/自营/外部快递直送；R4=到店自取；R5=校内跑腿。
+ * R6 已取消，不出现。
  */
 const ROUTE_LABELS: Record<string, string> = {
-    R1: '商家自送+拾光达接力',
-    R2: '快递到校+拾光达接力',
-    R3: '档口+拾光达接力',
+    R1: '商户/自营快递 + 拾光达接力',
+    R2: '外部快递 + 拾光达接力',
+    R3: '传信者/自营/外部快递直送',
     R4: '到店自取',
-    R5: '校内拾光达',
+    R5: '校内跑腿',
 };
 const ROUTE_PRIORITY = ['R1', 'R3', 'R2', 'R4', 'R5'];
 

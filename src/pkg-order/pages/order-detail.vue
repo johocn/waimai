@@ -79,23 +79,6 @@
       </view>
     </view>
 
-    <!-- R2 快递到校卡（二期 spec §5.2）：preparing=确认到校；arrived_gate=选取件方式 -->
-    <view class="section r2-card" v-if="campusRoute === 'R2'">
-      <text class="section__title">{{ $t('orderDetail.r2Title') }}</text>
-      <template v-if="(order.customFields?.leg1Status ?? 'preparing') === 'preparing'">
-        <text class="r2-hint">{{ $t('orderDetail.r2Preparing') }}</text>
-        <button class="action-btn action-btn--primary r2-btn" @click="confirmArrived">{{ $t('orderDetail.r2ArrivedBtn') }}</button>
-      </template>
-      <template v-else>
-        <text class="r2-hint">{{ $t('orderDetail.r2Arrived') }}</text>
-        <text class="r2-hint" v-if="relayLabel">{{ relayLabel }}</text>
-        <view class="r2-actions">
-          <button class="action-btn r2-btn" @click="selfPickup">{{ $t('orderDetail.selfPickupBtn') }}</button>
-          <button class="action-btn action-btn--primary r2-btn" @click="goRelay" :disabled="relayActive">{{ $t('orderDetail.relayBtn') }}</button>
-        </view>
-      </template>
-    </view>
-
     <!-- R4 到店自取核销码（二期 spec §5.4） -->
     <view class="section pickup-code" v-if="isR4 && pickupCode">
       <text class="section__title">{{ $t('orderDetail.pickupTitle') }}</text>
@@ -105,14 +88,39 @@
       <text class="r2-hint" v-else>{{ $t('orderDetail.showToStaff') }}</text>
     </view>
 
+    <!-- 配送卡：按订单快照展示承运方（商户/自营快递/外部快递）、平台单号、骑手电话与校园交接点 -->
+    <view class="section delivery-card" v-if="order.campusOrderDelivery">
+      <text class="section__title">{{ $t('orderDetail.deliveryTitle') }}</text>
+      <view class="kv">
+        <text class="k">{{ $t('orderDetail.deliveryProvider') }}</text>
+        <text class="v">{{ providerText }}</text>
+      </view>
+      <view v-if="order.campusOrderDelivery.thirdPartyNo" class="kv">
+        <text class="k">{{ $t('orderDetail.deliveryNo') }}</text>
+        <text class="v">{{ order.campusOrderDelivery.thirdPartyNo }}</text>
+      </view>
+      <view v-if="order.campusOrderDelivery.courierName" class="kv">
+        <text class="k">{{ $t('orderDetail.deliveryCourier') }}</text>
+        <text class="v">{{ order.campusOrderDelivery.courierName }}</text>
+      </view>
+      <view v-if="order.campusOrderDelivery.courierPhone" class="kv" @tap="callCourier(order.campusOrderDelivery.courierPhone)">
+        <text class="k">{{ $t('orderDetail.deliveryPhone') }}</text>
+        <text class="v link">{{ order.campusOrderDelivery.courierPhone }}</text>
+      </view>
+      <view v-if="order.campusOrderDelivery.handoverPointName" class="kv">
+        <text class="k">{{ $t('orderDetail.handoverPoint') }}</text>
+        <text class="v">{{ order.campusOrderDelivery.handoverPointName }} {{ order.campusOrderDelivery.handoverPointAddress }}</text>
+      </view>
+    </view>
+
     <!-- 骑手卡：有骑手显示姓名/信用分；无骑手显示等待/调度中/人工介入提示（10s 轮询）
          plan 2.2：配送中（assigned/in_progress）且有坐标时内嵌腾讯地图显示骑手 Marker（送达/转单后端即不返回位置） -->
-    <view class="section rider" v-if="campusRoute && !['R2','R4'].includes(campusRoute) && !isScheduled && (rider || !timelineFinished)">
+    <view class="section rider" v-if="campusRoute && campusRoute !== 'R4' && !isScheduled && (rider || !timelineFinished)">
       <view v-if="rider" class="rider__row">
         <view class="rider__avatar"><text>{{ $t('orderDetail.riderAvatar') }}</text></view>
         <view class="rider__info">
           <text class="rider__name">{{ rider.realName }}</text>
-          <text class="rider__sub">{{ $t('orderDetail.credit').replace('{n}', String(rider.credit ?? '—')) }}<text v-if="campusRoute === 'R1'">{{ $t('orderDetail.relayRider') }}</text></text>
+          <text class="rider__sub">{{ $t('orderDetail.credit').replace('{n}', String(rider.credit ?? '—')) }}<text v-if="['R1','R2'].includes(campusRoute)">{{ $t('orderDetail.relayRider') }}</text></text>
           <!-- 配送中补充实时距离与预计送达（后端 campusOrderRider 字段，缺失则不展示） -->
           <view class="rider__meta" v-if="rider.distanceMeters != null || rider.etaMinutes != null">
             <text v-if="rider.distanceMeters != null">{{ $t('orderDetail.riderDistance').replace('{n}', distanceText(rider.distanceMeters)) }}</text>
@@ -288,7 +296,7 @@ import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
 import { getGraphQLClient } from '../../api/client';
-import { fetchOrderRider, fetchR2Relay, markArrived, urgeOrder } from '../../api/mutations/campus';
+import { fetchOrderRider, urgeOrder } from '../../api/mutations/campus';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { orderEta, clockHM } from '../../utils/order-eta';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
@@ -297,7 +305,6 @@ import { getActiveCustomer } from '../../api/queries/user';
 import { applyOrderInvoice } from '../../api/mutations/user';
 import { parseInvoiceTitles, type InvoiceTitle } from '../../utils/profile-mapping';
 import { fetchMyPickupCode, claimPickup } from '../../api/queries/pickup';
-import { relayStatusLabel } from '../../utils/errand';
 import { sharePage } from '../../utils/share';
 import { buildTimeline, isNoRiderFinal, isExceptionFinal } from '../../utils/timeline';
 import { useLocaleStore } from '../../stores/locale';
@@ -382,7 +389,17 @@ const withinAfterSaleWindow = computed(() => {
 const hasActiveAfterSale = computed(() => !!afterSale.value && afterSale.value.state !== 'Closed');
 // —— 校园履约（spec §5.4）：customFields 驱动时间线与骑手卡 ——
 const campusRoute = computed(() => order.value?.customFields?.fulfillmentRoute || '');
-const timeline = computed(() => buildTimeline(campusRoute.value, order.value?.customFields?.hallStatus ?? null, order.value?.customFields?.deliveryStatus ?? null, order.value?.customFields?.leg1Status ?? null));
+const timeline = computed(() => buildTimeline(
+    campusRoute.value,
+    order.value?.customFields?.hallStatus ?? null,
+    order.value?.customFields?.deliveryStatus ?? null,
+    order.value?.customFields?.leg1Status ?? null,
+    {
+        deliveryPlan: order.value?.campusOrderDelivery?.deliveryPlan ?? null,
+        thirdPartyState: order.value?.campusOrderDelivery?.state ?? null,
+        handoverAt: order.value?.campusOrderDelivery?.handoverAt ?? null,
+    },
+));
 const timelineFinished = computed(() => timeline.value.every(n => n.done));
 const activeTimelineIndex = computed(() => timeline.value.findIndex(n => !n.done));
 
@@ -416,9 +433,7 @@ const activeSimpleIndex = computed(() => {
     return i < 0 ? simpleTimeline.value.length - 1 : i;
 });
 const canReceive = computed(() =>
-    ['Delivered','PartiallyDelivered','Shipped'].includes(order.value?.state)
-    || (campusRoute.value === 'R2' && order.value?.state === 'PaymentSettled'
-        && (order.value?.customFields?.leg1Status ?? '') === 'arrived_gate'));
+    ['Delivered','PartiallyDelivered','Shipped'].includes(order.value?.state));
 const canAfterSale = computed(() =>
     order.value?.customFields?.deliveryStatus === 'delivered'
     && withinAfterSaleWindow.value
@@ -518,6 +533,26 @@ function callRider() {
     if (!phone) return;
     uni.makePhoneCall({ phoneNumber: String(phone) });
 }
+/** 配送卡承运方文案：按订单快照 deliveryPlan 展示，外部快递再区分美团/达达 */
+const providerText = computed(() => {
+    const d = order.value?.campusOrderDelivery;
+    if (!d) return '';
+    if (d.deliveryPlan === 'external_courier') {
+        if (d.provider === 'meituan') return locale.t('orderDetail.providerMeituan');
+        if (d.provider === 'dada') return locale.t('orderDetail.providerDada');
+        return locale.t('orderDetail.providerExternal');
+    }
+    if (d.deliveryPlan === 'owned') return locale.t('orderDetail.providerOwned');
+    if (d.deliveryPlan === 'merchant') return locale.t('orderDetail.providerMerchant');
+    if (d.deliveryPlan === 'campus_rider') return locale.t('orderDetail.providerCampus');
+    if (d.deliveryPlan === 'self_pickup') return locale.t('orderDetail.providerPickup');
+    return '';
+});
+/** 拨外部快递骑手电话（配送卡内） */
+function callCourier(phone: string) {
+    if (!phone) return;
+    uni.makePhoneCall({ phoneNumber: String(phone) });
+}
 onMounted(async () => {
     const pages = getCurrentPages(); const page = pages[pages.length - 1] as any;
     const code = page?.options?.code; if (!code) return;
@@ -537,18 +572,11 @@ onMounted(async () => {
     // 订单列表「再来一单」直达：加载完成后自动打开复购弹层
     if (page?.options?.reorder === '1' && order.value) void reorder();
 });
-// 轮询：R2 原单轮询接力状态（10s，动态反查不写回标记）；其余校园单轮询骑手卡（送达/无骑手终态即停）
+// 轮询：校园单统一轮询骑手卡（R2 的第二段同样是传信者接力；送达/无骑手终态即停）
 let riderTimer: ReturnType<typeof setInterval> | null = null;
 function startRiderPolling() {
     stopRiderPolling();
     if (!order.value?.id || !campusRoute.value || campusRoute.value === 'R4') return;
-    if (campusRoute.value === 'R2') {
-        if ((order.value?.customFields?.leg1Status ?? 'preparing') === 'arrived_gate') {
-            loadRelay();
-            riderTimer = setInterval(loadRelay, 10000);
-        }
-        return;
-    }
     pollRiderOnce();
     riderTimer = setInterval(pollRiderOnce, 10000);
 }
@@ -558,60 +586,13 @@ async function pollRiderOnce() {
     if (cf?.deliveryStatus === 'delivered' || isNoRiderFinal(cf?.hallStatus ?? null) || isExceptionFinal(cf?.hallStatus ?? null)) return stopRiderPolling();
     try { rider.value = await fetchOrderRider(String(order.value.id)); } catch (e) {}
 }
-// R2 接力状态动态反查（spec §3.5/§4.3）；接力送达即停轮询（退款终态继续轮询，学生可重发）
-async function loadRelay() {
-    if (campusRoute.value !== 'R2' || !order.value?.id) return;
-    try { relay.value = await fetchR2Relay(String(order.value.id)); } catch (e) {}
-    if (relay.value?.deliveryStatus === 'delivered') stopRiderPolling();
-}
 function stopRiderPolling() { if (riderTimer) { clearInterval(riderTimer); riderTimer = null; } }
 onUnmounted(stopRiderPolling);
 onUnmounted(stopEtaTicker);
-// —— R2 快递到校（二期 spec §5.2）——
-const relay = ref<any>(null);
-const relayLabel = computed(() => relayStatusLabel(relay.value));
-// 进行中接力单禁止重复发单（已送达/退款终态放开：已送达应去确认收货，退款可重发）
-const relayActive = computed(() => {
-    if (!relay.value) return false;
-    return !(relay.value.state === 'Cancelled' || relay.value.hallStatus === 'no_rider_final' || relay.value.deliveryStatus === 'delivered');
-});
-
-function confirmArrived() {
-    uni.showModal({
-        title: locale.t('orderDetail.arriveTitle'),
-        content: locale.t('orderDetail.arriveConfirm'),
-        success: async (r: any) => {
-            if (!r.confirm) return;
-            try {
-                await markArrived(String(order.value.id));
-                await reloadOrder();
-                startRiderPolling(); // leg1Status 已变 arrived_gate，重启轮询进入接力状态轮询
-            } catch (e: any) {
-                uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('orderDetail.arriveFail'), icon: 'none' });
-            }
-        },
-    });
-}
 async function reloadOrder() {
     const pages = getCurrentPages(); const page = pages[pages.length - 1] as any;
     const code = page?.options?.code; if (!code) return;
     try { const res: any = await getOrderByCode(code); order.value = res.orderByCode; } catch (e) {}
-}
-function selfPickup() {
-    uni.showModal({
-        title: locale.t('orderDetail.selfPickupTitle'),
-        content: locale.t('orderDetail.selfPickupContent'),
-        showCancel: false,
-    });
-}
-// 发 R5 接力：预填 A 点=校内代收点、B 点=原单 campusZone（默认宿舍楼）、buildingId=原单楼栋（spec §5.2）
-function goRelay() {
-    const o = order.value; if (!o?.code) return;
-    const cf = o.customFields ?? {};
-    const a = encodeURIComponent('校内代收点');
-    const b = encodeURIComponent(cf.campusZone || '');
-    const buildingId = cf.buildingId || '';
-    uni.navigateTo({ url: `/pkg-campus/errand/create?from=R2&code=${o.code}&a=${a}&b=${b}&buildingId=${buildingId}` });
 }
 // —— R4 到店自取核销码（fetchMyPickupCode 返回 { myPickupCode } 由调用方解包，Task 12 Step 4）——
 const isR4 = computed(() => campusRoute.value === 'R4');
@@ -969,6 +950,13 @@ async function confirmReorder() {
 .action-btn { flex: 1; min-width: 200rpx; height: 80rpx; font-size: 28rpx; border-radius: $radius-md; border: none; display: flex; align-items: center; justify-content: center; &--primary { background: $brand-color; color: #fff; } &--ghost { background: $surface; color: $text-color-placeholder; border: 1rpx solid $border-color; } }
 .r2-hint { font-size: 26rpx; color: $text-color-secondary; display: block; margin-top: 8rpx; }
 .r2-actions { display: flex; gap: 16rpx; margin-top: 16rpx; }
+/* 配送卡：承运方 / 平台单号 / 骑手电话 / 校园交接点 */
+.delivery-card {
+  .kv { display: flex; justify-content: space-between; gap: 24rpx; padding: 10rpx 0; }
+  .k { font-size: 24rpx; color: $text-color-placeholder; flex-shrink: 0; }
+  .v { font-size: 24rpx; color: $text-color; text-align: right; word-break: break-all; }
+  .v.link { color: $brand-color; }
+}
 .code-text { font-size: 48rpx; font-weight: bold; letter-spacing: 8rpx; text-align: center; display: block; padding: 16rpx 0; color: $text-color; }
 /* 再来一单确认弹层 */
 .reorder-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 1000; display: flex; align-items: flex-end; }

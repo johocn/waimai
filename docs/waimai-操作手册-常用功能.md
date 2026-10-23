@@ -2582,3 +2582,58 @@
 - 长按删除为 H5 手势，桌面浏览器需按住鼠标左键模拟长按。
 
 截图：[211-meal-plan-empty.png](screenshots/common-features-v30/211-meal-plan-empty.png)、[212-meal-plan-imminent.png](screenshots/common-features-v30/212-meal-plan-imminent.png)、[213-meal-plan-cards.png](screenshots/common-features-v30/213-meal-plan-cards.png)、[214-meal-plan-sheet.png](screenshots/common-features-v30/214-meal-plan-sheet.png)、[215-meal-plan-sheet-picked.png](screenshots/common-features-v30/215-meal-plan-sheet-picked.png)、[216-meal-plan-saved.png](screenshots/common-features-v30/216-meal-plan-saved.png)、[217-meal-plan-edit-backfill.png](screenshots/common-features-v30/217-meal-plan-edit-backfill.png)、[218-home-plan-banner.png](screenshots/common-features-v30/218-home-plan-banner.png)、[218b-home-plan-go-cart.png](screenshots/common-features-v30/218b-home-plan-go-cart.png)
+
+## 138 店内热销榜（大家都在点）（第三十一轮，2026-10-23）
+
+入口：店铺菜单页（`pages/shop/menu`），店铺信息条/常点搭配下方新增「🔥 大家都在点」横滑卡片区；菜单列表行内同步显示 TOP 角标。
+
+### 138.1 功能说明
+
+- **横滑热销区（方案 A）**：展示店内月售 Top6 商品卡（名次章 1-6 / 图片（无图用名称首字占位）/ 菜名 / 月售 / 价格 / ⊕ 直接加购）；点击卡片或「查看全部 ›」切回商品 Tab、回到全部分类并自动滚动定位到该菜（查看全部默认定位热销第一名）；⊕ 直接走常规加购链路（多规格商品弹规格选择）。
+- **行内 TOP 角标（方案 C）**：月售前三的菜品行标题前显示 `TOP 1 / TOP 2 / TOP 3` 圆角角标（金 `#f5a623` / 银 `#9aa5b1` / 铜 `#c98a5e`），TOP1 行整行描边高亮（brand 描边 + 内阴影），与好友分享高亮样式一致。
+- **数据源**：`MenuProducts` 查询已返回的 `customFields.waimaiMonthlySales`，纯前端排序，无新增接口请求；售罄商品与月售为 0 的商品不参与榜单（角标与横滑区均排除）。
+- **可见性**：在售热销条目 ≥4 才展示横滑区（≤3 个或全 0 月售隐藏）；行内角标不受此限，只要该菜进入月售前三就显示。
+
+### 138.2 实现细节
+
+| 项 | 说明 |
+|---|---|
+| 纯函数层 | `src/utils/hot-sale.ts`：`hotSales`（月售，缺失/非法/负数按 0）、`hotHasStock`（有可售规格）、`hotMinPriceFen`（可售规格最低价，全不可售退首规格）、`topDishes(items, n)`（过滤 + 月售降序 + 并列按 id 数值升序稳定排序 + rank 映射）、`hotVisible`（≥4 展示）、`hotRankOf`（榜内前三返回名次） |
+| 页面接线 | `menu.vue`：`hotList = computed(() => topDishes(products, 6))`、`hotShow`、`hotRank(g)`（行内角标）、`hotAdd(id)`（⊕ 按 id 回查商品走 `addToCart`）、`hotJumpTo(d)`（切 Tab + `activeCat='all'` + `scrollInto` 定位，先清空再 nextTick 赋值保证重复点击也能滚动） |
+| 并列稳定 | 同月售按 id 数值升序，避免接口顺序波动导致名次抖动；数组 `sort` 本身稳定 |
+| 售罄处理 | 售罄商品即使月售最高也不入榜（无法加购，横滑区 ⊕ 会必然失败）；列表行内的售罄商品因此也不显示角标 |
+| i18n | `menu.hotTitle`（大家都在点 / Everyone's ordering）、`menu.hotBadge`（热销榜 TOP6 / Top 6）、`menu.hotMore`（查看全部 / View all）、`menu.hotSales`（月售 {n} / {n}/month），zh/en 同步 |
+
+纯函数断言（`node .secrets/assert-v31.cjs`，esbuild 打包 `src/utils/hot-sale.ts` 后执行）：**39 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| hotSales | 缺 customFields/缺字段→0、数值/数字字符串、非法字符串→0、负数钳 0、null→0 | 通过 |
+| hotHasStock | 无 variants/缺 variants/全 OUT_OF_STOCK/enabled:false→售罄、混合规格在售、null→售罄 | 通过 |
+| hotMinPriceFen | 可售最低价（不含售罄）、乱序仍取最低、全不可售退首规格、缺 variants→0、价格字符串可解析 | 通过 |
+| topDishes | 售罄与 0 月售过滤、月售降序、并列 id 升序、rank 连续、name/image/priceFen 映射、n 截断/0/负数、空列表/null 列表、全 0 月售空榜、非数字 id 字符串比较 | 通过 |
+| hotVisible | 0/3 条隐藏、4 条展示 | 通过 |
+| hotRankOf | 榜内第 1/第 3、榜内第 4→0、榜外→0、数字 id 兼容、空榜单→0 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本轮功能未部署时用本地静态服务 `dist/build/h5` + shop-api 全 mock，店铺/商品/月售为脚本注入模拟数据：6 个在售热销 + 1 个 0 月售 + 1 个月售 999 但售罄的商品）：
+
+| 断言项 | 结果 |
+|---|---|
+| 横滑热销区 | 「🔥 大家都在点」「热销榜 TOP6」「查看全部 ›」；6 卡按月售降序（宫保鸡丁 320 → 凉拌黄瓜 40），名次章金/银/铜/灰，价格与月售正确（通过） |
+| 售罄榜首排除 | 月售 999 的招牌烤鱼（全规格售罄）不入横滑区、无行内角标（通过） |
+| 行内角标 | TOP 1（金 rgb(245,166,35)）/ TOP 2（银）/ TOP 3（铜）挂在对应菜品行，TOP1 行带 `good--top1` 描边高亮，其余行无角标（通过） |
+| ⊕ 直接加购 | 点第一张卡 ⊕ → 触发 1 次 `AddToCart`，购物车角标「1」、合计 ¥28.00（通过） |
+| 查看全部定位 | 点「查看全部 ›」→ 商品 Tab 激活、TOP1 行（宫保鸡丁）滚入视口（通过） |
+| 隐藏态 | 仅 3 个在售热销时横滑区不渲染，行内仍显示 TOP 1/2/3 角标（通过） |
+| i18n | `menu.hot*` 4 键 zh/en 同步（通过） |
+| 构建 | `npm run build:h5` 通过（通过） |
+
+### 138.3 边界与已知限制
+
+- 榜单为**纯前端排序**：以 `MenuProducts`（take 100）返回的 `waimaiMonthlySales` 为准，后台未配置月售字段的商品视为 0，不参与榜单；
+- 售罄商品不出现在榜单/角标中（即使月售最高）：热销区 ⊕ 必须可加购；商品恢复库存后自动回到榜内名次；
+- 月售并列时按 id 升序稳定排序，名次不随接口顺序抖动；但后台调整月售数值后榜单即时跟随（无缓存）；
+- 横滑区在三个 Tab（商品/评论/商家）下常驻显示；「查看全部」会切换到商品 Tab 并定位，若热销第一名不在当前分类会先回到「全部」分类；
+- TOP 角标只在前三名菜行展示，第 4-6 名仅在横滑区出现（灰色名次章）。
+
+截图：[219-hot-sale-strip.png](screenshots/common-features-v31/219-hot-sale-strip.png)、[220-hot-rank-badges.png](screenshots/common-features-v31/220-hot-rank-badges.png)、[221-hot-add-cart.png](screenshots/common-features-v31/221-hot-add-cart.png)、[222-hot-jump-top1.png](screenshots/common-features-v31/222-hot-jump-top1.png)

@@ -75,6 +75,29 @@
                 <view class="combo__btn" :class="{ busy: comboBusy }" @tap="addCombo">{{ $t('menu.comboAdd') }}</view>
             </view>
         </view>
+        <!-- 店内热销榜：月售 Top6 横滑，⊕ 直接加购（在售热销 ≤3 个或全 0 月售时隐藏） -->
+        <view v-if="hotShow" class="hot-sale">
+            <view class="hot-sale__head">
+                <text class="hot-sale__title">🔥 {{ $t('menu.hotTitle') }}</text>
+                <text class="hot-sale__badge">{{ $t('menu.hotBadge') }}</text>
+                <text class="hot-sale__more" @tap="hotJumpTo(hotList[0])">{{ $t('menu.hotMore') }} ›</text>
+            </view>
+            <scroll-view scroll-x class="hot-sale__row">
+                <view v-for="d in hotList" :key="'hot-' + d.id" class="hot-item" @tap.stop="hotJumpTo(d)">
+                    <view class="hot-item__imgwrap">
+                        <VImage v-if="d.image" :src="d.image" width="152rpx" height="152rpx" class="hot-item__img" />
+                        <view v-else class="hot-item__img hot-item__img--txt">{{ d.name.slice(0, 1) }}</view>
+                        <text class="hot-item__rank" :class="'rk-' + d.rank">{{ d.rank }}</text>
+                    </view>
+                    <text class="hot-item__name">{{ d.name }}</text>
+                    <text class="hot-item__sales">{{ $t('menu.hotSales').replace('{n}', String(d.sales)) }}</text>
+                    <view class="hot-item__foot">
+                        <text class="hot-item__price">¥{{ yuan(d.priceFen) }}</text>
+                        <view class="hot-item__add" @tap.stop="hotAdd(d.id)">+</view>
+                    </view>
+                </view>
+            </scroll-view>
+        </view>
         <!-- 三 Tab -->
         <view class="tabs">
             <view class="tb" :class="{ on: tab === 'goods' }" @tap="switchTab('goods')">{{ $t('menu.tabGoods') }}</view>
@@ -135,12 +158,13 @@
                     </view>
                     <view
                         v-for="g in goodsOf(activeCat)" :key="g.id" :id="'g-' + g.id"
-                        class="good" :class="{ 'good--sold': goodSoldOut(g), 'good--hl': isSharedGood(g) }"
+                        class="good" :class="{ 'good--sold': goodSoldOut(g), 'good--hl': isSharedGood(g), 'good--top1': hotRank(g) === 1 }"
                         @tap="pickSku(g)"
                     >
                         <VImage :src="g.featuredAsset?.preview" width="140rpx" height="140rpx" class="good-img" />
                         <view class="good-info">
                             <view class="good-title">
+                                <text v-if="hotRank(g)" class="hot-rank" :class="'hot-rank--' + hotRank(g)">TOP {{ hotRank(g) }}</text>
                                 <text class="good-name">{{ g.name }}</text>
                                 <text v-if="isSharedGood(g)" class="good-tag good-tag--shared">{{ $t('menu.dishFromFriend') }}</text>
                                 <text v-if="goodSoldOut(g)" class="good-tag good-tag--sold">{{ $t('menu.soldOut') }}</text>
@@ -350,6 +374,7 @@ import { getChannelReviews, getChannelReviewStats } from '../../api/queries/revi
 import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
 import { matchesProduct, readSearchHistory, pushSearchHistory, clearSearchHistory as clearHistoryStorage } from '../../utils/search';
 import { nextPromoHint, promoTiers, yuan } from '../../utils/promo';
+import { topDishes, hotVisible, hotRankOf, type HotDish } from '../../utils/hot-sale';
 import { getStoreStatus } from '../../utils/store-status';
 import { theme, initTheme } from '../../utils/theme';
 import { sharePage } from '../../utils/share';
@@ -551,6 +576,28 @@ const crossSellProducts = computed(() => {
 async function crossSellAdd(it: { v: any }) {
     const ok = await doAddItem(it.v.id, 1);
     if (ok) uni.showToast({ title: locale.t('menu.crossSellAdded'), icon: 'none' });
+}
+
+// —— 店内热销榜：月售 Top6 横滑 + 菜品行 TOP 角标（纯前端排序，无额外请求）——
+const hotList = computed<HotDish[]>(() => topDishes(products.value, 6));
+const hotShow = computed(() => hotVisible(hotList.value));
+/** 行内角标：榜内前三返回 1..3，否则 0 */
+function hotRank(g: any): number {
+    return hotRankOf(String(g?.id ?? ''), hotList.value);
+}
+/** 横滑卡 ⊕ 直接加购：榜单条目按 id 回查商品（榜单已滤售罄，正常必有货） */
+async function hotAdd(id: string) {
+    const g = products.value.find((p: any) => String(p?.id) === id);
+    if (g) await addToCart(g);
+}
+/** 点卡片/查看全部：切回商品 Tab、回到全部分类并定位到该菜（空位默认热销第一名） */
+function hotJumpTo(d?: HotDish) {
+    const target = d ?? hotList.value[0];
+    if (!target) return;
+    switchTab('goods');
+    activeCat.value = 'all';
+    scrollInto.value = '';
+    nextTick(() => { scrollInto.value = 'g-' + target.id; });
 }
 
 /** 店铺分享：微信内走 JS-SDK 卡片，其它环境复制带店铺 token 的链接 */
@@ -1379,6 +1426,12 @@ function goCheckout() {
 .good-tag--low { color: var(--w-brand-text); background: var(--w-brand-soft); }
 .good-tag--shared { color: #fff; background: $brand; }
 .good--hl { background: var(--w-brand-soft); border-radius: $radius; box-shadow: inset 0 0 0 2rpx $brand; }
+/* 热销 TOP 角标：金 #f5a623 / 银 #9aa5b1 / 铜 #c98a5e；TOP1 行描边高亮 */
+.hot-rank { flex-shrink: 0; font-size: 18rpx; line-height: 1; font-weight: 700; color: #fff; border-radius: 6rpx; padding: 4rpx 10rpx; }
+.hot-rank--1 { background: #f5a623; }
+.hot-rank--2 { background: #9aa5b1; }
+.hot-rank--3 { background: #c98a5e; }
+.good--top1 { background: var(--w-brand-soft); border-radius: $radius; box-shadow: inset 0 0 0 2rpx $brand; }
 .good-taste { font-size: 20rpx; line-height: 1.4; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 6rpx; padding: 4rpx 10rpx; align-self: flex-start; }
 .good-taste.warn { color: #b42318; background: #fff2f0; }
 .good--sold .good-img, .good--sold .good-info { opacity: 0.5; }
@@ -1458,6 +1511,28 @@ function goCheckout() {
 .mlab { color: var(--w-text-muted); flex-shrink: 0; }
 .mval { color: var(--w-text); flex: 1; }
 .msrv { display: flex; gap: 12rpx; align-items: center; padding: 20rpx 0; font-size: 24rpx; color: var(--w-text-muted); flex-wrap: wrap; }
+/* ── 店内热销榜（大家都在点）：月售 Top6 横滑卡 ── */
+.hot-sale { margin: 16rpx 24rpx 0; background: var(--w-surface); border-radius: $radius-card; padding: 20rpx 20rpx 16rpx; }
+.hot-sale__head { display: flex; align-items: center; gap: 12rpx; margin-bottom: 16rpx; }
+.hot-sale__title { font-size: 28rpx; font-weight: 700; color: var(--w-text); }
+.hot-sale__badge { font-size: 20rpx; line-height: 1; color: #fff; background: linear-gradient(90deg, #ff6600, #ff9500); border-radius: 999rpx; padding: 6rpx 14rpx; }
+.hot-sale__more { margin-left: auto; font-size: 22rpx; color: var(--w-brand-text); }
+.hot-sale__row { white-space: nowrap; }
+.hot-item { display: inline-block; vertical-align: top; width: 152rpx; margin-right: 16rpx; }
+.hot-item:last-child { margin-right: 0; }
+.hot-item__imgwrap { position: relative; width: 152rpx; height: 152rpx; }
+.hot-item__img { width: 152rpx; height: 152rpx; border-radius: $radius-sm; background: var(--w-surface-muted); overflow: hidden; }
+.hot-item__img--txt { display: flex; align-items: center; justify-content: center; font-size: 48rpx; font-weight: 600; color: var(--w-brand-text); }
+.hot-item__rank { position: absolute; left: 0; top: 0; min-width: 40rpx; height: 36rpx; border-radius: $radius-sm 0 12rpx 0; padding: 0 8rpx; font-size: 20rpx; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.hot-item__rank.rk-1 { background: #f5a623; }
+.hot-item__rank.rk-2 { background: #9aa5b1; }
+.hot-item__rank.rk-3 { background: #c98a5e; }
+.hot-item__rank.rk-4, .hot-item__rank.rk-5, .hot-item__rank.rk-6 { background: var(--w-surface-muted); color: var(--w-text-muted); }
+.hot-item__name { display: block; margin-top: 8rpx; font-size: 24rpx; font-weight: 600; color: var(--w-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hot-item__sales { display: block; margin-top: 2rpx; font-size: 20rpx; color: var(--w-text-muted); }
+.hot-item__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 6rpx; }
+.hot-item__price { font-size: 26rpx; font-weight: 700; color: var(--w-brand-text); }
+.hot-item__add { width: 44rpx; height: 44rpx; border-radius: 999rpx; background: $brand; color: #fff; font-size: 30rpx; display: flex; align-items: center; justify-content: center; }
 /* ── 购物车悬浮胶囊 ── */
 .cross-sell { position: absolute; left: 24rpx; right: 24rpx; bottom: calc(136rpx + env(safe-area-inset-bottom)); z-index: 49; background: var(--w-surface, #fff); border-radius: $radius; padding: 16rpx 16rpx 12rpx; box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.12); }
 .cross-sell__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; margin-bottom: 12rpx; }

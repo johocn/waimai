@@ -242,6 +242,7 @@
     "actLottery": "积分抽奖",
     "actPreSale": "预售专区",
     "actLive": "店铺直播",
+    "actRank": "热销榜",
     "circle": "购物圈"
   },
   "menu": {
@@ -2300,6 +2301,21 @@
     "cancelHintDeposit": "法定定金取消后不退定金；其余已付期次原路退回",
     "cancelHintNormal": "取消后未付期次终止，已付金额按规则退回",
     "note": "本期账单通过账户余额支付，扣款即时生效；逾期可能产生违约金，请按期支付"
+  },
+  "hotRank": {
+    "title": "全校都在点",
+    "sub": "已聚合 {s} 家店铺 · 本月共点 {m} 份",
+    "loading": "正在统计全校热销…",
+    "empty": "暂无热销数据，快去下一单吧",
+    "tabAll": "全部",
+    "sales": "月售 {n}",
+    "groupSales": "本组月售 {n} 份",
+    "goStore": "进店",
+    "added": "已加入购物车",
+    "addFail": "加购失败，请稍后重试",
+    "soldOut": "该商品已售罄",
+    "storePaused": "店铺休息中",
+    "note": "按各店商品近 30 天销量聚合 · 仅展示在售商品"
   },
   "live": {
     "title": "店铺直播",

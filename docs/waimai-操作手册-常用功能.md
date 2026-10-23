@@ -2637,3 +2637,63 @@
 - TOP 角标只在前三名菜行展示，第 4-6 名仅在横滑区出现（灰色名次章）。
 
 截图：[219-hot-sale-strip.png](screenshots/common-features-v31/219-hot-sale-strip.png)、[220-hot-rank-badges.png](screenshots/common-features-v31/220-hot-rank-badges.png)、[221-hot-add-cart.png](screenshots/common-features-v31/221-hot-add-cart.png)、[222-hot-jump-top1.png](screenshots/common-features-v31/222-hot-jump-top1.png)
+
+## 139 全站热销榜（全校都在点）（第三十二轮，2026-10-23）
+
+入口：首页活动宫格第 7 项「🏆 热销榜」（宫格由 6 列改 4 列两行排布）；页面 `pkg-promotion/pages/hot-rank`，导航标题「全校都在点」。
+
+### 139.1 功能说明
+
+- **定位**：店内热销榜（第 138 轮）的跨店铺上卷版——把全校各店商品按 `customFields.waimaiMonthlySales` 聚合成一份「全校都在点」总榜，回答「今天全校最火的是什么」。
+- **版式（方案 A+B 融合，mockup 定稿）**：
+  - **Top3 奖牌区**：跨店总榜/品类榜前三显示大卡（🥇🥈🥉 奖牌章、图片（无图用名称首字占位）、店名、价格、月售、⊕ 加购），第一名金描边高亮；
+  - **店铺分组区**：第 4 名起按店铺分组展示（组头 = 店名 + 本组月售合计 + 「进店 ›」，组内行 = 全局名次章 + 缩略图 + 菜名 + 品类 · 月售 + 价格 + ⊕），组序按组内最佳名次排列；
+  - **品类 Tab**：从商品一级分类自动聚合（出现次数降序、并列按首现、最多 6 个 + 全部），切换后 Top3 与分组区同步过滤并**在品类内重排名次**（品类榜单独立成榜）；
+  - **跨店加购**：⊕ 走 `addItemToOrderInChannel`（独立客户端固定 vendure-token 指向商品所属店铺渠道），与收藏商品一键加购同链路；默认加购规格 = 可售规格中价格最低者。
+- **数据源**：`waimaiStoreList`（未休息且有 channelToken 的店铺）+ 逐店 `MenuProducts`（`fetchProductListForChannel`），纯前端聚合，无后端改动；售罄商品与月售为 0 的商品不参与榜单；单店加载失败静默跳过（与直播列表同策略）。
+
+### 139.2 实现细节
+
+| 项 | 说明 |
+|---|---|
+| 纯函数层 | `src/utils/hot-rank.ts`：`rankCategory`（一级品类，root 子级 → 退 collections[0]，「全部」不算）、`rankVariantId`（可售最低价规格 id，确定性默认加购）、`rankAggregate`（跨店合并 + 过滤 + 月售降序 + 并列 id 稳定排序 + rank 映射）、`rankSort`（重赋名次 1..n）、`rankCategories`（品类 Tab，max 6）、`rankByCategory`（过滤 + 品类内重排名次）、`rankGroups`（按店铺分组，组序 = 组内最佳名次，含组月售合计）；复用第 31 轮 `hot-sale.ts` 的 `hotSales/hotHasStock/hotMinPriceFen` |
+| 页面接线 | `hot-rank.vue`：`load()` 逐店聚合（单店失败返回 null 静默跳过，成功店数进副标题）、`storesMap` 保存店铺原始信息（进店需 routesEnabled/channelId）、`cats/filtered/top3/groups` 全 computed、`addOne`（跨店加购 + toast）、`goStore/goStoreToken`（拼 `menu?token=&name=&routes=&cid=` 进店） |
+| 首页入口 | `home/index.vue`：`.acts` 宫格 `repeat(6,1fr)` → `repeat(4,1fr)`、新增第 7 项 `home.actRank`（🏆，`act-ico--rank` 品牌橙渐变）、`goHotRank()` |
+| 路由 | `pages.json` pkg-promotion 分包注册 `pages/hot-rank`，标题 `%nav.hotRank%` |
+| i18n | `hotRank.*` 14 键（title/sub/loading/empty/tabAll/sales/groupSales/goStore/added/addFail/soldOut/storePaused/note）+ `home.actRank` + `nav.hotRank`（uni-app.zh-Hans / uni-app.en / uni-app 三份同步），zh/en 键数一致 |
+
+纯函数断言（`node .secrets/assert-v32.cjs`，esbuild 打包 `src/utils/hot-rank.ts` 后执行）：**54 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| rankCategory | root 子级、退 collections[0]、「全部」→ 空串、缺 collections/null → 空串、root 优先 | 通过 |
+| rankVariantId | 可售最低价、跳过售罄/enabled:false、全不可售/缺 variants/null → 空串、数字 id 转字符串 | 通过 |
+| rankAggregate | 过滤 0 月售与售罄、跨店合并、月售降序、并列数值 id 升序、rank 连续、字段/店铺/品类/variantId 映射、token 缺失组跳过、products 缺失/null/全 0 月售 → 空、非数字 id 字符串比较 | 通过 |
+| rankSort | 乱序重排 rank 连续、结果与聚合一致、空数组/null → 空 | 通过 |
+| rankCategories | 去重计数、并列按首现、max 截断/0、空/null/无品类 → 空 | 通过 |
+| rankByCategory | 品类过滤 + 品类内重排 1..2、无匹配 → 空、总榜保持原序原名次 | 通过 |
+| rankGroups | 分组、组序按最佳名次、组内名次升序、组月售合计、组名透传、空/null → 空 | 通过 |
+| 多规格 | priceFen 取可售最低 990、variantId 取最低价规格 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本轮功能未部署时用本地静态服务 `dist/build/h5` + shop-api 全 mock；3 家店铺 ×10 商品为脚本注入模拟数据，其中售罄烤鱼月售 999 不入榜）：
+
+| 断言项 | 结果 |
+|---|---|
+| 全榜渲染 | hero「🔥 全校都在点 / 已聚合 3 家店铺 · 本月共点 1295 份」；Top3 = 宫保鸡丁(320)/麻婆豆腐(260)/招牌奶茶(180)，金卡描边；分组区 面面俱到(205)/川味小馆(180)/茶饮小站(150) 组序按最佳名次 4/5/6，行名次 4-9 连续，售罄烤鱼(999)不入榜（通过） |
+| 品类 Tab | 切「热菜」→ Tab 高亮迁移，奖牌区变为该品类前三（宫保鸡丁/麻婆豆腐/水煮鱼）品类内重排名次，分组区为空仅剩奖牌 + 底注（通过） |
+| ⊕ 跨店加购 | 点分组行 ⊕ → toast「已加入购物车」；mock 记录 `AddToCart`（通过） |
+| 空榜单 | 全 0 月售 → 「🏆 暂无热销数据，快去下一单吧」，副标题仍显示聚合店铺数（通过） |
+| 首页入口 | 活动宫格 7 项 4 列两行：秒杀/拼团/抢券/抽奖/预售/直播/热销榜（通过） |
+| i18n | `hotRank.*` 14 键、`home.actRank`、`nav.hotRank` ×3 zh/en 同步（通过） |
+| 构建 | `npm run build:h5` 通过，产物含 `pkg-promotion-pages-hot-rank.*.js`（通过） |
+
+### 139.3 边界与已知限制
+
+- 榜单为**纯前端逐店聚合**：每店一次 `MenuProducts`（take 100），店铺多时串行开销线性增长（当前店铺规模无感知）；后续店铺增多可考虑服务端聚合接口；
+- **跨店加购语义**：各店购物车由 session+渠道隔离保留（与收藏加购一致），⊕ 只把商品加进它所属店的购物车，结算仍需进对应店铺；
+- 单店 `MenuProducts` 请求失败该店整店跳过（不占榜单也不报错），副标题「已聚合 N 家店铺」只计加载成功的店铺；
+- 品类 Tab 取自商品一级分类（`__root_collection__` 子级），分类名跨店不合并同义词（如「热菜」与「热炒」算两个 Tab）；无分类商品归入「全部」且不出现在品类 Tab；
+- 售罄商品即使月售最高也不入榜（⊕ 必须可加购）；月售并列按 id 数值升序稳定排序，名次不随接口顺序抖动；
+- 品类 Tab 内名次为品类内独立名次（重排），与总榜名次不同属正常表现。
+
+截图：[223-hot-rank-full.png](screenshots/common-features-v32/223-hot-rank-full.png)、[224-hot-rank-category-tab.png](screenshots/common-features-v32/224-hot-rank-category-tab.png)、[225-hot-rank-add-cart.png](screenshots/common-features-v32/225-hot-rank-add-cart.png)、[226-hot-rank-empty.png](screenshots/common-features-v32/226-hot-rank-empty.png)、[227-home-entry.png](screenshots/common-features-v32/227-home-entry.png)

@@ -114,7 +114,8 @@
                 { "path": "pages/coupon-fission", "style": { "navigationBarTitleText": "%nav.couponFission%" } },
                 { "path": "pages/pre-sale", "style": { "navigationBarTitleText": "%nav.preSale%" } },
                 { "path": "pages/live-list", "style": { "navigationBarTitleText": "%nav.live%" } },
-                { "path": "pages/live-room", "style": { "navigationBarTitleText": "%nav.liveRoom%" } }
+                { "path": "pages/live-room", "style": { "navigationBarTitleText": "%nav.liveRoom%" } },
+                { "path": "pages/hot-rank", "style": { "navigationBarTitleText": "%nav.hotRank%" } }
             ]
         }
     ],

@@ -242,6 +242,7 @@
     "actLottery": "Points Lottery",
     "actPreSale": "Pre-sale",
     "actLive": "Live",
+    "actRank": "Hot List",
     "circle": "Food Circle"
   },
   "menu": {
@@ -2300,6 +2301,21 @@
     "cancelHintDeposit": "Legal deposit is non-refundable; other paid periods are refunded",
     "cancelHintNormal": "Unpaid periods terminate and paid amounts are refunded by rule",
     "note": "Periods are paid with your account balance and take effect instantly; late payment may incur fees"
+  },
+  "hotRank": {
+    "title": "Campus Hot List",
+    "sub": "From {s} stores · {m} items ordered this month",
+    "loading": "Ranking campus favourites…",
+    "empty": "No hot items yet — place the first order",
+    "tabAll": "All",
+    "sales": "{n}/mo",
+    "groupSales": "{n} sold this month",
+    "goStore": "Visit",
+    "added": "Added to cart",
+    "addFail": "Add to cart failed, please retry",
+    "soldOut": "Sold out",
+    "storePaused": "Store closed",
+    "note": "Aggregated from 30-day sales across stores · In-stock items only"
   },
   "live": {
     "title": "Store Live",

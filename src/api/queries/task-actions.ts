@@ -6,8 +6,8 @@ import { riderClient } from './rider';
 // 任务单来自具体店铺渠道（hall.ts 聚合时附加 channelToken），操作时必须带同渠道 token 回传。
 
 const START = gql`
-    mutation campusStartTask($orderId: ID!) {
-        campusStartTask(orderId: $orderId) { id customFields { deliveryStatus } }
+    mutation campusStartTask($orderId: ID!, $code: String) {
+        campusStartTask(orderId: $orderId, code: $code) { id customFields { deliveryStatus } }
     }
 `;
 const DELIVER = gql`
@@ -32,8 +32,9 @@ const TRANSFER = gql`
     }
 `;
 
-export async function startTask(orderId: string, channelToken?: string) {
-    return riderClient(channelToken).request(START, { orderId }).then((r: any) => r.campusStartTask);
+/** 开始取货；接力单（R1/R2 第一段已交接）必须传 4 位交接码 */
+export async function startTask(orderId: string, code?: string, channelToken?: string) {
+    return riderClient(channelToken).request(START, { orderId, code }).then((r: any) => r.campusStartTask);
 }
 
 export async function deliverTask(orderId: string, photos: string[], note?: string, channelToken?: string) {

@@ -63,6 +63,17 @@ export function buildTimeline(
 
     // R1 / R2：恒两段。第一段为商户/自营快递（R1）或外部快递（R2），第二段传信者
     if (route === 'R1' || route === 'R2') {
+        // 降级单（缺交接点/商户超时/外部失败 → deliveryPlan=campus_rider）：实际只有一段，
+        // 不能再渲染两段（否则第二段永远完不成），按传信者到店取餐直送展示
+        const degraded = !!plan && !['merchant', 'owned', 'external_courier'].includes(plan);
+        if (degraded) {
+            return [
+                { key: 'merchant_accept', label: '商家接单', done: true },
+                { key: 'pickup', label: '传信者到店取餐', done: p >= 2 },
+                { key: 'delivering', label: '配送中', done: p >= 3 || hs === 'delivered' },
+                { key: 'delivered', label: '已送达', done: p >= 3 || hs === 'delivered' },
+            ];
+        }
         // 第一段完成：外部快递已送达 / 已写交接时间 / 已进接力大厅或已送达
         const handed = tp >= 4 || !!opts?.handoverAt || ['open', 'grabbed', 'delivered'].includes(hs);
         const externalFirstLeg = route === 'R2' || plan === 'external_courier';

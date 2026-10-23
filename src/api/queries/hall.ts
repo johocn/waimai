@@ -38,7 +38,7 @@ const MY_TASKS = gql`
     query campusMyTasks($status: String) {
         campusMyTasks(status: $status) {
             id code total shipping createdAt
-            customFields { deliveryStatus fulfillmentRoute campusZone buildingId deliverySlotText tip riderEarning urged routeGroupId }
+            customFields { deliveryStatus fulfillmentRoute campusZone buildingId deliverySlotText tip riderEarning urged routeGroupId handoverCode }
         }
     }
 `;

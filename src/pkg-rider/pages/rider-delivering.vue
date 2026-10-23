@@ -85,6 +85,20 @@
             </view>
         </view>
 
+        <!-- 取餐码校验（两段接力防丢餐）：开始取货前输入交接点给出的 4 位码 -->
+        <view class="task-card" v-if="codeDialog">
+            <text class="gname">{{ $t('riderDelivering.codeTitle') }} · #{{ codeDialog.order.code }}</text>
+            <text class="gmeta">{{ $t('riderDelivering.codeHint') }}</text>
+            <input
+                class="code-input" v-model="codeDialog.value" type="number" maxlength="4"
+                :placeholder="$t('riderDelivering.codePh')"
+            />
+            <view class="code-ops">
+                <button class="act" @tap="confirmCode">{{ $t('riderDelivering.codeConfirm') }}</button>
+                <button class="act ghost" @tap="cancelCode">{{ $t('riderDelivering.codeCancel') }}</button>
+            </view>
+        </view>
+
         <!-- 异常上报面板（目标单 excTarget：独立卡按钮或组内子单行进入） -->
         <view class="task-card" v-if="excPanelOpen && excTarget">
             <view class="exc-chips">
@@ -173,6 +187,37 @@ const excSubmitting = ref(false);
 const excTypes = computed(() => EXC_TYPES
     .filter(t => t.statuses.includes(status(excTarget.value)))
     .map(t => ({ ...t, label: locale.t(`riderDelivering.${t.labelKey}`) })));
+
+// 取餐码输入（两段接力防丢餐）：仅第一段已交接（后端生成 handoverCode）的接力单需要
+const codeDialog = ref<{ order: any; value: string; resolve: (v: string | null) => void } | null>(null);
+
+function needsCode(o: any) {
+    return !!o.customFields?.handoverCode;
+}
+
+/** Promise 化输入框：确认返回 4 位码，取消返回 null */
+function promptCode(o: any): Promise<string | null> {
+    return new Promise<string | null>(resolve => {
+        codeDialog.value = { order: o, value: '', resolve };
+    });
+}
+
+function cancelCode() {
+    codeDialog.value?.resolve(null);
+    codeDialog.value = null;
+}
+
+function confirmCode() {
+    const d = codeDialog.value;
+    if (!d) return;
+    const v = String(d.value ?? '').trim();
+    if (v.length !== 4) {
+        uni.showToast({ title: locale.t('riderDelivering.codeRequired'), icon: 'none' });
+        return;
+    }
+    d.resolve(v);
+    codeDialog.value = null;
+}
 
 onShow(async () => {
     if (!auth.token) {
@@ -263,12 +308,19 @@ async function takePhoto(): Promise<string> {
     return asset.source;
 }
 
-/** 批量开始取货：组内全部 assigned 单逐一推进（同组同渠道，token 逐单透传） */
+/** 批量开始取货：组内全部 assigned 单逐一推进（同组同渠道，token 逐单透传）；
+ * 接力单（第一段已交接）逐单弹取餐码输入，取消则中止整组 */
 async function startGroup(g: any) {
     busy.value = true;
     try {
         for (const o of g.orders.filter((x: any) => status(x) === 'assigned')) {
-            await startTask(o.id, o.channelToken);
+            let code: string | undefined;
+            if (needsCode(o)) {
+                const v = await promptCode(o);
+                if (v == null) return;   // 取消取餐码输入：整组中止（后续单保持待取货）
+                code = v;
+            }
+            await startTask(o.id, code, o.channelToken);
         }
         uni.showToast({ title: locale.t('riderDelivering.started'), icon: 'none' });
     } catch (e: any) {
@@ -280,9 +332,15 @@ async function startGroup(g: any) {
 }
 
 async function begin(o: any) {
+    let code: string | undefined;
+    if (needsCode(o)) {
+        const v = await promptCode(o);
+        if (v == null) return;
+        code = v;
+    }
     busy.value = true;
     try {
-        await startTask(o.id, o.channelToken);
+        await startTask(o.id, code, o.channelToken);
         uni.showToast({ title: locale.t('riderDelivering.started'), icon: 'none' });
     } catch (e: any) {
         uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.opFail'), icon: 'none' });
@@ -458,4 +516,9 @@ async function submitException() {
 .shot image { width: 100%; height: 100%; }
 .shot .del { position: absolute; top: 0; right: 0; width: 40rpx; height: 40rpx; line-height: 40rpx; text-align: center; background: rgba(0, 0, 0, .5); color: #fff; font-size: 24rpx; }
 .shot.add { border: 2rpx dashed $text-muted; display: flex; align-items: center; justify-content: center; font-size: 24rpx; color: $text-muted; }
+
+/* 取餐码输入 */
+.code-input { width: 100%; box-sizing: border-box; background: rgba(0, 0, 0, .03); border-radius: $radius-card; padding: 20rpx; font-size: 40rpx; letter-spacing: 12rpx; text-align: center; margin: 16rpx 0; }
+.code-ops { display: flex; gap: 16rpx; }
+.code-ops .act { flex: 1; }
 </style>

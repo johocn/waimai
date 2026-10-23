@@ -112,6 +112,12 @@
         <text class="k">{{ $t('orderDetail.handoverPoint') }}</text>
         <text class="v">{{ order.campusOrderDelivery.handoverPointName }} {{ order.campusOrderDelivery.handoverPointAddress }}</text>
       </view>
+      <!-- 交接码：第一段送达交接点后生成，第二段骑手取货时需核对（防丢餐扯皮） -->
+      <view v-if="order.customFields?.handoverCode" class="kv">
+        <text class="k">{{ $t('orderDetail.handoverCode') }}</text>
+        <text class="v code">{{ order.customFields.handoverCode }}</text>
+      </view>
+      <text v-if="order.customFields?.handoverCode" class="kv-hint">{{ $t('orderDetail.handoverCodeHint') }}</text>
     </view>
 
     <!-- 骑手卡：有骑手显示姓名/信用分；无骑手显示等待/调度中/人工介入提示（10s 轮询）
@@ -979,6 +985,8 @@ async function confirmReorder() {
   .k { font-size: 24rpx; color: $text-color-placeholder; flex-shrink: 0; }
   .v { font-size: 24rpx; color: $text-color; text-align: right; word-break: break-all; }
   .v.link { color: $brand-color; }
+  .v.code { font-weight: bold; letter-spacing: 4rpx; color: $brand-color; }
+  .kv-hint { display: block; font-size: 22rpx; color: $text-color-placeholder; padding-top: 4rpx; }
 }
 .code-text { font-size: 48rpx; font-weight: bold; letter-spacing: 8rpx; text-align: center; display: block; padding: 16rpx 0; color: $text-color; }
 /* 再来一单确认弹层 */

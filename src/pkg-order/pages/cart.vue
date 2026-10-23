@@ -284,6 +284,7 @@ interface CartGroup {
   routes: string;
   minOrder?: number | null;
   deliveryFee?: number | null;
+  deliveryMinutes?: number | null;
   freeShipping?: number | null;
   businessHours?: string | null;
   promoText?: string;
@@ -794,6 +795,7 @@ async function load() {
           routes: (s.routesEnabled || []).join(','),
           minOrder: s.minOrderAmount,
           deliveryFee: s.deliveryFee,
+          deliveryMinutes: s.deliveryMinutes,
           freeShipping: s.freeShippingThreshold,
           businessHours: s.businessHours,
           promoText: s.promoText,
@@ -1041,8 +1043,10 @@ async function goCheckout(g: CartGroup) {
   const cid = g.channelId ? `&cid=${g.channelId}` : '';
   const mo = g.minOrder ?? '';
   const fee = g.deliveryFee ?? '';
+  const dmin = g.deliveryMinutes != null ? `&dmin=${g.deliveryMinutes}` : '';
+  const hours = g.businessHours ? `&hours=${encodeURIComponent(g.businessHours)}` : '';
   uni.navigateTo({
-    url: `/pkg-order/pages/checkout?routes=${encodeURIComponent(g.routes)}&minOrder=${mo}&dfee=${fee}${cid}&shop=${encodeURIComponent(g.name)}&token=${encodeURIComponent(g.token)}`,
+    url: `/pkg-order/pages/checkout?routes=${encodeURIComponent(g.routes)}&minOrder=${mo}&dfee=${fee}${cid}&shop=${encodeURIComponent(g.name)}&token=${encodeURIComponent(g.token)}${dmin}${hours}`,
   });
 }
 

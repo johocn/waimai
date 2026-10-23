@@ -32,6 +32,12 @@
                 </view>
             </view>
         </view>
+        <!-- 预计送达条（第 38 轮）：营业中展示 ETA 区间；打烊时由下方营业状态条接管 -->
+        <view v-if="etaBarText" class="eta-bar">
+            <text class="eta-bar__ico">⚡</text>
+            <text class="eta-bar__txt">{{ etaBarText }}</text>
+            <text class="eta-bar__hint">{{ $t('menu.etaHint') }}</text>
+        </view>
         <!-- 营业状态提示：打烊/即将打烊（打烊仍可浏览加购，不可提交订单） -->
         <view v-if="storeStateText" class="shop-state" :class="storeClosed ? 'shop-state--closed' : 'shop-state--closing'">
             <text class="shop-state__ico">{{ storeClosed ? '🌙' : '⏰' }}</text>
@@ -401,6 +407,7 @@ import { topDishes, hotVisible, hotRankOf, type HotDish } from '../../utils/hot-
 import { naAgeDays, NEW_WINDOW_DAYS } from '../../utils/new-arrivals';
 import { saAlternatives, saReason, saAvailableVariants, type SaItem } from '../../utils/soldout-alternative';
 import { getStoreStatus } from '../../utils/store-status';
+import { etaRange, etaClockText } from '../../utils/delivery-eta';
 import { theme, initTheme } from '../../utils/theme';
 import { sharePage } from '../../utils/share';
 import { addItemToOrder } from '../../api/mutations/cart';
@@ -510,6 +517,30 @@ const storeStateText = computed(() => {
     if (st.state === 'closing') return locale.t('menu.closingSoon').replace('{n}', String(st.closesInMin ?? 0));
     return '';
 });
+// —— 预计送达（第 38 轮）：营业中按「当前时刻 + 配送时长」给出送达区间，30 秒刷新 ——
+const nowTick = ref(Date.now());
+let etaTimer: ReturnType<typeof setInterval> | null = null;
+onLoad(() => {
+    etaTimer = setInterval(() => { nowTick.value = Date.now(); }, 30000);
+});
+onUnload(() => {
+    if (etaTimer) {
+        clearInterval(etaTimer);
+        etaTimer = null;
+    }
+});
+const etaInfo = computed(() => etaRange({
+    now: new Date(nowTick.value),
+    deliveryMinutes: storeInfo.value?.deliveryMinutes,
+    businessHours: storeInfo.value?.businessHours,
+}));
+const etaBarText = computed(() => {
+    if (storeClosed.value) return '';
+    const r = etaInfo.value;
+    const key = r.nextDay ? 'menu.etaBarNextDay' : 'menu.etaBar';
+    return locale.t(key).replace('{t}', etaClockText(r)).replace('{n}', String(r.minutes));
+});
+
 // 免配送费门槛（后端配置单位为分）
 const freeShippingFen = computed(() => {
     const n = Number(storeInfo.value?.freeShippingThreshold);
@@ -1337,7 +1368,9 @@ function goCheckout() {
     const cid = favChannelId.value != null ? `&cid=${favChannelId.value}` : '';
     const shop = `&shop=${encodeURIComponent(shopName.value)}`;
     const token = `&token=${encodeURIComponent(shopToken.value)}`;
-    uni.navigateTo({ url: `/pkg-order/pages/checkout?routes=${routes}&minOrder=${mo}&dfee=${fee}${cid}${shop}${token}` });
+    const dmin = storeInfo.value?.deliveryMinutes != null ? `&dmin=${storeInfo.value.deliveryMinutes}` : '';
+    const hours = storeInfo.value?.businessHours ? `&hours=${encodeURIComponent(storeInfo.value.businessHours)}` : '';
+    uni.navigateTo({ url: `/pkg-order/pages/checkout?routes=${routes}&minOrder=${mo}&dfee=${fee}${cid}${shop}${token}${dmin}${hours}` });
 }
 </script>
 
@@ -1412,6 +1445,11 @@ function goCheckout() {
 .shop-state__txt { font-size: 24rpx; line-height: 1.4; flex: 1; }
 .shop-state--closed .shop-state__txt { color: #b42318; }
 .shop-state--closing .shop-state__txt { color: #b45309; }
+/* 预计送达条（第 38 轮）：品牌色横条，与营业状态条二选一展示 */
+.eta-bar { display: flex; align-items: center; gap: 10rpx; margin: 16rpx 24rpx 0; padding: 14rpx 20rpx; border-radius: 12rpx; background: var(--w-brand-soft); border: 1rpx solid var(--w-brand); flex-shrink: 0; }
+.eta-bar__ico { font-size: 26rpx; color: var(--w-brand-text); }
+.eta-bar__txt { font-size: 24rpx; line-height: 1.4; font-weight: 600; color: var(--w-brand-text); flex: 1; }
+.eta-bar__hint { font-size: 20rpx; color: var(--w-brand-text); opacity: 0.75; flex-shrink: 0; }
 /* 店铺公告条 + 公告弹层 */
 .notice-bar { display: flex; align-items: center; gap: 10rpx; margin: 12rpx 24rpx 0; padding: 14rpx 20rpx; border-radius: 12rpx; background: #fff8ef; border: 1rpx solid #ffe2c2; flex-shrink: 0; }
 .notice-bar__ico { font-size: 24rpx; flex-shrink: 0; }

@@ -3026,3 +3026,58 @@
 - **只在菜单页**：本轮未接入常点清单页的「已下架」行；该页商品已下架/售罄时仅置灰。
 
 截图：[245-alt-bar-collapsed.png](screenshots/common-features-v37/245-alt-bar-collapsed.png)、[246-alt-panel-open.png](screenshots/common-features-v37/246-alt-panel-open.png)、[247-alt-add-to-cart.png](screenshots/common-features-v37/247-alt-add-to-cart.png)、[248-alt-bar-none.png](screenshots/common-features-v37/248-alt-bar-none.png)
+
+## 145 配送时间预估（第三十八轮，2026-10-23）
+
+### 145.1 功能说明
+
+在**下单前**就告知用户「几点能吃到」：
+
+- **菜单页**：店铺卡下方出现品牌色 ETA 横条「⚡ 预计 12:20–12:35 送达 · 约 25 分钟 · 按配送时长估算」。
+- **结算页**：费用区首行新增「预计送达 12:20–12:35 · 约 25 分钟」；已选预约日期/时段时改为「预约 明天 12:00–12:30」，与时段 chips 口径一致。
+- **打烊时**：菜单页不显示 ETA 条，由既有营业状态条接管（「本店已打烊 · 今日 10:00 开始营业」）。
+- ETA 每 30 秒自动刷新，跨时段/跨天自动更新；店铺未配置配送时长时按 30 分钟兜底。
+
+### 145.2 实现细节
+
+| 项 | 说明 |
+|---|---|
+| 纯函数 | `src/utils/delivery-eta.ts`：`etaRange({ now, deliveryMinutes, businessHours, windowMin })` → `{ state, minutes, startMin, endMin, startHM, endHM, nextDay, nextOpenHM, nextOpenDayOffset }`；`etaClockText(r)` 输出「12:20–12:35」 |
+| 取整口径 | 当前时刻 + 配送时长，按 5 分钟**向上取整**；展示为固定 10 分钟区间，避免假的精确度 |
+| 营业时间 | 复用 `store-status.ts` 的 `getStoreStatus` / `parseBusinessHours`（支持多时段、跨零点、全角符号）；打烊时 ETA = 下次开门 + 配送时长 |
+| 菜单页 | `src/pages/shop/menu.vue`：`.eta-bar`（品牌色横条，与 `.shop-state` 二选一）；`nowTick` 30 秒刷新；跳转结算页时透传 `dmin`/`hours` |
+| 结算页 | `src/pkg-order/pages/checkout.vue`：费用区首行 `.summary-row--eta`；`storeMeta` 新增 `deliveryMinutes`/`businessHours`（由 menu **或购物车去结算**透传）；预约时段优先展示 |
+| 购物车透传 | `src/pkg-order/pages/cart.vue`：分组补充 `deliveryMinutes`，去结算 URL 追加 `dmin`/`hours`，保证从购物车进入也能算出 ETA |
+| i18n | `menu.etaBar` / `menu.etaBarNextDay` / `menu.etaHint`、`checkout.etaRow` / `checkout.etaAsap` / `checkout.etaNextDay` / `checkout.etaSlot` 中英同步 |
+
+纯函数断言（`node .secrets/assert-v38.cjs`，esbuild 打包 `src/utils/delivery-eta.ts`）：**53 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| 基本区间 | 12:00 + 25 → 12:25–12:35、minutes 透传、不跨天、营业中 nextOpen 为空 | 通过 |
+| 取整与时长 | 23 分钟→12:25、1 分钟→12:05、25.6→26、90 分钟→13:30 | 通过 |
+| 缺省/非法 | 未配置/0/null/负数/NaN → 默认 30；字符串 "18" 正常解析 | 通过 |
+| 区间参数 | 自定义 15 分钟、0 分钟、负值归零 | 通过 |
+| 跨天 | 23:50+25 → 次日 00:15、23:58+30 → 00:30，`nextDay` 标记 | 通过 |
+| 打烊 | 09:00 未开门 → 10:25 送达（今天）、23:00 已打烊 → 明天 10:25 | 通过 |
+| 多时段 | 午休 15:00 → 17:20 送达、午市 12:00 → asap | 通过 |
+| 无/异常营业时间 | null、"abc" → 按营业中；无参数 → asap + 30 分钟 | 通过 |
+| 文本与不变性 | `etaClockText` 补零 / null 安全、入参 `now` 与时长不被修改 | 通过 |
+| i18n/接线 | 新增 7 键中英齐全、键集合一致、`{t}/{n}/{d}` 占位；菜单/结算/购物车接线断言 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本地静态服务 + shop-api 全 mock，预置登录态）：
+
+| 断言项 | 结果 |
+|---|---|
+| 菜单页营业中 | 店铺卡下方出现品牌色 ETA 条「预计 00:35–00:45 送达 · 约 25 分钟」，提示「按配送时长估算」 |
+| 结算页 | 费用区首行「预计送达 00:35–00:45 · 约 25 分钟」，与商品总额/配送费行对齐 |
+| 打烊店铺 | `10:00-22:00` 店铺在凌晨访问 → 无 ETA 条，营业状态条显示「本店已打烊 · 今日 10:00 开始营业，可先加购」 |
+
+### 145.3 边界与已知限制
+
+- **不含排队/出餐时长**：只按店铺配置的配送时长估算，高峰期真实出餐排队未建模，文案已标注「按配送时长估算」。
+- **无实时骑行位置**：下单后的实时 ETA 仍由订单详情页的骑手跟踪负责（`orderDetail.etaArrive`），与本轮下单前 ETA 是两套口径。
+- **跨天区间**：跨零点时区间显示「00:15–00:25」并由菜单页文案标注「次日」，结算页预留 `etaNextDay`。
+- **预约时段**：结算页已选日期+时段时，预计送达行直接展示预约时间，不再显示「尽快送」推算值。
+
+截图：[249-menu-eta-bar.png](screenshots/common-features-v38/249-menu-eta-bar.png)、[250-checkout-eta-row.png](screenshots/common-features-v38/250-checkout-eta-row.png)、[251-menu-closed-no-eta.png](screenshots/common-features-v38/251-menu-closed-no-eta.png)

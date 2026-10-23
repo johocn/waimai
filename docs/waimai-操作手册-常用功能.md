@@ -2320,3 +2320,89 @@
 - 本轮为纯前端改动，无后端发布、无新增字段。
 
 截图：[185-cart-soldout-swap-btn.png](screenshots/common-features-v27/185-cart-soldout-swap-btn.png)、[186-cart-alternatives-sheet.png](screenshots/common-features-v27/186-cart-alternatives-sheet.png)、[186b-cart-alt-swapped.png](screenshots/common-features-v27/186b-cart-alt-swapped.png)、[187-fav-restock-banner.png](screenshots/common-features-v27/187-fav-restock-banner.png)、[188-fav-restock-subscribed.png](screenshots/common-features-v27/188-fav-restock-subscribed.png)、[189-share-poster.png](screenshots/common-features-v27/189-share-poster.png)、[190-order-detail-poster-entry.png](screenshots/common-features-v27/190-order-detail-poster-entry.png)、[191-home-search-hot-history.png](screenshots/common-features-v27/191-home-search-hot-history.png)
+
+## 135 多人拼单 / 帮我选 / 开门提醒 / 单品备注（第二十八轮，2026-10-23）
+
+本轮新增四个高频功能，全部为纯前端实现（无后端字段、无 prod migration）。
+
+### 135.1 多人拼单点餐
+
+入口：首页快捷宫格「🧩 多人拼单」；购物车店铺卡右侧「拼单」小按钮。
+
+操作路径（发起人）：
+1. 在店铺页把想吃的加入购物车 → 打开购物车 → 店铺卡点「拼单」（此时把本店购物车写入拼单清单）；
+2. 进入拼单页即自动生成邀请链接并复制/调起微信分享卡片；
+3. 好友打开链接 → 在受邀页点「去这家店点餐」自行点餐 → 回来点「提交我的选择」→ 得到「回传链接」发给发起人；
+4. 发起人打开回传链接 → 逐项勾选（默认全选）→「一键合并加购」→ 自动切到该店铺、逐项加购、写回拼单清单，并跳到购物车结算。
+
+技术要点：
+- 无服务端房间状态：会话存本机 `group_order_sessions`（最多 5 条）+ `group_order_active`；清单随链接传递（`?g=` 邀请 / `?pick=` 回传，base64url 编码，中文安全、URL 安全）；
+- 回传链接用字段缩写（`v/n/q/p`）压缩长度，实测 2 件菜品约 341 字符；
+- 合并在同规格上累加数量；加购走 `addItemToOrderInChannel`（跨渠道 header `vendure-token`），单项失败跳过并在最后汇总提示；
+- 页面识别自己是否为发起人（`host === 本机昵称`）：发起人视角主按钮为「复制邀请」，受邀方才是「提交我的选择」，避免自己给自己重复加购。
+
+### 135.2 帮我选（随机点餐）
+
+入口：首页快捷宫格「🎲 帮我选」。
+
+规则：
+- 预算 chips：¥20 / ¥30（默认）/ ¥50 / 不限；品类 chips 取自随机到的店铺的一级分类（无分类时回退「全部」）；
+- 店铺过滤：未暂停、当前营业中、起送价 ≤ 预算；
+- 菜品组合：先随机挑 1 件「主力」，再用剩余预算随机补 1–2 件低价菜（同一商品不重复），总价硬约束 ≤ 预算；无预算时随机 1–3 件；
+- 可售判定与购物车一致：`enabled !== false && stockLevel !== 'OUT_OF_STOCK' && priceWithTax > 0`；
+- 按钮：「再摇一次」「进店看看」「一键加购并进店」（切店铺 → 逐项加购 → 进店）。
+
+实测样例：预算 ¥50 摇出「酸辣米线 ¥16 + 藤椒鸡腿饭 ¥20 + 冰镇酸梅汤 ¥5 = ¥41.00」，页面提示「预算内还剩 ¥9.00」。
+
+### 135.3 打烊店铺开门提醒
+
+- 店铺卡打烊时在标签行追加「🔔 开门提醒」，点击写入本机 `store_open_watch`（最多 30 条），文案变「已关注」；
+- 首页 / 收藏页进入时比对营业时间，已开门则展示绿色横幅「「川味小馆」已开门」+「去点餐」+「✕（取消关注）」；
+- 纯本机订阅（非推送）：`getStoreStatus(businessHours)` 判定，`null`/未配置视为不限营业时间。
+
+### 135.4 单品备注
+
+- 购物车每行餐品下方「＋ 备注」→ 底部弹层输入（最多 20 字）→ 保存后行上显示「备注：少辣不要葱」；
+- 本机按「店铺 token + 规格 id」存储（`cart_line_notes`），改数量/换行 id 不丢；行被删除/整店清空时自动裁剪；
+- 结算页备注卡内展示「单品备注 N 条」摘要（餐名×数量：备注），可一键清空；
+- 下单时 `composeOrderNote()` 把「配送偏好 + 配送说明 + 用户备注 + 餐品备注：A：x；B：y」合并为整单备注（≤200 字，超长优先保留用户备注、截断餐品段），下单成功后清空该店单品备注。
+
+为什么不做「行级备注字段」：线上 shop-api introspection 实测 `OrderLineCustomFields` 无 note 字段，新增需 prod migration（风险高）。当前方案让备注仍能在商家工作台/小票的整单备注里看到，但无法按行打标——这是本轮明确的取舍。
+
+### 135.5 验收断言
+
+纯函数断言（`node .secrets/assert-v28.cjs`，用 esbuild 打包 `src/utils/*` 后执行）：**30 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| 拼单链接 | 邀请 round-trip（含中文店名/菜名）、长度 <900、无 `+/=` 字符、回传 round-trip、坏链接返回 null | 通过 |
+| 拼单合并 | 同规格累加、不同规格追加、合计件数与金额、参与人去重、会话读写、结束拼单移除 | 通过 |
+| 单品备注 | 保存/清空、超长截断 20 字、摘要只含有备注行、摘要格式 `宫保鸡丁×2：少辣`、整单备注含原文+餐品段、≤200 字、超长先截餐品段、裁剪已移除行、清空整店 | 通过 |
+| 开门提醒 | 关注落本机、全天营业判为已开门、用最新店名覆盖快照、未开门不入列、取消关注 | 通过 |
+| 帮我选 | 200 次随机组合均 ≤ 预算且不重复、不含下架/售罄商品；品类筛选生效；预算过小返回空；店铺过滤（打烊/暂停/起送超预算） | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；店铺/菜单/购物车由脚本注入模拟响应，其余请求透传线上）：
+
+| 断言项 | 结果 |
+|---|---|
+| 首页快捷宫格 | 5 列宫格含「多人拼单」「帮我选」，无错位（通过） |
+| 打烊店铺 chip | 深夜烧烤屋卡片显示「🔔 开门提醒」，点击后变「已关注」且 `store_open_watch` 写入 1 条（通过） |
+| 开门横幅（首页） | 关注「川味小馆」后首页顶部显示「「川味小馆」已开门 / 去点餐 / ✕」（通过） |
+| 开门横幅（收藏） | 收藏页「收藏店铺」页签下同样显示横幅，不挤压页签（通过） |
+| 拼单列表 | 卡片显示店铺、发起人、`3 件 · ¥45.00`、清单前 3 项、三个按钮（通过） |
+| 受邀视图（好友「阿珍」） | 标题「小林 邀请你一起拼单」、清单 2 行、合计 3 件 ¥45.00、按钮「去这家店点餐 / 提交我的选择」（通过） |
+| 回传链接 | 提交后生成 341 字符链接并展示「你的回传链接（发给发起人）」+「复制链接」+ 微信分享卡片（通过） |
+| 合并视图 | 标题「阿珍 的拼单清单」、2 行默认勾选、已选 3 件 ¥26.00、按钮「一键合并加购」（通过） |
+| 购物车入口 | 店铺卡右「拼单」按钮存在；点击后拼单页以发起人视角展示本店购物车清单（3 件 ¥30.00），主按钮为「复制邀请」（通过） |
+| 单品备注 | 每行「＋ 备注」→ 弹层输入「少辣不要葱」→ 保存后行上显示备注，`cart_line_notes` 落本机（通过） |
+| 结算备注 | 结算页备注卡显示「单品备注 2 条」+ 两条明细 +「清空」（通过） |
+| i18n | 新增 `groupOrder.*`(34)、`randomPick.*`(23)、`openWatch.*`(7)、`cart.lineNote*`/`checkout.lineNotes*`(11)、`home.quickGroup/quickRandom`(2)、`nav.groupOrder/randomPick` ×3 文件，中英同步 |
+| 构建/部署 | `pnpm build:h5` 通过；`group-order`、`random-pick` 两个新路由 chunk 线上 200 |
+
+边界与已知限制：
+- 拼单无服务端房间：链接可转发多人，各自回传后由发起人逐份合并；换手机/清缓存会丢本机清单（链接本身仍可读）；
+- 帮我选只保证「总价 ≤ 预算」，不考虑满减/起送最优解；随机到的店铺可能距离较远（未接距离排序）；
+- 开门提醒是本机订阅 + 进出页面比对，不做推送，App 未打开时不会提醒；
+- 单品备注不落后端行级字段（见 135.4 取舍说明）。
+
+截图：[192-home-quick-entries.png](screenshots/common-features-v28/192-home-quick-entries.png)、[192a-home-closed-store-watch.png](screenshots/common-features-v28/192a-home-closed-store-watch.png)、[192b-home-open-watch-chip.png](screenshots/common-features-v28/192b-home-open-watch-chip.png)、[193-home-open-banner.png](screenshots/common-features-v28/193-home-open-banner.png)、[194-group-order-list.png](screenshots/common-features-v28/194-group-order-list.png)、[195-group-order-invited.png](screenshots/common-features-v28/195-group-order-invited.png)、[195b-group-order-pick-link.png](screenshots/common-features-v28/195b-group-order-pick-link.png)、[196-group-order-merge-list.png](screenshots/common-features-v28/196-group-order-merge-list.png)、[197-random-pick.png](screenshots/common-features-v28/197-random-pick.png)、[198-random-pick-reroll.png](screenshots/common-features-v28/198-random-pick-reroll.png)、[199-cart-line-note-entry.png](screenshots/common-features-v28/199-cart-line-note-entry.png)、[200-cart-line-note-sheet.png](screenshots/common-features-v28/200-cart-line-note-sheet.png)、[200b-cart-line-note-saved.png](screenshots/common-features-v28/200b-cart-line-note-saved.png)、[200c-cart-to-group-invite.png](screenshots/common-features-v28/200c-cart-to-group-invite.png)、[201-checkout-line-notes.png](screenshots/common-features-v28/201-checkout-line-notes.png)、[202-favorites-open-banner.png](screenshots/common-features-v28/202-favorites-open-banner.png)

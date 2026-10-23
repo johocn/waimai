@@ -44,6 +44,8 @@
         "nav.guestOrder": "Track Guest Order",
         "nav.pickupPass": "Pickup Pass",
         "nav.poster": "Share Poster",
+        "nav.groupOrder": "Group Order",
+        "nav.randomPick": "Surprise Me",
         "nav.deliveryPrefs": "Delivery Preferences",
         "nav.studentVerify": "Student Verification",
         "nav.history": "History",

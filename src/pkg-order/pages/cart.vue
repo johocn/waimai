@@ -25,6 +25,7 @@
           <view class="cart-card__head-right">
             <text v-if="invalidCount(g) > 0" class="cart-card__clean" @click.stop="cleanInvalid(g)">{{ $t('cart.cleanInvalid').replace('{n}', String(invalidCount(g))) }}</text>
             <text v-if="closedText(g)" class="cart-card__closed">{{ closedTag(g) }}</text>
+            <text class="cart-card__group" @click.stop="goGroup(g)">{{ $t('cart.groupBtn') }}</text>
             <text class="cart-card__clear" @click.stop="clearGroup(g)">{{ $t('cart.clear') }}</text>
           </view>
         </view>
@@ -37,6 +38,9 @@
               <text v-if="lineIssueText(l, g)" class="cart-line__badge">{{ lineIssueText(l, g) }}</text>
             </view>
             <text v-if="optionsText(l)" class="cart-line__opt">{{ optionsText(l) }}</text>
+            <text class="cart-line__note" :class="{ 'cart-line__note--empty': !noteOf(g, l) }" @click.stop="openNote(g, l)">
+              {{ noteOf(g, l) ? $t('cart.lineNoteLabel') + noteOf(g, l) : '＋ ' + $t('cart.lineNoteAdd') }}
+            </text>
             <view class="cart-line__foot">
               <view class="cart-line__prices">
                 <text class="cart-line__price">¥{{ fen(l.linePriceWithTax ?? l.unitPriceWithTax * l.quantity) }}</text>
@@ -180,6 +184,29 @@
         </view>
       </view>
     </view>
+
+    <!-- 单品备注：本机保存，结算时合并进整单备注 -->
+    <view class="rec-mask" v-if="noteSheet" @click="closeNote">
+      <view class="rec-sheet" @click.stop>
+        <view class="rec-sheet__head">
+          <text class="rec-sheet__title">{{ $t('cart.lineNoteTitle') }}</text>
+          <text class="rec-sheet__close" @click="closeNote">✕</text>
+        </view>
+        <text class="rec-sheet__hint">{{ noteSheet.name }}</text>
+        <textarea
+          class="line-note__input"
+          v-model="noteDraft"
+          :maxlength="20"
+          :placeholder="$t('cart.lineNotePlaceholder')"
+          auto-height
+        />
+        <view class="line-note__count">{{ noteDraft.length }}/20</view>
+        <view class="line-note__acts">
+          <view v-if="noteDraft" class="line-note__clear" @click="clearNote">{{ $t('cart.lineNoteClear') }}</view>
+          <button class="rec-sheet__btn" @click="saveNote">{{ $t('cart.lineNoteSave') }}</button>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -203,6 +230,8 @@ import { useLocaleStore } from '../../stores/locale';
 import { getStoreStatus } from '../../utils/store-status';
 import { promoTiers, yuan as promoYuan } from '../../utils/promo';
 import { lineIssueOf, isRemovableIssue, linePriceFen, readLinePrices, writeLinePrices, type CartLineIssue, type PriceMap } from '../../utils/cart-inspect';
+import { pruneLineNotes, setLineNote, clearStoreNotes } from '../../utils/line-notes';
+import { findOpenSession, createSession, itemsFromLines, upsertSession, participantsOf, encodeInvite, invitePath } from '../../utils/group-order';
 import VImage from '../../components/VImage.vue';
 
 const tenant = useTenantStore();
@@ -230,6 +259,63 @@ const loading = ref(false);
 let lastRecToken = '';
 /** 上次打开购物车时的单价快照（token:variantId → 分），仅用于变价提示 */
 const prevPrices = ref<PriceMap>({});
+
+// ── 单品备注：本机按「店铺+规格」保存，结算时合并进整单备注 ──
+const lineNotes = ref<Record<string, Record<string, string>>>({});
+const noteSheet = ref<{ token: string; variantId: string; name: string } | null>(null);
+const noteDraft = ref('');
+
+function variantIdOf(l: any): string {
+  return String(l?.productVariant?.id ?? '');
+}
+function noteOf(g: CartGroup, l: any): string {
+  return lineNotes.value[g.token]?.[variantIdOf(l)] || '';
+}
+/** 同步该店备注：清掉已不在购物车的行，并把结果回写到响应式表 */
+function syncNotes(g: CartGroup): void {
+  const vids = (g.order?.lines ?? []).map(variantIdOf).filter(Boolean);
+  lineNotes.value = { ...lineNotes.value, [g.token]: pruneLineNotes(g.token, vids) };
+}
+function openNote(g: CartGroup, l: any) {
+  noteSheet.value = { token: g.token, variantId: variantIdOf(l), name: String(l?.productVariant?.name || '') };
+  noteDraft.value = noteOf(g, l);
+}
+function closeNote() {
+  noteSheet.value = null;
+  noteDraft.value = '';
+}
+function saveNote() {
+  const sheet = noteSheet.value;
+  if (!sheet) return;
+  const map = setLineNote(sheet.token, sheet.variantId, noteDraft.value);
+  lineNotes.value = { ...lineNotes.value, [sheet.token]: map };
+  uni.showToast({ title: locale.t('cart.lineNoteSaved'), icon: 'none' });
+  closeNote();
+}
+function clearNote() {
+  const sheet = noteSheet.value;
+  if (!sheet) return;
+  const map = setLineNote(sheet.token, sheet.variantId, '');
+  lineNotes.value = { ...lineNotes.value, [sheet.token]: map };
+  uni.showToast({ title: locale.t('cart.lineNoteCleared'), icon: 'none' });
+  closeNote();
+}
+
+/** 发起/更新拼单：把本店购物车写入会话后进入邀请页 */
+function goGroup(g: CartGroup) {
+  const items = itemsFromLines(g.order?.lines ?? [], locale.t('groupOrder.me'));
+  let session = findOpenSession(g.token);
+  if (session) {
+    session.items = items;
+    session.participants = participantsOf(items);
+  } else {
+    session = createSession({ token: g.token, channelId: g.channelId, shop: g.name, routes: g.routes });
+    session.items = items;
+    session.participants = participantsOf(items);
+  }
+  upsertSession(session);
+  uni.navigateTo({ url: invitePath(encodeInvite(session)) });
+}
 
 /** 每个店铺的加价购目录与已挂券单 */
 interface GroupAddons {
@@ -581,6 +667,13 @@ async function load() {
       .filter((r): r is PromiseFulfilledResult<CartGroup | null> => r.status === 'fulfilled')
       .map(r => r.value)
       .filter((g): g is CartGroup => !!g);
+    // 单品备注：清掉已不在购物车的行，并按店铺回填
+    const notes: Record<string, Record<string, string>> = {};
+    for (const g of groups.value) {
+      const vids = (g.order?.lines ?? []).map(variantIdOf).filter(Boolean);
+      notes[g.token] = pruneLineNotes(g.token, vids);
+    }
+    lineNotes.value = notes;
     // 刷新单价快照，供下次打开比对变价（本次比对用的是打开前读到的旧快照）
     const snap: PriceMap = {};
     for (const g of groups.value) {
@@ -724,6 +817,7 @@ function applyOrder(g: CartGroup, order: any) {
     }
     writeLinePrices(snap);
     prevPrices.value = snap;
+    syncNotes(g);
     if (!(order?.lines ?? []).length) {
         groups.value = groups.value.filter(x => x.token !== g.token);
     }
@@ -780,6 +874,8 @@ async function clearGroup(g: CartGroup) {
   if (!done) return;
   try {
     await removeAllOrderLinesForChannel(g.token);
+    clearStoreNotes(g.token);
+    lineNotes.value = { ...lineNotes.value, [g.token]: {} };
     if (tenant.token === g.token) cart.clearCart();
     uni.showToast({ title: locale.t('cart.cleared'), icon: 'none' });
   } catch {
@@ -829,6 +925,7 @@ function goHome() {
   &__name { font-size: 28rpx; font-weight: 600; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__sub { font-size: 22rpx; color: $text-color-secondary; }
   &__clear { font-size: 24rpx; color: $text-color-placeholder; padding: 8rpx; flex-shrink: 0; }
+  &__group { font-size: 20rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 6rpx; padding: 2rpx 10rpx; flex-shrink: 0; }
   &__head-right { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 56%; }
   &__closed { font-size: 20rpx; color: #b42318; background: #fff2f0; border: 1rpx solid #f3b6b0; border-radius: 6rpx; padding: 2rpx 8rpx; max-width: 300rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__foot { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid $border-color; }
@@ -852,6 +949,9 @@ function goHome() {
   &__name { font-size: 26rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__badge { font-size: 18rpx; color: #b42318; background: #fff2f0; border: 1rpx solid #f3b6b0; border-radius: 6rpx; padding: 2rpx 8rpx; flex-shrink: 0; }
   &__opt { font-size: 22rpx; color: $text-color-secondary; }
+  &__note { align-self: flex-start; font-size: 20rpx; color: #b45309; background: #fff8eb; border: 1rpx dashed #ffb27a;
+    border-radius: 6rpx; padding: 2rpx 10rpx; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    &--empty { color: $text-color-placeholder; background: transparent; border-color: $border-color; } }
   &__foot { display: flex; align-items: center; justify-content: space-between; }
   &__prices { display: flex; align-items: baseline; gap: 10rpx; }
   &__price { font-size: 26rpx; color: $price-color; }
@@ -950,4 +1050,11 @@ function goHome() {
   &__text { font-size: 26rpx; color: $text-color-secondary; }
   &__btn { margin-top: 12rpx; background: $brand-color; color: #fff; font-size: 28rpx; border-radius: $radius-md; padding: 0 56rpx; height: 80rpx; line-height: 80rpx; }
 }
+/* 单品备注弹层 */
+.line-note__input { margin-top: 18rpx; width: 100%; min-height: 110rpx; background: $bg-color; border-radius: $radius-sm;
+  padding: 16rpx 20rpx; font-size: 26rpx; color: $text-color; box-sizing: border-box; }
+.line-note__count { text-align: right; margin-top: 6rpx; font-size: 20rpx; color: $text-color-placeholder; }
+.line-note__acts { display: flex; align-items: center; gap: 20rpx; margin-top: 8rpx;
+  .rec-sheet__btn { flex: 1; margin-top: 0; } }
+.line-note__clear { flex-shrink: 0; font-size: 24rpx; color: $text-color-secondary; padding: 20rpx 8rpx; }
 </style>

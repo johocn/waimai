@@ -26,7 +26,9 @@
                 { "path": "pages/delivery-track", "style": { "navigationBarTitleText": "%nav.deliveryTrack%" } },
                 { "path": "pages/guest-order", "style": { "navigationBarTitleText": "%nav.guestOrder%" } },
                 { "path": "pages/pickup-pass", "style": { "navigationBarTitleText": "%nav.pickupPass%" } },
-                { "path": "pages/share-poster", "style": { "navigationBarTitleText": "%nav.poster%" } }
+                { "path": "pages/share-poster", "style": { "navigationBarTitleText": "%nav.poster%" } },
+                { "path": "pages/group-order", "style": { "navigationBarTitleText": "%nav.groupOrder%" } },
+                { "path": "pages/random-pick", "style": { "navigationBarTitleText": "%nav.randomPick%" } }
             ]
         },
         {

@@ -42,6 +42,16 @@
                     </view>
                 </view>
             </scroll-view>
+            <!-- 开门提醒：关注过的打烊店铺现已营业（本机订阅，一次性提示） -->
+            <view v-if="!loading && openedList.length" class="open-banner">
+                <text class="open-banner__ico">🔔</text>
+                <view class="open-banner__body">
+                    <text class="open-banner__title">{{ $t('openWatch.opened').replace('{s}', openedList[0].name) }}</text>
+                    <text v-if="openedList.length > 1" class="open-banner__sub">{{ $t('openWatch.more').replace('{n}', String(openedList.length - 1)) }}</text>
+                </view>
+                <text class="open-banner__go" @tap.stop="goOpened(openedList[0])">{{ $t('openWatch.go') }}</text>
+                <text class="open-banner__close" @tap.stop="dismissOpen">✕</text>
+            </view>
             <view class="quick">
                 <view class="qk" @tap="goOrders">
                     <view class="qico">🧾</view>
@@ -58,6 +68,14 @@
                 <view class="qk" @tap="goCart">
                     <view class="qico">🛒</view>
                     <text class="qtxt">{{ $t('home.cart') }}</text>
+                </view>
+                <view class="qk" @tap="goGroup">
+                    <view class="qico">🧩</view>
+                    <text class="qtxt">{{ $t('home.quickGroup') }}</text>
+                </view>
+                <view class="qk" @tap="goRandom">
+                    <view class="qico">🎲</view>
+                    <text class="qtxt">{{ $t('home.quickRandom') }}</text>
                 </view>
                 <view class="qk" @tap="showNotice">
                     <view class="qico">📣</view>
@@ -322,6 +340,9 @@
                                 <text class="tag tag-route">{{ deliveryTag(s) || routeText(s.routesEnabled) }}</text>
                                 <text v-if="s.promoText" class="tag tag-promo">{{ s.promoText }}</text>
                                 <text v-if="isFreeDelivery(s)" class="tag tag-free">{{ $t('home.freeDeliveryTag') }}</text>
+                                <text v-if="!s.paused && storeStatusOf(s) === 'closed'" class="tag tag-watch" :class="{ on: watched(s) }" @tap.stop="toggleWatch(s)">
+                                    {{ watched(s) ? $t('openWatch.watched') : '🔔 ' + $t('openWatch.watch') }}
+                                </text>
                             </view>
                         </view>
                         <view class="fav" :class="{ on: favorites.isFavorite(s.channelId) }" @tap.stop="toggleFav(s)">
@@ -403,6 +424,7 @@ import { readSearchHistory, pushSearchHistory, clearSearchHistory, buildHotWords
 import { filterStores, applyStoreFilters, sortStores, type StoreSort, type StoreFilterOptions } from '../../utils/store-filter';
 import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
 import { getStoreStatus, type StoreOpenState } from '../../utils/store-status';
+import { isWatched, watchStore, unwatchStore, openedWatched, type OpenedStore } from '../../utils/open-watch';
 import { currentMealSlot, recommendStores } from '../../utils/time-slot';
 import { readFootprint } from '../../utils/footprint';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
@@ -738,6 +760,45 @@ const emptyText = computed(() => filterCount.value ? locale.t('home.filteredEmpt
 function storeStatusOf(s: any): StoreOpenState {
     return getStoreStatus(s?.businessHours).state;
 }
+// ── 开门提醒：本机订阅打烊店铺，营业后首页横幅提示一次 ──
+const watchTick = ref(0);
+const openedList = computed<OpenedStore[]>(() => {
+    watchTick.value;
+    return openedWatched(stores.value);
+});
+function watched(s: any): boolean {
+    watchTick.value;
+    return isWatched(s?.channelToken || '');
+}
+function toggleWatch(s: any) {
+    const token = String(s?.channelToken || '');
+    if (!token) return;
+    if (isWatched(token)) {
+        unwatchStore(token);
+        uni.showToast({ title: locale.t('openWatch.removed'), icon: 'none' });
+    } else {
+        watchStore({
+            token,
+            channelId: s?.channelId != null ? String(s.channelId) : undefined,
+            name: s?.name || '',
+            businessHours: s?.businessHours,
+        });
+        uni.showToast({ title: locale.t('openWatch.added'), icon: 'none' });
+    }
+    watchTick.value++;
+}
+function goOpened(o: OpenedStore) {
+    if (!o) return;
+    const cid = o.channelId ? `&cid=${o.channelId}` : '';
+    uni.navigateTo({
+        url: `/pages/shop/menu?token=${encodeURIComponent(o.token)}&name=${encodeURIComponent(o.name || '')}&routes=${encodeURIComponent(o.routes || '')}${cid}`,
+    });
+}
+/** 关闭横幅：一次性提示，点过即取消关注对应店铺 */
+function dismissOpen() {
+    for (const o of openedList.value) unwatchStore(o.token);
+    watchTick.value++;
+}
 /** 常买店铺：本地记录 → 匹配当前店铺列表（已下线/休息不隐藏，点进店有休息提示） */
 const recentStores = computed(() => {
     if (keyword.value) return [] as any[];
@@ -826,6 +887,8 @@ function goMyCoupons() { uni.navigateTo({ url: '/pkg-promotion/pages/my-coupons'
 function goJianghu() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-hall' }); }
 function goMessages() { uni.navigateTo({ url: '/pkg-user/pages/messages' }); }
 function goCart() { uni.navigateTo({ url: '/pkg-order/pages/cart' }); }
+function goGroup() { uni.navigateTo({ url: '/pkg-order/pages/group-order' }); }
+function goRandom() { uni.navigateTo({ url: '/pkg-order/pages/random-pick' }); }
 
 // ─── 运营位（operations-plugin publishedContent）──────────────────
 // Banner / Notice / IconGrid 均为后台发布内容；未配置或接口异常时静默回落到内置入口。
@@ -932,6 +995,7 @@ onUnmounted(() => {
 onShow(() => {
     nowTick.value = Date.now();
     guessTick.value++; // 重读浏览足迹（localStorage 非响应式，onShow 时刷新猜你喜欢）
+    watchTick.value++; // 重算开门提醒（返回首页时可能已到开门时间）
     void favorites.loadRemote();
     void loadCouponBadge();
     void messages.load();
@@ -984,7 +1048,9 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .search { background: var(--w-search-bg); color: var(--w-text); border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; }
 .search :deep(.uni-input-placeholder) { color: var(--w-text-muted); }
 .body { padding: 0 24rpx; }
-.quick { margin-top: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx 0; display: flex; }
+.quick { margin-top: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx 8rpx 18rpx;
+    display: grid; grid-template-columns: repeat(5, 1fr); row-gap: 22rpx; }
+.qk { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
 /* 运营位：公告条 / 轮播 Banner / 图标宫格（后台发布内容驱动） */
 .cms-notice {
     display: flex; align-items: center; gap: 10rpx; margin-top: 20rpx;
@@ -1081,6 +1147,18 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .fav { position: absolute; top: 14rpx; right: 18rpx; font-size: 34rpx; color: var(--w-text-muted); padding: 6rpx; line-height: 1; }
 .fav.on { color: #ff4d6d; }
 .tag-free { color: #0a9d58; background: #ecfaf1; }
+/* 打烊店铺「开门提醒我」 */
+.tag-watch { color: #b45309; background: #fff8ef; border: 1rpx solid #ffd9ad;
+  &.on { color: var(--w-brand-text); background: var(--w-brand-soft); border-color: var(--w-brand-text); } }
+.open-banner { display: flex; align-items: center; gap: 12rpx; margin: 16rpx 0; padding: 16rpx 18rpx;
+  background: #ecfaf1; border: 1rpx solid #b7e8cd; border-radius: 16rpx;
+  &__ico { font-size: 28rpx; }
+  &__body { flex: 1; min-width: 0; }
+  &__title { display: block; font-size: 25rpx; color: #0a7d46; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__sub { display: block; margin-top: 4rpx; font-size: 20rpx; color: #3b8f63; }
+  &__go { flex-shrink: 0; font-size: 23rpx; color: #fff; background: #0a9d58; border-radius: 999rpx; padding: 6rpx 18rpx; }
+  &__close { flex-shrink: 0; font-size: 24rpx; color: #6b9a7f; padding: 4rpx 6rpx; }
+}
 /* 筛选弹层 */
 /* z-index 需高于 uni tabbar（998），否则底部按钮被 tab 栏拦截点击 */
 .filter-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 1000; display: flex; align-items: flex-end; }

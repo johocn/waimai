@@ -291,6 +291,14 @@
         auto-height
       />
       <view class="note-card__count" v-if="orderNote.length">{{ orderNote.length }}/200</view>
+      <!-- 单品备注：购物车逐行标注，下单时并入整单备注 -->
+      <view v-if="lineNotes.length" class="line-notes">
+        <view class="line-notes__head">
+          <text class="line-notes__title">{{ $t('checkout.lineNotesTitle').replace('{n}', String(lineNotes.length)) }}</text>
+          <text class="line-notes__clear" @click="clearLineNotes">{{ $t('checkout.lineNotesClear') }}</text>
+        </view>
+        <text v-for="n in lineNotes" :key="'ln-' + n.variantId" class="line-notes__item">{{ n.name }}<text v-if="n.qty > 1">×{{ n.qty }}</text>：{{ n.note }}</text>
+      </view>
     </view>
 
     <!-- 就餐设置：餐具份数 + 发票抬头，下单前随单写入 Order customFields -->
@@ -447,6 +455,7 @@ import { readDeliveryPref, writeDeliveryPref, readDeliveryPrefNote, type Deliver
 import { getMyCoupons } from '../../api/queries/coupon';
 import { applyCouponToOrder, clearCouponFromOrder } from '../../api/mutations/coupon';
 import { estimateDiscountFen, pickBestCoupon, couponUnavailableReason, type CouponTemplateLike } from '../../utils/coupon-estimate';
+import { lineNoteViews, lineNoteSegments, composeNote, clearStoreNotes, type LineNoteView } from '../../utils/line-notes';
 
 type ShippingCategory = 'shipping' | 'store-pickup';
 type TabKey = 'campus' | ShippingCategory;
@@ -585,13 +594,29 @@ function pickDeliveryPref(key: DeliveryPrefKey | '') {
 function goDeliveryPrefs() {
   uni.navigateTo({ url: '/pkg-user/pages/delivery-prefs' });
 }
-/** 备注首段拼装：配送偏好 → 自定义配送说明 → 用户备注（≤200） */
+/** 备注首段拼装：配送偏好 → 自定义配送说明 → 用户备注 → 单品备注（≤200） */
 function composeOrderNote(): string | null {
   const prefKey = deliveryPref.value;
   const prefLabel = prefKey
     ? locale.t(prefKey === 'door' ? 'deliveryPrefs.optDoor' : prefKey === 'reception' ? 'deliveryPrefs.optReception' : 'deliveryPrefs.optCall')
     : '';
-  return [prefLabel, readDeliveryPrefNote(), orderNote.value.trim()].filter(Boolean).join('；').slice(0, 200) || null;
+  const segs = lineNoteSegments(lineNotes.value);
+  return composeNote([prefLabel, readDeliveryPrefNote(), orderNote.value.trim()], segs, 200) || null;
+}
+/** 当前店铺 token（单品备注按店铺隔离） */
+const currentChannelToken = computed(() => storeMeta.value.channelToken || tenantStore.token || '');
+/** 刷新计数：本机存储非响应式，清除后手动触发重算 */
+const notesTick = ref(0);
+const lineNotes = computed<LineNoteView[]>(() => {
+    notesTick.value;
+    return lineNoteViews(currentChannelToken.value, cart.order?.lines ?? []);
+});
+function clearLineNotes() {
+    const token = currentChannelToken.value;
+    if (!token) return;
+    clearStoreNotes(token);
+    notesTick.value++;
+    uni.showToast({ title: locale.t('checkout.lineNotesCleared'), icon: 'none' });
 }
 const invoiceTitles = ref<InvoiceTitle[]>([]);
 const selectedInvoiceIndex = ref(-1);        // -1=不开发票
@@ -1509,6 +1534,9 @@ function recordRecentItems() {
     const lines = cart.order?.lines ?? [];
     const channelToken = storeMeta.value.channelToken || tenantStore.token || '';
     if (!channelToken) return;
+    // 单品备注已并入本单整单备注，下单成功后清空，避免带到下一单
+    clearStoreNotes(channelToken);
+    notesTick.value++;
     for (const line of lines) {
         const v = line.productVariant;
         if (!v?.id) continue;
@@ -1569,6 +1597,13 @@ onLoad((q: any) => {
   .note-card__manage { font-size: 22rpx; color: $brand-color; padding: 4rpx 8rpx; }
   .note-card__input { margin-top: 12rpx; width: 100%; min-height: 100rpx; font-size: 26rpx; color: $text-color; line-height: 1.6; }
   .note-card__count { text-align: right; font-size: 22rpx; color: $text-color-secondary; } }
+// 单品备注摘要（来自购物车逐行标注）
+.line-notes { margin-top: 14rpx; padding-top: 14rpx; border-top: 1rpx dashed $border-color;
+  &__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8rpx; }
+  &__title { font-size: 22rpx; font-weight: 600; color: #b45309; }
+  &__clear { font-size: 21rpx; color: $text-color-placeholder; padding: 2rpx 8rpx; }
+  &__item { display: block; font-size: 22rpx; color: $text-color-secondary; line-height: 1.7; }
+}
 .note-chips { margin-top: 12rpx; white-space: nowrap; }
 // 口味偏好：浅蓝底与常用备注模板区分，避免误以为同一组
 .taste-row { display: flex; align-items: center; gap: 12rpx; margin-top: 14rpx; }

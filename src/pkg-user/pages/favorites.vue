@@ -27,6 +27,16 @@
           @tap="groupFilter = '__none__'"
         >{{ $t('favorites.groupNone') }} {{ ungroupedCount }}</text>
       </view>
+      <!-- 开门提醒：收藏中关注过的打烊店铺现已营业 -->
+      <view v-if="openedList.length" class="open-banner">
+        <text class="open-banner__ico">🔔</text>
+        <view class="open-banner__body">
+          <text class="open-banner__title">{{ $t('openWatch.opened').replace('{s}', openedList[0].name) }}</text>
+          <text v-if="openedList.length > 1" class="open-banner__sub">{{ $t('openWatch.more').replace('{n}', String(openedList.length - 1)) }}</text>
+        </view>
+        <text class="open-banner__go" @click.stop="goOpened(openedList[0])">{{ $t('openWatch.go') }}</text>
+        <text class="open-banner__close" @click.stop="dismissOpen">✕</text>
+      </view>
       <view v-if="!storeList.length" class="fav-empty">
         <text class="fav-empty__ico">🏪</text>
         <text class="fav-empty__text">{{ $t('favorites.emptyStores') }}</text>
@@ -175,6 +185,7 @@ import { useCartStore } from '../../stores/cart';
 import { useLocaleStore } from '../../stores/locale';
 import { routeText } from '../../utils/store-display';
 import { priceDrop } from '../../utils/fav-price';
+import { openedWatched, unwatchStore } from '../../utils/open-watch';
 import {
     readRestockWatch, toggleRestockWatch, readStockSnapshot, writeStockSnapshot, stockStateOf,
     type RestockWatchItem, type StockState,
@@ -201,6 +212,24 @@ function readPins(): string[] {
 }
 
 const pins = ref<string[]>(readPins());
+
+// ── 开门提醒：本机订阅的打烊店铺现已营业（失败不影响收藏功能） ──
+const watchTick = ref(0);
+const openedList = computed(() => {
+    watchTick.value;
+    return openedWatched(stores.value);
+});
+function goOpened(o: { token: string; channelId?: string; name: string; routes?: string }) {
+    if (!o) return;
+    const cid = o.channelId ? `&cid=${o.channelId}` : '';
+    uni.navigateTo({
+        url: `/pages/shop/menu?token=${encodeURIComponent(o.token)}&name=${encodeURIComponent(o.name || '')}&routes=${encodeURIComponent(o.routes || '')}${cid}`,
+    });
+}
+function dismissOpen() {
+    for (const o of openedList.value) unwatchStore(o.token);
+    watchTick.value++;
+}
 
 /** 置顶优先稳定排序：置顶店按 pin 顺序排前，其余保持原序 */
 const storeList = computed(() => {
@@ -404,6 +433,7 @@ onShow(async () => {
     stores.value = await fetchStoreList().catch(() => [] as any[]);
     await favorites.hydrateVariantMeta(stores.value);
     watchList.value = readRestockWatch();
+    watchTick.value++; // 重算开门提醒（返回收藏页时可能已到开门时间）
     void refreshPrices();
     if (tab.value === 'dynamics') dynLoaded.value = false;
 });
@@ -566,6 +596,15 @@ function goHome() {
   &.on { color: $brand-color; border-color: $brand-color; background: $brand-color-light; font-weight: 600; }
 }
 .grp-empty { padding: 100rpx 0; text-align: center; font-size: 26rpx; color: $text-color-placeholder; }
+/* 开门提醒横幅 */
+.open-banner { display: flex; align-items: center; gap: 12rpx; margin: 16rpx 0; padding: 16rpx 18rpx;
+    background: #ecfaf1; border: 1rpx solid #b7e8cd; border-radius: 16rpx; }
+.open-banner__ico { font-size: 28rpx; }
+.open-banner__body { flex: 1; min-width: 0; }
+.open-banner__title { display: block; font-size: 25rpx; color: #0a7d46; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.open-banner__sub { display: block; margin-top: 4rpx; font-size: 20rpx; color: #3b8f63; }
+.open-banner__go { flex-shrink: 0; font-size: 23rpx; color: #fff; background: #0a9d58; border-radius: 999rpx; padding: 6rpx 18rpx; }
+.open-banner__close { flex-shrink: 0; font-size: 24rpx; color: #6b9a7f; padding: 4rpx 6rpx; }
 .grp-mask { position: fixed; left: 0; right: 0; top: 0; bottom: 0; background: rgba(0, 0, 0, .45); z-index: 99; display: flex; align-items: center; justify-content: center; }
 .grp-panel { width: 560rpx; background: $surface; border-radius: $radius-md; padding: 32rpx 28rpx;
   &__title { display: block; font-size: 30rpx; font-weight: 600; color: $text-color; text-align: center; }

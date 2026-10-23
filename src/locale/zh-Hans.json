@@ -712,6 +712,7 @@
     "shipping": "运费",
     "freeShipTag": "满¥{c}免配送费",
     "freeShipHint": "满 ¥{a} 免配送费，再买 ¥{b} 即免",
+    "dynAddFee": "含高峰/供需加价 ¥{a}",
     "upsellShip": "还差 ¥{d} 免配送费",
     "upsellTier": "还差 ¥{d} 可减 ¥{y}",
     "upsellMin": "还差 ¥{d} 起送",

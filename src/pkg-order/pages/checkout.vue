@@ -32,7 +32,7 @@
         <view class="campus-label">{{ $t('checkout.pickZone') }}</view>
         <view class="chip-row">
           <view v-for="z in zones" :key="z.id" class="chip" :class="{ on: zoneId === z.id }" @click="chooseZone(z)">
-            {{ z.name }}<text v-if="z.fee != null" class="chip__sub"> ¥{{ (z.fee / 100).toFixed(2) }}</text>
+            {{ z.name }}<text v-if="zonePrice(z) != null" class="chip__sub"> ¥{{ (Number(zonePrice(z)) / 100).toFixed(2) }}</text>
           </view>
         </view>
         <view class="campus-label">{{ $t('checkout.pickBuilding') }}</view>
@@ -225,6 +225,8 @@
         <text v-else>¥{{ shipDisplayYuan }}</text>
       </view>
       <view class="ship-free-hint" v-if="freeShipShortYuan">{{ $t('checkout.freeShipHint').replace('{a}', freeShipYuan).replace('{b}', freeShipShortYuan) }}</view>
+      <!-- 动态计价加价提示：高峰/供需/手动倍率，结算口径与 campusZones.price 一致 -->
+      <view class="ship-free-hint" v-if="campusRouteSel && !freeShipOn && selectedZoneAddFeeFen > 0">{{ $t('checkout.dynAddFee').replace('{a}', (selectedZoneAddFeeFen / 100).toFixed(2)) }}</view>
       <!-- 满减凑单提示：promoText 解析「满X减Y」，未达标给差额，已达标给优惠 -->
       <view class="promo-hint" v-if="promoNotice">{{ promoNotice }}</view>
       <!-- 起送价硬校验提示（提交会被阻断，后端 min-order process 兜底） -->
@@ -835,7 +837,20 @@ const shippingFee = computed(() => cart.formatPrice(cart.order?.shippingWithTax 
 const campusRouteSel = computed(() => activeTab.value === 'campus' && ['R1', 'R3'].includes(routeChoice.value));
 const selectedZoneFeeFen = computed(() => {
     const z = zones.value.find(x => String(x.id) === String(zoneId.value));
-    return z ? Number(z.fee) : null;   // 分区运费（campusZones 出价，提交前预估口径）
+    return z ? Number(zonePrice(z)) : null;   // 实时配送费（含高峰/供需加价，与结算同口径）
+});
+/** 分区实时价：优先 price（动态计价后），无该字段时退回基价 fee */
+function zonePrice(z: any): number | null {
+    if (!z) return null;
+    if (z.price != null) return Number(z.price);
+    return z.fee != null ? Number(z.fee) : null;
+}
+/** 当前分区加价额（分）：price - fee，0 表示未加价 */
+const selectedZoneAddFeeFen = computed(() => {
+    const z = zones.value.find(x => String(x.id) === String(zoneId.value));
+    if (!z) return 0;
+    const add = z.addFee != null ? Number(z.addFee) : (zonePrice(z) ?? 0) - Number(z.fee ?? 0);
+    return add > 0 ? add : 0;
 });
 const goodsFen = computed(() => cart.order?.subTotalWithTax || 0);
 // 起送价硬拦截：未达标禁止提交（后端 campusMinOrderProcess 兜底同口径）

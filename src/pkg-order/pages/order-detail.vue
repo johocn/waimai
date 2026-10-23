@@ -291,7 +291,7 @@
                 @tap="pickZone(z.id)"
               >
                 <text>{{ z.name }}</text>
-                <text class="addr-chip__fee">¥{{ (Number(z.fee || 0) / 100).toFixed(2) }}</text>
+                <text class="addr-chip__fee">¥{{ (Number(z.price ?? z.fee ?? 0) / 100).toFixed(2) }}</text>
               </view>
             </view>
             <text class="addr-label">{{ $t('orderDetail.changeBuilding') }}</text>

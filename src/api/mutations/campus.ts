@@ -17,8 +17,19 @@ export const CAMPUS_SET_DELIVERY_TARGET = gql`
     }
 `;
 
+// CampusZone    { id name fee price addFee breakdown{ key label fee } channelId }
+//   —— price 为与结算同口径的实时配送费（含高峰/供需/手动倍率加价），fee 为分区基价
 export const CAMPUS_ZONES = gql`
-    query campusZones { campusZones { id name fee } }
+    query campusZones {
+        campusZones {
+            id
+            name
+            fee
+            price
+            addFee
+            breakdown { key label fee }
+        }
+    }
 `;
 
 export const CAMPUS_BUILDINGS = gql`

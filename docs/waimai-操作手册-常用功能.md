@@ -2418,7 +2418,7 @@
 入口：我的 →「我的口味」（`/pkg-user/pages/taste-profile`，免登录）；结算页「我的口味」入口卡右侧「设置 ›」也直达此页。
 
 能力：
-- 四类偏好：辣度（不辣/微辣/中辣/重辣，单选）、忌口（香菜/葱/蒜/韭菜/姜，多选）、过敏原（花生/海鲜/麸质/乳制品/坚果/蛋，多选，红字样式）、餐具（0–5 份，0 显示「无需餐具」）；
+- 四类偏好：辣度（不辣/微辣/中辣/特辣，单选）、忌口（香菜/葱/蒜/韭菜/姜，多选）、过敏原（花生/海鲜/麸质/乳制品/坚果/鸡蛋，多选，红字样式）、餐具（0–5 份，0 显示「无需餐具」）；
 - 页面底部「带入效果预览」实时拼出最终备注段（如「中辣；忌香菜、葱；对花生过敏；无需餐具」）；
 - 「保存并带入下单」写入本机 `taste_profile`；「清空口味偏好」一键移除。
 
@@ -2514,4 +2514,4 @@
 - 暂存恢复按「当前价」重新加购，与暂存时价格可能不同（价格波动以加购时为准）；
 - 单品分享链接不含价格快照，好友看到的是该店铺当前菜单与价格。
 
-截图：[203-taste-profile-empty.png](screenshots/common-features-v29/203-taste-profile-empty.png)、[204-taste-profile-selected.png](screenshots/common-features-v29/204-taste-profile-selected.png)、[205-menu-dish-share-bar.png](screenshots/common-features-v29/205-menu-dish-share-bar.png)、[205b-menu-dish-added.png](screenshots/common-features-v29/205b-menu-dish-added.png)、[206-menu-taste-warning.png](screenshots/common-features-v29/206-menu-taste-warning.png)、[207-menu-dish-gone.png](screenshots/common-features-v29/207-menu-dish-gone.png)、[208-cart-hold-list.png](screenshots/common-features-v29/208-cart-hold-list.png)、[208b-cart-hold-bump.png](screenshots/common-features-v29/208b-cart-hold-bump.png)、[208c-cart-hold-restored.png](screenshots/common-features-v29/208c-cart-hold-restored.png)、[209-checkout-taste-entry.png](screenshots/common-features-v29/209-checkout-taste-entry.png)、[210-home-search-fallback.png](screenshots/common-features-v29/210-home-search-fallback.png)、[210b-home-search-fallback-scroll.png](screenshots/common-features-v29/210b-home-search-fallback-scroll.png)、[210c-home-search-guess-hot.png](screenshots/common-features-v29/210c-home-search-guess-hot.png)
+截图：[203-taste-profile-empty.png](screenshots/common-features-v29/203-taste-profile-empty.png)、[204-taste-profile-selected.png](screenshots/common-features-v29/204-taste-profile-selected.png)、[205-menu-dish-share-bar.png](screenshots/common-features-v29/205-menu-dish-share-bar.png)、[205b-menu-dish-added.png](screenshots/common-features-v29/205b-menu-dish-added.png)、[206-menu-taste-warning.png](screenshots/common-features-v29/206-menu-taste-warning.png)、[207-menu-dish-gone.png](screenshots/common-features-v29/207-menu-dish-gone.png)、[208a-cart-hold-entry.png](screenshots/common-features-v29/208a-cart-hold-entry.png)、[208-cart-hold-list.png](screenshots/common-features-v29/208-cart-hold-list.png)、[208b-cart-hold-bump.png](screenshots/common-features-v29/208b-cart-hold-bump.png)、[208c-cart-hold-restored.png](screenshots/common-features-v29/208c-cart-hold-restored.png)、[209-checkout-taste-entry.png](screenshots/common-features-v29/209-checkout-taste-entry.png)、[210-home-search-fallback.png](screenshots/common-features-v29/210-home-search-fallback.png)、[210b-home-search-fallback-scroll.png](screenshots/common-features-v29/210b-home-search-fallback-scroll.png)、[210c-home-search-guess-hot.png](screenshots/common-features-v29/210c-home-search-guess-hot.png)

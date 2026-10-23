@@ -3092,3 +3092,72 @@
 - **预约时段**：结算页已选日期+时段时，预计送达行直接展示预约时间，不再显示「尽快送」推算值。
 
 截图：[249-menu-eta-bar.png](screenshots/common-features-v38/249-menu-eta-bar.png)、[250-checkout-eta-row.png](screenshots/common-features-v38/250-checkout-eta-row.png)、[251-menu-closed-no-eta.png](screenshots/common-features-v38/251-menu-closed-no-eta.png)
+
+---
+
+## 146 订单筛选 + 评价/商品图大图预览（第三十九轮，2026-10-24）
+
+### 146.1 功能说明
+
+三处纯前端体验补强，无后端改动：
+
+- **订单列表筛选**（`订单` tab）：搜索框下方新增筛选条「⚙ 筛选」。
+  - 点击打开底部弹层，可选**下单时间**（全部时间 / 近 7 天 / 近 30 天 / 近 90 天）与**店铺**（全部店铺 / 当前登录可见的各店铺）。
+  - 点「应用筛选」才重新发起查询（草稿态，避免每点一次都请求）；筛选条以 chips 展示生效条件，点 chip 上的 ✕ 可单项清除，徽标显示生效条件数量。
+  - 筛选走**服务端过滤**（`myOrders` 的 `filter.state` + `filter.createdAt.after`），因此分页口径与结果总数一致；切换 tab（待付款/待发货…）时筛选条件保留。
+  - 选择会持久化到本地（`orders_filter_v39`），下次进入订单页自动恢复；店铺下线导致已存 token 失效时自动清空并提示无筛选。
+- **店铺评价图片大图预览**（店铺菜单 → 评论）：主评图片、**追评（追加评价）图片**均可点开大图，支持左右滑动切换该条评价内的多张图；追评此前只渲染文字，本轮补上图片缩略图。
+- **商品详情主图放大**（商品详情弹层）：点击头部商品图可查看大图；多规格商品展示当前所选变体的图片。
+
+### 146.2 实现细节
+
+| 项 | 说明 |
+|---|---|
+| 纯函数 | `src/utils/order-filter.ts`：`orderSinceISO(range, now)`（时间范围 → ISO 起点，`all` 返回 `null`）、`buildOrderFilter({ states, range, now })`（合并 `state.eq/in` 与 `createdAt.after`，无条件下返回 `null`）、`orderFilterCount` / `orderFilterActive`（徽标计数与是否激活）、`isOrderRange` 校验 |
+| 订单页 | `src/pages/orders/index.vue`：`.filter-bar` + `.filter-sheet` 草稿弹层；`queryChannels()` 按店铺收窄本次查询渠道（未选店铺 → 全部渠道）；`loadData` 用 `buildOrderFilter` 组装 `options.filter`；`pollStates` 同步按店铺收窄；失效店铺在 `loadChannels` 末尾自动清空 |
+| 样式层级 | 筛选遮罩 `z-index: 1000`，高于 uni-app 底部 tabbar（998），保证「应用筛选」按钮不被导航栏拦截 |
+| 菜单页 | `src/pages/shop/menu.vue`：主评 `.rv-imgs` 每个 `VImage` 绑定 `@tap="previewReviewImages(r.images, i)"`；追评补 `fu.images` 图片块（130rpx，带「追加评价」标签）并复用同一预览函数；`uni.previewImage({ urls, current })` |
+| SkuSheet | `src/components/SkuSheet.vue`：头部图绑定 `@tap="previewImage"`，取 `variantAsset`（当前变体图 → 商品主图兜底），`uni.previewImage` 单图预览 |
+| i18n | `orders.filterBtn` / `filterIdle` / `filterTitle` / `filterTime` / `rangeAll` / `range7d` / `range30d` / `range90d` / `filterStore` / `filterAllStores` / `filterReset` / `filterApply`，中英同步 |
+
+纯函数断言（`node .secrets/assert-v39.cjs`）：**39 项全部通过**。本轮项目未安装 `esbuild`，脚本改用 Node 内置 `stripTypeScriptTypes` 擦除类型后加载，不新增构建依赖。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| 范围校验 | `all/7d/30d/90d` 合法；空串/`1d`/`15d`/null/数字/对象非法；天数映射正确 | 通过 |
+| 时间换算 | `all` 与非值 → `null`；7/30/90 天精确 ISO；时间戳入参与 Date 等价；非法 `now` → `null`；缺省按当前时间 | 通过 |
+| 过滤组装 | 无条件 → `null`；单状态 `eq`、多状态 `in`；仅范围 → `createdAt.after`；状态+范围叠加；空状态剔除；`states: null` 安全 | 通过 |
+| 计数/激活 | 默认 0；仅时间 1；仅店铺 1；两者 2；空白店铺不计；非法范围按 `all`；null 入参安全 | 通过 |
+| i18n/接线 | 中英键集合一致、新增 12 键齐全；订单页引入/弹层/渠道收窄/范围入参/持久化/失效清理/空态；评价主评+追评预览；SkuSheet 主图预览 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本地静态服务 + shop-api 全 mock，预置登录态）：
+
+| 断言项 | 结果 |
+|---|---|
+| 筛选条初始态 | 搜索框下方显示「⚙ 筛选 · 未筛选」，3 单（跨 2 店）正常展示 |
+| 筛选弹层 | 时间 chips 与店铺 chips（全部店铺 / 川味小馆 / 夜宵档）完整可见，「重置 / 应用筛选」不被底部导航遮挡 |
+| 应用后查询 | 仅 1 次 `OrdersInChannel` 请求，`vendure-token=canteen-a-token`，`filter.createdAt.after=2026-09-23T22:29Z`（近 30 天）；列表仅剩该店近 30 天内订单；chips「近 30 天 ✕」「川味小馆 ✕」+ 徽标「· 2」 |
+| 评价图片 | 评论 tab 渲染 2 条评价、3 个图片块；主评 2 图、第二条主评 1 图、追评 2 图均显示 |
+| 主图放大 | 点击 SkuSheet 头部商品图 → 出现全屏预览遮罩与大图，关闭按钮可用 |
+
+线上回归（`node .secrets/regress-v39.cjs`，真链路无 mock，结果 **REGRESS PASS**）：
+
+| 页面 | 验证项 | 结果 |
+|---|---|---|
+| 订单页 | 筛选条「⚙ 筛选 · 未筛选」渲染；弹层含 4 个时间 chips + 2 个店铺 chips（canteen-b / canteen-a）+「应用筛选」，✕ 可关闭；`pages-orders-index` chunk 18,608B 含 `filter-sheet` / `orders_filter_v39` | 通过 |
+| 菜单页 | canteen-b 3 个商品；评论 tab 渲染空态（线上测试店暂无评价）；`pages-shop-menu` chunk 112,512B 含 `rv-reply` / `sku-sheet__head` / `urls:`（预览调用） | 通过 |
+| 商品详情 | 3 个商品主图均为缺图占位（`VImage` 回退内联 svg），线上无法触发主图放大，由本地 mock 验收（256）覆盖 | 说明项 |
+| 全局 | JS 页面错误 0 | 通过 |
+
+- 线上 `canteen-b` / `canteen-a` 当前均无评价数据、商品无主图，评价图片与主图放大两支路以本地 mock 截图为准；线上验证覆盖筛选 UI 与 chunk 上线。
+- 截图：[online-252-orders-filter-sheet.png](screenshots/common-features-v39/online-252-orders-filter-sheet.png)、[online-255-menu-reviews.png](screenshots/common-features-v39/online-255-menu-reviews.png)
+
+### 146.3 边界与已知限制
+
+- **筛选只覆盖「时间范围 + 店铺」**：金额区间、商品名、配送状态等维度仍由本地搜索框与状态 tab 承担；状态 tab 与筛选叠加时取交集。
+- **店铺筛选依赖 `waimaiStoreList`**：只列出当前可见店铺；订单落在平台默认渠道（`__default_channel__`）时无法按具体店铺筛出，需选「全部店铺」。
+- **时间范围按 `createdAt`**：与列表排序口径一致，不含「送达时间」维度；跨时区仍按服务器 UTC 时间计算，展示层本地化。
+- **大图预览不带上滑关闭**：H5 使用 `uni.previewImage` 原生行为（点击/ESC 关闭），小程序端由平台原生预览接管。
+- **追评图片容错**：`images` 缺失/空数组时不渲染图片块，仅展示文字；单图也可预览（单张时无左右切换）。
+
+截图：[252-orders-filter-bar.png](screenshots/common-features-v39/252-orders-filter-bar.png)、[253-orders-filter-sheet.png](screenshots/common-features-v39/253-orders-filter-sheet.png)、[254-orders-filter-applied.png](screenshots/common-features-v39/254-orders-filter-applied.png)、[255-menu-review-images.png](screenshots/common-features-v39/255-menu-review-images.png)、[255b-menu-review-followup-images.png](screenshots/common-features-v39/255b-menu-review-followup-images.png)、[256-sku-image-preview.png](screenshots/common-features-v39/256-sku-image-preview.png)

@@ -26,6 +26,17 @@
       <input class="orders-search__input" v-model="orderKeyword" :placeholder="$t('orders.searchPh')" confirm-type="search" />
       <text v-if="orderKeyword" class="orders-search__clear" @click="orderKeyword = ''">✕</text>
     </view>
+    <!-- 筛选（第 39 轮）：时间范围 + 店铺，服务端过滤（切换即重新查询，分页口径一致） -->
+    <view class="filter-bar">
+      <view class="filter-btn" :class="{ on: filterBadge > 0 }" @click="openFilter">
+        ⚙ {{ $t('orders.filterBtn') }}<text v-if="filterBadge" class="filter-btn__n"> · {{ filterBadge }}</text>
+      </view>
+      <view class="filter-chips">
+        <text v-if="rangeText" class="fchip" @click="clearRange">{{ rangeText }} ✕</text>
+        <text v-if="storeText" class="fchip" @click="clearStore">{{ storeText }} ✕</text>
+        <text v-if="!filterBadge" class="filter-idle">{{ $t('orders.filterIdle') }}</text>
+      </view>
+    </view>
     <!-- 售后聚合：登录后拉取售后单，处理中数量 > 0 时展示，点击只看售后 -->
     <view v-if="afterSaleCount > 0" class="after-bar" :class="{ on: onlyAfterSale }" @click="toggleAfterSale">
       <text class="after-bar__txt">{{ $t('orders.afterSaleBar').replace('{n}', String(afterSaleCount)) }}</text>
@@ -83,9 +94,37 @@
       <view class="orders-page__footer">
         <LoadingSkeleton v-if="loading" type="list" :count="3" />
         <text v-else-if="!hasMore && filteredOrders.length > 0" class="footer-text">{{ $t('orders.noMore') }}</text>
-        <EmptyState v-if="!loading && filteredOrders.length === 0" :text="orderKeyword || onlyAfterSale || onlyPendingReview || onlyScheduled ? $t('orders.searchEmpty') : $t('orders.empty')" />
+        <EmptyState v-if="!loading && filteredOrders.length === 0" :text="orderKeyword || onlyAfterSale || onlyPendingReview || onlyScheduled || filterBadge ? $t('orders.searchEmpty') : $t('orders.empty')" />
       </view>
     </scroll-view>
+    <!-- 筛选弹层：草稿态选择，点「应用」才重新查询，避免每点一次都请求 -->
+    <view v-if="filterOpen" class="filter-mask" @tap.self="filterOpen = false">
+      <view class="filter-sheet">
+        <view class="fs-head">
+          <text class="fs-title">{{ $t('orders.filterTitle') }}</text>
+          <text class="fs-close" @click="filterOpen = false">✕</text>
+        </view>
+        <text class="fs-label">{{ $t('orders.filterTime') }}</text>
+        <view class="fs-chips">
+          <view
+            v-for="r in RANGE_OPTIONS" :key="r.value" class="fs-chip"
+            :class="{ on: draftRange === r.value }" @click="draftRange = r.value"
+          >{{ $t(r.label) }}</view>
+        </view>
+        <text class="fs-label">{{ $t('orders.filterStore') }}</text>
+        <view class="fs-chips">
+          <view class="fs-chip" :class="{ on: !draftStore }" @click="draftStore = ''">{{ $t('orders.filterAllStores') }}</view>
+          <view
+            v-for="s in storeOptions" :key="s.token" class="fs-chip"
+            :class="{ on: draftStore === s.token }" @click="draftStore = s.token"
+          >{{ s.name }}</view>
+        </view>
+        <view class="fs-actions">
+          <view class="fs-reset" @click="resetDraft">{{ $t('orders.filterReset') }}</view>
+          <view class="fs-apply" @click="applyFilter">{{ $t('orders.filterApply') }}</view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 <script setup lang="ts">
@@ -98,6 +137,10 @@ import { getMyReviews } from '../../api/queries/review';
 import { fulfillmentBadge } from '../../utils/order-badge';
 import { orderEta, clockHM } from '../../utils/order-eta';
 import { storeDisplayName } from '../../utils/store-display';
+import {
+    isOrderRange, orderFilterCount, buildOrderFilter,
+    type OrderRange,
+} from '../../utils/order-filter';
 import { useLocaleStore } from '../../stores/locale';
 import { useAuthStore } from '../../stores/auth';
 import VImage from '../../components/VImage.vue';
@@ -113,6 +156,72 @@ const refreshing = ref(false);
 const activeTab = ref('');
 // 本地搜索 + 售后聚合（不改变服务端分页查询）
 const orderKeyword = ref('');
+// —— 第 39 轮：筛选（时间范围 + 店铺），走服务端查询并持久化 ——
+const RANGE_OPTIONS: { value: OrderRange; label: string }[] = [
+    { value: 'all', label: 'orders.rangeAll' },
+    { value: '7d', label: 'orders.range7d' },
+    { value: '30d', label: 'orders.range30d' },
+    { value: '90d', label: 'orders.range90d' },
+];
+const RANGE_LABEL: Record<OrderRange, string> = {
+    all: 'orders.rangeAll', '7d': 'orders.range7d', '30d': 'orders.range30d', '90d': 'orders.range90d',
+};
+const FILTER_KEY = 'orders_filter_v39';
+function readSavedFilter(): { range: OrderRange; store: string } {
+    try {
+        const raw: any = uni.getStorageSync(FILTER_KEY);
+        const obj = raw && typeof raw === 'object' ? raw : {};
+        return {
+            range: isOrderRange(obj.range) ? obj.range : 'all',
+            store: typeof obj.store === 'string' ? obj.store : '',
+        };
+    } catch { return { range: 'all', store: '' }; }
+}
+const savedFilter = readSavedFilter();
+const rangeFilter = ref<OrderRange>(savedFilter.range);
+const storeFilter = ref(savedFilter.store);
+const filterOpen = ref(false);
+const draftRange = ref<OrderRange>(savedFilter.range);
+const draftStore = ref(savedFilter.store);
+const storeOptions = ref<{ token: string; name: string }[]>([]);
+const filterBadge = computed(() => orderFilterCount(rangeFilter.value, storeFilter.value));
+const rangeText = computed(() => rangeFilter.value === 'all' ? '' : locale.t(RANGE_LABEL[rangeFilter.value]));
+const storeText = computed(() => storeOptions.value.find((s) => s.token === storeFilter.value)?.name ?? '');
+function persistFilter() {
+    try { uni.setStorageSync(FILTER_KEY, { range: rangeFilter.value, store: storeFilter.value }); } catch { /* ignore */ }
+}
+function reloadOrders() {
+    page = 0;
+    hasMore.value = true;
+    orders.value = [];
+    void loadData();
+}
+function openFilter() {
+    draftRange.value = rangeFilter.value;
+    draftStore.value = storeFilter.value;
+    filterOpen.value = true;
+}
+function applyFilter() {
+    rangeFilter.value = draftRange.value;
+    storeFilter.value = draftStore.value;
+    filterOpen.value = false;
+    persistFilter();
+    reloadOrders();
+}
+function resetDraft() {
+    draftRange.value = 'all';
+    draftStore.value = '';
+}
+function clearRange() {
+    rangeFilter.value = 'all';
+    persistFilter();
+    reloadOrders();
+}
+function clearStore() {
+    storeFilter.value = '';
+    persistFilter();
+    reloadOrders();
+}
 const onlyAfterSale = ref(false);
 const onlyPendingReview = ref(false);
 const afterSaleByOrderId = ref<Record<string, any>>({});
@@ -304,6 +413,14 @@ async function loadChannels() {
     } catch (e) { console.error(e); }
     deliveryMinutesByName.value = minutes;
     channels = Array.from(map, ([token, name]) => ({ token, name }));
+    storeOptions.value = channels
+        .filter((c) => c.token !== normChannel(PLATFORM_TOKEN))
+        .map((c) => ({ token: c.token, name: c.name }));
+    // 已存的店铺筛选失效（店铺下线/换 token）→ 自动清空，避免查询恒空
+    if (storeFilter.value && !storeOptions.value.some((s) => s.token === storeFilter.value)) {
+        storeFilter.value = '';
+        persistFilter();
+    }
     channelsLoaded = true;
 }
 
@@ -318,13 +435,19 @@ function startStatePolling() {
     stopStatePolling();
     pollTimer = setInterval(() => { nowTs.value = Date.now(); void pollStates(); }, POLL_INTERVAL);
 }
+/** 按店铺筛选收窄查询渠道（未选中店铺 → 全部渠道） */
+function queryChannels(): Array<{ token: string; name: string }> {
+    if (!storeFilter.value) return channels;
+    const picked = channels.filter((c) => c.token === storeFilter.value);
+    return picked.length ? picked : channels;
+}
 async function pollStates() {
     if (polling || !auth.isLoggedIn || orders.value.length === 0) return;
     polling = true;
     try {
         await loadChannels();
         // 不带 tab 过滤，避免订单状态变化后被当前 tab 漏掉
-        const results = await Promise.all(channels.map((c) =>
+        const results = await Promise.all(queryChannels().map((c) =>
             getOrdersForChannel(c.token, { take: 10, skip: 0, sort: { createdAt: 'DESC' } })
                 .then((res: any) => res?.myOrders?.items || [])
                 .catch(() => []),
@@ -370,11 +493,10 @@ async function loadData() {
     try {
         await loadChannels();
         const options: any = { take, skip: page * take, sort: { createdAt: 'DESC' } };
-        if (activeTab.value) {
-            const states = activeTab.value.split(',').filter(Boolean);
-            options.filter = { state: states.length > 1 ? { in: states } : { eq: states[0] } };
-        }
-        const results = await Promise.all(channels.map((c) =>
+        const states = activeTab.value ? activeTab.value.split(',').filter(Boolean) : [];
+        const filter = buildOrderFilter({ states, range: rangeFilter.value });
+        if (filter) options.filter = filter;
+        const results = await Promise.all(queryChannels().map((c) =>
             getOrdersForChannel(c.token, options)
                 .then((res: any) => ({
                     items: (res?.myOrders?.items || []).map((o: any) => ({ ...o, channelName: c.name })),
@@ -442,6 +564,24 @@ function goDetail(code: string) { uni.navigateTo({ url: '/pkg-order/pages/order-
 .orders-search { position: relative; padding: 16rpx 20rpx 0; background: $surface; }
 .orders-search__input { height: 68rpx; padding: 0 60rpx 0 24rpx; background: #f5f5f5; border-radius: 999rpx; font-size: 26rpx; }
 .orders-search__clear { position: absolute; right: 40rpx; top: 50%; transform: translateY(-30%); font-size: 24rpx; color: $text-color-placeholder; padding: 10rpx; }
+/* 筛选条（第 39 轮）：时间范围 + 店铺，服务端过滤 */
+.filter-bar { display: flex; align-items: center; gap: 12rpx; padding: 12rpx 20rpx 0; background: $surface; }
+.filter-btn { flex-shrink: 0; padding: 10rpx 20rpx; border-radius: 999rpx; font-size: 24rpx; color: $text-color-secondary; background: #f5f5f5; &.on { color: $brand-color; background: #fff0e4; } }
+.filter-btn__n { font-size: 22rpx; }
+.filter-chips { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10rpx; overflow: hidden; }
+.fchip { flex-shrink: 0; max-width: 220rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6rpx 16rpx; border-radius: 999rpx; font-size: 22rpx; color: $brand-color; background: #fff0e4; }
+.filter-idle { font-size: 22rpx; color: $text-color-placeholder; }
+.filter-mask { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, 0.45); display: flex; align-items: flex-end; }
+.filter-sheet { width: 100%; background: $surface; border-radius: 24rpx 24rpx 0 0; padding: 24rpx 24rpx 40rpx; box-sizing: border-box; }
+.fs-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 16rpx; }
+.fs-title { font-size: 30rpx; font-weight: 600; color: $text-color; }
+.fs-close { font-size: 28rpx; color: $text-color-placeholder; padding: 10rpx; }
+.fs-label { display: block; margin: 16rpx 0 12rpx; font-size: 24rpx; color: $text-color-secondary; }
+.fs-chips { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.fs-chip { padding: 12rpx 28rpx; border-radius: 999rpx; font-size: 24rpx; color: $text-color-secondary; background: #f5f5f5; border: 1rpx solid transparent; &.on { color: $brand-color; background: #fff0e4; border-color: $brand-color; } }
+.fs-actions { display: flex; gap: 20rpx; margin-top: 32rpx; }
+.fs-reset { flex: 1; text-align: center; padding: 20rpx 0; border-radius: 999rpx; font-size: 26rpx; color: $text-color-secondary; background: #f5f5f5; }
+.fs-apply { flex: 2; text-align: center; padding: 20rpx 0; border-radius: 999rpx; font-size: 26rpx; color: #fff; background: $brand-color; }
 .after-bar { display: flex; align-items: center; justify-content: space-between; margin: 12rpx 20rpx 0; padding: 14rpx 24rpx; border-radius: $radius-md; background: #fff4e5; }
 .after-bar.on { background: #ffe7c7; }
 .after-bar__txt { font-size: 24rpx; color: #b25c00; }

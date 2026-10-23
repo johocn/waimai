@@ -266,7 +266,7 @@
                 </view>
                 <text class="rv-content">{{ r.content }}</text>
                 <view v-if="r.images?.length" class="rv-imgs">
-                    <VImage v-for="(img, i) in r.images" :key="i" :src="img" width="150rpx" height="150rpx" />
+                    <VImage v-for="(img, i) in r.images" :key="i" :src="img" width="150rpx" height="150rpx" @tap="previewReviewImages(r.images, i)" />
                 </view>
                 <view v-if="r.tags?.length" class="rv-tags">
                     <text v-for="(t, i) in r.tags" :key="i" class="rv-tag">{{ t }}</text>
@@ -274,6 +274,9 @@
                 <view v-if="r.reply" class="rv-reply"><text class="rv-reply__who">{{ $t('menu.merchantReply') }}</text>{{ r.reply }}</view>
                 <view v-for="fu in r.followUps ?? []" :key="fu.id" class="rv-reply">
                     <text class="rv-reply__who">{{ $t('menu.followUp') }}</text>{{ fu.content }}
+                    <view v-if="fu.images?.length" class="rv-imgs">
+                        <VImage v-for="(img, i) in fu.images" :key="i" :src="img" width="130rpx" height="130rpx" @tap="previewReviewImages(fu.images, i)" />
+                    </view>
                 </view>
             </view>
             <view v-if="reviewLoading" class="rv-more">{{ $t('menu.loading') }}</view>
@@ -885,6 +888,14 @@ function displayName(r: any, nameOnly = false) {
 
 function formatDate(d: string) {
     return d ? new Date(d).toLocaleDateString('zh-CN') : '';
+}
+
+/** 评价图片大图预览（第 39 轮）：主评与追评共用，index 决定初始图 */
+function previewReviewImages(images: string[], index: number) {
+    const urls = (images || []).filter(Boolean);
+    if (!urls.length) return;
+    const current = urls[index] ?? urls[0];
+    uni.previewImage({ urls, current });
 }
 
 function distWidth(count: number) {
@@ -1624,6 +1635,7 @@ function goCheckout() {
 .rv-tag { font-size: 20rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 8rpx; padding: 4rpx 12rpx; }
 .rv-reply { background: var(--w-surface-muted); border-radius: 12rpx; padding: 16rpx; font-size: 24rpx; color: var(--w-text-muted); line-height: 1.5; }
 .rv-reply__who { color: var(--w-brand-text); margin-right: 12rpx; font-weight: 500; }
+.rv-reply .rv-imgs { margin-top: 10rpx; }
 .rv-more { text-align: center; font-size: 24rpx; color: var(--w-text-muted); padding: 32rpx 0 0; }
 .mcard { background: var(--w-surface); border-radius: $radius-card; margin: 20rpx 24rpx 0; padding: 8rpx 24rpx; }
 .mrow { display: flex; gap: 12rpx; align-items: flex-start; padding: 24rpx 0; border-bottom: 1rpx solid var(--w-border); font-size: 26rpx; }

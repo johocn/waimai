@@ -2,7 +2,7 @@
   <view v-if="visible" class="sku-mask" @click.self="close">
     <view class="sku-sheet">
       <view class="sku-sheet__head">
-        <VImage :src="variantAsset" width="200rpx" height="200rpx" />
+        <VImage :src="variantAsset" width="200rpx" height="200rpx" @tap="previewImage" />
         <view class="sku-sheet__head-info">
           <text class="sku-sheet__name">{{ product?.name }}</text>
           <view class="sku-sheet__meta" v-if="metaText">
@@ -109,6 +109,13 @@ const currentVariant = computed(() => {
 });
 
 const variantAsset = computed(() => currentVariant.value?.featuredAsset?.preview || props.product?.featuredAsset?.preview || '');
+
+/** 头部商品图点击放大（第 39 轮）：多规格切换后展示当前变体图 */
+function previewImage() {
+    const url = variantAsset.value;
+    if (!url) return;
+    uni.previewImage({ urls: [url], current: url });
+}
 
 /** shop-api 库存：枚举 IN_STOCK / LOW_STOCK / OUT_OF_STOCK / null，兼容旧数字库存 */
 type StockState = 'out' | 'low' | 'in' | 'unknown';

@@ -404,7 +404,19 @@
     "invoiceBtn": "Invoice",
     "reorderShort": "Order again",
     "etaArrive": "ETA {t} · {n} min left",
-    "etaOverdue": "Delivery overdue by {n} min"
+    "etaOverdue": "Delivery overdue by {n} min",
+    "filterBtn": "Filter",
+    "filterIdle": "No filter",
+    "filterTitle": "Filter orders",
+    "filterTime": "Order time",
+    "rangeAll": "All time",
+    "range7d": "Last 7 days",
+    "range30d": "Last 30 days",
+    "range90d": "Last 90 days",
+    "filterStore": "Store",
+    "filterAllStores": "All stores",
+    "filterReset": "Reset",
+    "filterApply": "Apply"
   },
   "profile": {
     "guest": "Guest",

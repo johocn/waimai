@@ -404,7 +404,19 @@
     "invoiceBtn": "开发票",
     "reorderShort": "再来一单",
     "etaArrive": "预计 {t} 送达 · 还有 {n} 分钟",
-    "etaOverdue": "预计送达已超时 {n} 分钟"
+    "etaOverdue": "预计送达已超时 {n} 分钟",
+    "filterBtn": "筛选",
+    "filterIdle": "未筛选",
+    "filterTitle": "筛选订单",
+    "filterTime": "下单时间",
+    "rangeAll": "全部时间",
+    "range7d": "近 7 天",
+    "range30d": "近 30 天",
+    "range90d": "近 90 天",
+    "filterStore": "店铺",
+    "filterAllStores": "全部店铺",
+    "filterReset": "重置",
+    "filterApply": "应用筛选"
   },
   "profile": {
     "guest": "客",

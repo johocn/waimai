@@ -12,6 +12,7 @@
             "root": "pkg-order",
             "pages": [
                 { "path": "pages/checkout", "style": { "navigationBarTitleText": "%nav.checkout%" } },
+                { "path": "pages/reorder-regulars", "style": { "navigationBarTitleText": "%nav.reorderRegulars%" } },
                 { "path": "pages/order-detail", "style": { "navigationBarTitleText": "%nav.orderTrack%" } },
                 { "path": "pages/rider-tracking", "style": { "navigationBarTitleText": "%nav.riderTracking%", "navigationStyle": "custom" } },
                 { "path": "pages/pay-result", "style": { "navigationBarTitleText": "%nav.payResult%" } },

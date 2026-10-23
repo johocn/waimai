@@ -2886,3 +2886,62 @@
 - **性能**：各店商品目录并发拉取（`Promise.all`），单店失败仅跳过该店。
 
 截图：[236-home-cate-entry.png](screenshots/common-features-v35/236-home-cate-entry.png)、[237-category-collections.png](screenshots/common-features-v35/237-category-collections.png)、[238-category-drinks.png](screenshots/common-features-v35/238-category-drinks.png)、[239-category-add-cart.png](screenshots/common-features-v35/239-category-add-cart.png)、[240-category-other-fallback.png](screenshots/common-features-v35/240-category-other-fallback.png)
+
+## 143 常点清单（一键再来一单）（第三十六轮，2026-10-23）
+
+入口：订单页（`pages/orders/index`）登录后，Tab 下方「常点清单」入口条（🔁 常点清单 · 一键再来一单：汇总你近 90 天常点的菜）。
+
+### 143.1 功能说明
+
+- **定位**：把**跨店铺、跨订单**的历史商品按「点过几次」聚合为常点清单，按店铺分组，进店前一次把常点菜加进购物车，解决「每次再来一单都要重挑一遍」的问题；与订单详情页既有的「单订单再来一单」互补（后者只还原一单）。
+- **页面结构**（mockup 方案 A 定稿：店铺分组 + 一键加购）：橙渐变英雄区（「常点清单」+「N 件常点 · M 家店 · 近 K 单」）→ 店铺胶囊（全部 + 每家店）→ 每个店铺一个区块（店铺名 + 常点次数 + 「进店 ›」）→ 商品行（图、菜名、「点过 N 次 · X 天前点过」、步进器 / 「已下架」）→ 底部说明 → 固定底栏（当前店铺「已选 n 件 · ¥x」+ 一键加购）。
+- **两种浏览态**：**全部**：按店铺分组全部展示，底栏作用于常点次数最多的店；**选中店铺**：胶囊高亮，只显示该店，底栏金额随之切换。
+- **默认数量**：每个可用商品按**最近一单的数量**预填（限制 1~9），用户可 − / + 调整；不可售商品数量归 0。
+- **一键加购**：仅作用于「当前店铺」，逐行调用该渠道加购接口；成功后 `cart.setOrder()` 同步购物车、toast「已加入购物车」并进入该店菜单页；首个失败即中止并提示。
+- **游客态**：未登录展示「登录后查看常点清单」引导，点「去登录」带 `redirect` 回本页。
+- **数据口径**：近 **90 天**、**未取消**订单；同一订单内同一规格只计 1 次；每店最多取最近 **20 单**。
+
+### 143.2 实现细节
+
+| 项 | 说明 |
+|---|---|
+| 纯函数层 | `src/utils/reorder-regulars.ts`：`roKey`（聚合键 = 店铺 token + 规格 id）、`roExtract`（跨店跨单聚合：剔除 Cancelled、订单按时间降序截断 `maxOrdersPerStore`、同单重复行只计 1 次、times 累加、最近一单的 quantity/单价/时间/图名）、`roSortItems` / `roGroups`（店铺按常点次数降序、组内次数→最近时间，店铺合计次数）、`roTotals`（款数/店铺数）、`roDaysAgo`（0=今天，无效 null，未来归 0）、`roStockMap`（商品目录 → 规格名/图/现价/可售）、`roApplyStock`（用目录覆盖订单快照，`available = enabled!==false && (stockLevel 为空或 IN_STOCK/LOW_STOCK)`） |
+| 页面 | `src/pkg-order/pages/reorder-regulars.vue`：hero + 店铺胶囊 + 分组商品行 + 步进器 + 空态/游客态 + 固定底栏；`onLoad` 首次加载、`onShow` 回页刷新；`activeStore` 失效自动回「全部」 |
+| 数据拉取 | `fetchStoreList()` 过滤 `paused` / 空 token → 逐店 `getOrdersForChannel(token, { take: 20 })`（独立 GraphQLClient 固定 `vendure-token`，会话全局）→ `roExtract(groups, 20)` → 90 天窗口过滤 → 逐店 `fetchProductListForChannel(token)` + `roStockMap` + `roApplyStock`（并发拉取，单店失败仅跳过该店） |
+| 一键加购 | `addItemToOrderInChannel(sec.token, variantId, n)` 逐行加购；首个失败（`errorCode`）且此前无成功 → 直接 toast 中止；已有成功 → 计 `skipped`，toast「已加入购物车（n 项失败）」；成功 `cart.setOrder(lastOrder)` → `goStore()` |
+| 入口 | `pages.json` 注册 `pkg-order/pages/reorder-regulars`；订单页 `.regular-entry`（登录后显示，位于 Tab 与搜索框之间） |
+| i18n | `reorderRegulars.*` 25 键（zh/en 同步）；`nav.reorderRegulars` 三份 uni-app 导航文件同步 |
+
+纯函数断言（`node .secrets/assert-v36.cjs`，esbuild 打包 `src/utils/reorder-regulars.ts`）：**46 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| roExtract | 聚合条数（去重 + 剔除已取消 + 空 token 跳过）、同单重复行只计 1 次、跨店同名规格独立、最近一单数量/单价/时间、店铺名/token/图名带入、聚合键、次数与时间双关键字排序、不改入参、空数组 / null、每店截断 | 通过 |
+| roGroups / roSortItems | 分组数与顺序（常点次数降序）、组内次数降序、组内款数、空列表 | 通过 |
+| roTotals | 款数 / 店铺数、空列表 / null 安全 | 通过 |
+| roDaysAgo | 今天 0 / 昨天 1 / 90 天 90 / 未来归 0 / 无效 null | 通过 |
+| roStockMap / roApplyStock | 映射数量、现价/商品名/图片覆盖快照、售罄不可加购、库存为 null 可加购、`enabled:false` 不可加购、目录缺失保留快照且不可加购、空目录 / null 安全 | 通过 |
+| i18n/接线 | 25 键中英齐全且全量键集合一致；三份导航含 `nav.reorderRegulars`；pages.json 注册；订单页入口与跳转；页面聚合/分组/加购/进店接线；90 天窗口；登录态与空态 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本轮功能未部署时用本地静态服务 `dist/build/h5` + shop-api 全 mock；预置 `auth_token` 模拟登录，店铺/订单/商品目录为脚本注入的模拟数据）：
+
+| 断言项 | 结果 |
+|---|---|
+| 订单页入口 | 登录后 Tab 下方出现「常点清单 / 一键再来一单：汇总你近 90 天常点的菜 ›」 |
+| 全部态分组 | hero「6 件常点 · 2 家店 · 近 6 单」；胶囊 全部/川味小馆/茶饮小站；两区块「点过 6 次」「点过 3 次」；6 行商品；底栏「已选 6 件 · ¥108 / 川味小馆」 |
+| 订单口径 | 已取消订单商品不出现；超 90 天订单（100 天前冰镇可乐）不出现；「近 6 单」不含已取消单 |
+| 售罄降级 | 水煮鱼（OUT_OF_STOCK）置灰、右侧「已下架」、无步进器、不参与底栏金额 |
+| 店铺切换 | 点「茶饮小站」胶囊 → 仅该店 2 行；底栏「已选 3 件 · ¥38 / 茶饮小站」 |
+| 一键加购 | 点「一键加购」→ toast「已加入购物车」并进入川味小馆菜单页，购物车同步（合计 ¥110） |
+| 游客态 | 未登录：hero 不显示统计副标题；「登录后查看常点清单 / 自动汇总你近 90 天的常点商品，一键再来一单 / 去登录」；无底栏 |
+
+### 143.3 边界与已知限制
+
+- **跨店限制**：一键加购只作用于当前店铺；购物车已有其他店铺订单时由后端返回错误（首个失败即 toast 中止），需先清空或结算当前购物车。
+- **窗口与截断**：只统计近 90 天、未取消订单，每店最多最近 20 单；更早的历史不进入常点。
+- **商品名/价格来源**：订单快照只有规格名（可能是「标准」），页面用当前店铺商品目录反查商品名/图片/现价；规格已下架或商品已删除时保留快照并标「已下架」，不可加购。
+- **计数口径**：同一订单内同规格多行只计 1 次（避免「加了两份」被算成点过两次）；`times` = 下过几次单。
+- **登录依赖**：跨渠道订单需要顾客会话（Authorization），未登录时仅展示引导；生产环境若顾客历史订单都集中在默认渠道，只能聚合默认渠道的常点。
+- **性能**：按店铺并发拉取订单与商品目录（`Promise.all`），店铺数较多时请求数随店铺数线性增长。
+
+截图：[241-regulars-all.png](screenshots/common-features-v36/241-regulars-all.png)、[242-regulars-store-chip.png](screenshots/common-features-v36/242-regulars-store-chip.png)、[243-regulars-add-all.png](screenshots/common-features-v36/243-regulars-add-all.png)、[244-regulars-guest.png](screenshots/common-features-v36/244-regulars-guest.png)

@@ -12,6 +12,15 @@
     <view class="orders-tabs">
       <text v-for="t in tabs" :key="t.value" class="orders-tab" :class="{ active: activeTab === t.value }" @click="switchTab(t.value)">{{ $t(t.label) }}</text>
     </view>
+    <!-- 常点清单入口（第 36 轮）：登录后聚合近 90 天常点，按店铺一键加购 -->
+    <view v-if="auth.isLoggedIn" class="regular-entry" @click="goRegulars">
+      <text class="regular-entry__ico">🔁</text>
+      <view class="regular-entry__col">
+        <text class="regular-entry__title">{{ $t('reorderRegulars.entryTitle') }}</text>
+        <text class="regular-entry__sub">{{ $t('reorderRegulars.entrySub') }}</text>
+      </view>
+      <text class="regular-entry__arrow">›</text>
+    </view>
     <!-- 订单搜索：本地过滤已加载订单（订单号 / 店名 / 商品名），不额外请求 -->
     <view class="orders-search">
       <input class="orders-search__input" v-model="orderKeyword" :placeholder="$t('orders.searchPh')" confirm-type="search" />
@@ -166,6 +175,10 @@ function goReorder(order: any) {
 }
 function goGuestOrder() {
     uni.navigateTo({ url: '/pkg-order/pages/guest-order' });
+}
+/** 常点清单：跨订单聚合常点商品，按店铺一键加购 */
+function goRegulars() {
+    uni.navigateTo({ url: '/pkg-order/pages/reorder-regulars' });
 }
 /** 已支付且未申请开票：列表直达开票弹层（invoice-center 按 order 参数自动打开） */
 const INVOICE_STATES = ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'];
@@ -405,6 +418,15 @@ function goDetail(code: string) { uni.navigateTo({ url: '/pkg-order/pages/order-
 .orders-page { display: flex; flex-direction: column; height: 100vh; &__scroll { flex: 1; box-sizing: border-box; padding: 0 20rpx; } &__footer { padding: 30rpx; text-align: center; } }
 .orders-tabs { display: flex; background: $surface; border-bottom: 1rpx solid $border-color; }
 /* 未登录查单入口 */
+.regular-entry {
+  display: flex; align-items: center; gap: 16rpx; margin: 16rpx 20rpx 0; padding: 20rpx 24rpx;
+  background: linear-gradient(135deg, #fff0e4, #ffdfc4); border-radius: $radius-md;
+  &__ico { font-size: 32rpx; }
+  &__col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+  &__title { font-size: 26rpx; font-weight: 600; color: #b34a00; }
+  &__sub { font-size: 22rpx; color: #b37400; }
+  &__arrow { font-size: 32rpx; color: #b34a00; }
+}
 .guest-entry {
   display: flex; align-items: center; gap: 16rpx; margin: 16rpx 20rpx 0; padding: 20rpx 24rpx;
   background: linear-gradient(135deg, #fff3e6, #ffe8d1); border-radius: $radius-md;

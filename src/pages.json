@@ -115,7 +115,8 @@
                 { "path": "pages/pre-sale", "style": { "navigationBarTitleText": "%nav.preSale%" } },
                 { "path": "pages/live-list", "style": { "navigationBarTitleText": "%nav.live%" } },
                 { "path": "pages/live-room", "style": { "navigationBarTitleText": "%nav.liveRoom%" } },
-                { "path": "pages/hot-rank", "style": { "navigationBarTitleText": "%nav.hotRank%" } }
+                { "path": "pages/hot-rank", "style": { "navigationBarTitleText": "%nav.hotRank%" } },
+                { "path": "pages/new-arrivals", "style": { "navigationBarTitleText": "%nav.newArrivals%" } }
             ]
         }
     ],

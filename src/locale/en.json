@@ -243,6 +243,7 @@
     "actPreSale": "Pre-sale",
     "actLive": "Live",
     "actRank": "Hot List",
+    "actNew": "New",
     "circle": "Food Circle"
   },
   "menu": {
@@ -307,6 +308,7 @@
     "promoGap": "Add ¥{d} to save ¥{y}",
     "promoReached": "¥{t} reached: ¥{y} off",
     "soldOut": "Sold out",
+    "newTag": "New",
     "lowStock": "Low stock",
     "soldOutToast": "This item is sold out",
     "sortDefault": "Default",
@@ -2344,6 +2346,25 @@
     "soldOut": "Sold out",
     "storePaused": "Store closed",
     "note": "Aggregated from 30-day sales across stores · In-stock items only"
+  },
+  "newArrivals": {
+    "title": "Fresh Picks",
+    "sub": "{s} shops · {m} new dishes in the last 30 days",
+    "loading": "Finding new arrivals…",
+    "empty": "No new dishes recently",
+    "emptyHint": "Browse the classics — new dishes are on the way",
+    "tab7": "Last 7 days",
+    "tab30": "Last 30 days",
+    "today": "New today",
+    "daysAgo": "{n} days ago",
+    "week": "New this week",
+    "recent": "Recently added",
+    "sales": "{n}/mo",
+    "added": "Added to cart",
+    "addFail": "Failed to add, please retry",
+    "soldOut": "Sold out",
+    "storePaused": "Shop is resting",
+    "note": "Sorted by listing time · Only dishes listed in the last 30 days and still on sale"
   },
   "live": {
     "title": "Store Live",

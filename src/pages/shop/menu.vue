@@ -166,6 +166,7 @@
                             <view class="good-title">
                                 <text v-if="hotRank(g)" class="hot-rank" :class="'hot-rank--' + hotRank(g)">TOP {{ hotRank(g) }}</text>
                                 <text class="good-name">{{ g.name }}</text>
+                                <text v-if="isNewGood(g)" class="good-tag good-tag--new">{{ $t('menu.newTag') }}</text>
                                 <text v-if="isSharedGood(g)" class="good-tag good-tag--shared">{{ $t('menu.dishFromFriend') }}</text>
                                 <text v-if="goodSoldOut(g)" class="good-tag good-tag--sold">{{ $t('menu.soldOut') }}</text>
                                 <text v-else-if="goodLowStock(g)" class="good-tag good-tag--low">{{ $t('menu.lowStock') }}</text>
@@ -375,6 +376,7 @@ import { plainDescription, routeText, routeDetail } from '../../utils/store-disp
 import { matchesProduct, readSearchHistory, pushSearchHistory, clearSearchHistory as clearHistoryStorage } from '../../utils/search';
 import { nextPromoHint, promoTiers, yuan } from '../../utils/promo';
 import { topDishes, hotVisible, hotRankOf, type HotDish } from '../../utils/hot-sale';
+import { naAgeDays, NEW_WINDOW_DAYS } from '../../utils/new-arrivals';
 import { getStoreStatus } from '../../utils/store-status';
 import { theme, initTheme } from '../../utils/theme';
 import { sharePage } from '../../utils/share';
@@ -584,6 +586,11 @@ const hotShow = computed(() => hotVisible(hotList.value));
 /** 行内角标：榜内前三返回 1..3，否则 0 */
 function hotRank(g: any): number {
     return hotRankOf(String(g?.id ?? ''), hotList.value);
+}
+/** 新品尝鲜（第 34 轮）：上架 ≤30 天标「新」角标，与新品聚合页同口径 */
+function isNewGood(g: any): boolean {
+    const age = naAgeDays(g?.createdAt, Date.now());
+    return age != null && age <= NEW_WINDOW_DAYS;
 }
 /** 横滑卡 ⊕ 直接加购：榜单条目按 id 回查商品（榜单已滤售罄，正常必有货） */
 async function hotAdd(id: string) {
@@ -1425,6 +1432,7 @@ function goCheckout() {
 .good-tag--sold { color: var(--w-surface); background: var(--w-text-muted); }
 .good-tag--low { color: var(--w-brand-text); background: var(--w-brand-soft); }
 .good-tag--shared { color: #fff; background: $brand; }
+.good-tag--new { color: #fff; background: linear-gradient(135deg, #ff6600, #ff9500); }
 .good--hl { background: var(--w-brand-soft); border-radius: $radius; box-shadow: inset 0 0 0 2rpx $brand; }
 /* 热销 TOP 角标：金 #f5a623 / 银 #9aa5b1 / 铜 #c98a5e；TOP1 行描边高亮 */
 .hot-rank { flex-shrink: 0; font-size: 18rpx; line-height: 1; font-weight: 700; color: #fff; border-radius: 6rpx; padding: 4rpx 10rpx; }

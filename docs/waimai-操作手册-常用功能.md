@@ -2749,3 +2749,59 @@
 - 校园 R1/R3 提交前运费未出价时，「省 ¥Z」取分区运费预估；未选分区则省略「省」字样（卡头仅显示差额）。
 
 截图：[228-checkout-upsell-card.png](screenshots/common-features-v33/228-checkout-upsell-card.png)、[229-checkout-upsell-added.png](screenshots/common-features-v33/229-checkout-upsell-added.png)、[230-checkout-upsell-reached.png](screenshots/common-features-v33/230-checkout-upsell-reached.png)
+
+## 141 新品尝鲜（跨店新品聚合）（第三十四轮，2026-10-23）
+
+入口：首页活动宫格第 8 项「新品」+ 店铺菜单页商品卡「新」角标。
+
+### 141.1 功能说明
+
+- **定位**：跨店聚合「近 30 天上架」的在售商品，按上架时间倒序排列，帮新菜/新店获得曝光；店铺菜单页对近 30 天上架商品加「新」角标（与售罄/仅剩少量/好友推荐角标并存）。
+- **页面结构**（mockup 方案 A 定稿：卡片流 + 时间筛选）：橙渐变英雄区（「新品尝鲜」+「N 家店铺 · 近 30 天 M 款上新」）→ 时间 Tab「近 7 天 / 近 30 天」→ 卡片流（图片、菜名、店名、新鲜度角标、月售、价格、⊕ 跨店加购）→ 底部说明。
+- **新鲜度角标**：0 天「今日上新」（橙底白字高亮）、1-3 天「X 天前」、4-7 天「本周上新」、8-30 天「近期上新」。
+- **排序**：上架时间降序（新在前），同日按商品 id 数值升序稳定排序。
+- **一键加购**：⊕ 调 `addItemToOrderInChannel(店铺 token, 规格 id, 1)`，跨店加购与热销榜同机制；点卡片进对应店铺菜单页。
+- **数据源**：`fetchStoreList()` 取各店 → `fetchProductListForChannel(token)` 取商品（本轮在 `MenuProducts` 查询中新增 `createdAt` 字段）。
+
+### 141.2 实现细节
+
+| 项 | 说明 |
+|---|---|
+| 纯函数层 | `src/utils/new-arrivals.ts`：`naAgeDays`（上架天数，未来归 0 / 无效返回 null）、`naFreshKey`（today/d3/week/recent 分档）、`naAggregate`（跨店聚合：在售 + createdAt 有效 + ≤30 天，时间降序 + id 稳定）、`naFilterWindow`（7/30 天收窄，0 或非法视为全部）、`naSort` |
+| 页面 | `src/pkg-promotion/pages/new-arrivals.vue`：hero + 时间 Tab + 卡片流 + 空态 + ⊕ 加购 + 进店；`onLoad` 首次加载、`onShow` 回页刷新 |
+| 菜单页 | `menu.vue` 新增 `isNewGood(g)`（`naAgeDays ≤ 30`）与 `good-tag--new` 角标 |
+| 商品查询 | `src/api/queries/waimai.ts` 的 `MenuProducts` 增加 `createdAt`（加性字段，不影响既有消费方） |
+| 入口 | `pages.json` 注册 `pkg-promotion/pages/new-arrivals`；首页宫格第 8 项（`goNewArrivals` + `act-ico--new` 橙渐变） |
+| i18n | `newArrivals.*` 17 键 + `home.actNew` + `menu.newTag`（zh/en 同步）；`nav.newArrivals` 三份 uni-app 导航文件同步 |
+
+纯函数断言（`node .secrets/assert-v34.cjs`，esbuild 打包 `src/utils/new-arrivals.ts`）：**48 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| naAgeDays | 当天 0 / 2 天 / 未来归 0 / 无效 null / 缺失 null / Date 入参 / 满 30 天 / 向下取整 | 通过 |
+| naFreshKey | 0 today / 3 d3 / 4-7 week / 8 recent / null-未知 | 通过 |
+| naAggregate | 过滤售罄、超 30 天、无 createdAt、空 token 组；时间降序 + 同日 id 稳定；店名/月售/最低价/默认规格/ageDays；多规格取可售最低价；空数组与 null 安全；windowDays 收窄 | 通过 |
+| naFilterWindow | 近 7 天 / 近 30 天=全部 / 0 与非法视为全部 / null 安全 / 不改原数组 | 通过 |
+| naSort | 逆序输入还原时间序 | 通过 |
+| i18n/接线 | newArrivals 17 键中英齐全且全量键集合一致；home.actNew、menu.newTag 双语；三份 uni-app 导航含 nav.newArrivals；pages.json 注册；首页入口与菜单角标源码接线 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本轮功能未部署时用本地静态服务 `dist/build/h5` + shop-api 全 mock；店铺/上架时间为脚本相对当前时间注入的模拟数据）：
+
+| 断言项 | 结果 |
+|---|---|
+| 首页宫格 | 8 个入口 4 列两行，第 8 项「新品」橙渐变图标（通过） |
+| 近 7 天列表 | 4 款：藤椒鸡丝凉面（今日上新）/紫米芋泥奶绿（1 天前）/桂花酒酿拿铁（2 天前）/爆浆芝士鸡排（本周上新），英雄区「3 家店铺 · 近 30 天 5 款上新」（通过） |
+| 切近 30 天 | 5 款（补出 15 天前的杨枝甘露冰沙）（通过） |
+| 菜单页角标 | 3 个商品中 2 个新品标「新」，40 天前的老商品「宫保鸡丁」不标（通过） |
+| ⊕ 跨店加购 | 点 ⊕ → toast「已加入购物车」（通过） |
+| 构建 | `npm run build:h5` 通过（通过） |
+
+### 141.3 边界与已知限制
+
+- **无 createdAt 的商品不参与**：Vendure 商品必有 `createdAt`，但若查询未取或数据异常（无效时间）则跳过，避免把老商品误标新品。
+- **窗口口径统一**：聚合页与菜单角标都用 30 天，避免「页面里有、店里没标」的不一致；页面「近 7 天」只是展示收窄，不改变判定口径。
+- **生产数据现状（2026-10-23 核查）**：生产 2 家店共 2 个商品（可乐鸡排饭、麻辣拌面），均 2026-10-05 上架（约 18 天前），30 天窗口内 → 聚合页正常展示 2 款，菜单页两卡均带「新」角标；后续新上架商品自动进入。
+- **跨店加购**：与热销榜同机制，加购写入对应店铺渠道的订单；若当前购物车已是其他店铺订单，按 Vendure 单渠道订单语义由后端返回错误并 toast 提示。
+- **性能**：各店商品目录并发拉取（`Promise.all`），单店失败仅跳过该店，不影响整页。
+
+截图：[231-home-grid-new-entry.png](screenshots/common-features-v34/231-home-grid-new-entry.png)、[232-new-arrivals-week.png](screenshots/common-features-v34/232-new-arrivals-week.png)、[233-new-arrivals-month.png](screenshots/common-features-v34/233-new-arrivals-month.png)、[234-menu-new-badge.png](screenshots/common-features-v34/234-menu-new-badge.png)、[235-new-arrivals-add-cart.png](screenshots/common-features-v34/235-new-arrivals-add-cart.png)

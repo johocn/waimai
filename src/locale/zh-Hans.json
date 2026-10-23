@@ -243,6 +243,7 @@
     "actPreSale": "预售专区",
     "actLive": "店铺直播",
     "actRank": "热销榜",
+    "actNew": "新品",
     "circle": "购物圈"
   },
   "menu": {
@@ -307,6 +308,7 @@
     "promoGap": "再买 ¥{d} 可减 ¥{y}",
     "promoReached": "已满 ¥{t} 减 ¥{y}",
     "soldOut": "售罄",
+    "newTag": "新",
     "lowStock": "仅剩少量",
     "soldOutToast": "该商品已售罄",
     "sortDefault": "综合",
@@ -2344,6 +2346,25 @@
     "soldOut": "该商品已售罄",
     "storePaused": "店铺休息中",
     "note": "按各店商品近 30 天销量聚合 · 仅展示在售商品"
+  },
+  "newArrivals": {
+    "title": "新品尝鲜",
+    "sub": "{s} 家店铺 · 近 30 天 {m} 款上新",
+    "loading": "正在搜罗新上架…",
+    "empty": "近期暂无新品上架",
+    "emptyHint": "先逛逛老店招牌，新品很快就来",
+    "tab7": "近 7 天",
+    "tab30": "近 30 天",
+    "today": "今日上新",
+    "daysAgo": "{n} 天前",
+    "week": "本周上新",
+    "recent": "近期上新",
+    "sales": "月售 {n}",
+    "added": "已加入购物车",
+    "addFail": "加购失败，请稍后重试",
+    "soldOut": "该商品已售罄",
+    "storePaused": "店铺休息中",
+    "note": "按商品上架时间排序 · 仅展示近 30 天新上架且在售的菜品"
   },
   "live": {
     "title": "店铺直播",

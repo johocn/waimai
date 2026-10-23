@@ -142,6 +142,10 @@
                     <view class="act-ico act-ico--rank">🏆</view>
                     <text class="act-txt">{{ $t('home.actRank') }}</text>
                 </view>
+                <view class="act" @tap="goNewArrivals">
+                    <view class="act-ico act-ico--new">🆕</view>
+                    <text class="act-txt">{{ $t('home.actNew') }}</text>
+                </view>
             </view>
             <!-- 时段推荐：按当前时间（早餐/午餐/下午茶/晚餐/夜宵）推荐应景店铺 -->
             <view v-if="!keyword && !showSearchPanel && mealPicks.length" class="recent meal">
@@ -974,6 +978,7 @@ function goLottery() { uni.navigateTo({ url: '/pkg-user/pages/lottery' }); }
 function goPreSale() { uni.navigateTo({ url: '/pkg-promotion/pages/pre-sale' }); }
 function goLive() { uni.navigateTo({ url: '/pkg-promotion/pages/live-list' }); }
 function goHotRank() { uni.navigateTo({ url: '/pkg-promotion/pages/hot-rank' }); }
+function goNewArrivals() { uni.navigateTo({ url: '/pkg-promotion/pages/new-arrivals' }); }
 function goCircle() { uni.navigateTo({ url: '/pkg-user/pages/circle' }); }
 function goMyCoupons() { uni.navigateTo({ url: '/pkg-promotion/pages/my-coupons' }); }
 function goJianghu() { uni.navigateTo({ url: '/pkg-jianghu/pages/jh-hall' }); }
@@ -1189,6 +1194,7 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .act-ico--presale { background: linear-gradient(135deg, #5b6ef5, #8f6cf0); }
 .act-ico--live { background: linear-gradient(135deg, #e0397a, #f0634c); }
 .act-ico--rank { background: linear-gradient(135deg, #ff6600, #ff9500); }
+.act-ico--new { background: linear-gradient(135deg, #ff7a3d, #ffb020); }
 .act-txt { font-size: 22rpx; color: var(--w-text); text-align: center; }
 .pills { white-space: nowrap; padding: 20rpx 0 4rpx; }
 .pill { display: inline-flex; align-items: center; gap: 6rpx; padding: 10rpx 24rpx; margin-right: 16rpx; border-radius: 999rpx; font-size: 24rpx; color: var(--w-text-muted); background: var(--w-surface); border: 1rpx solid var(--w-border); }

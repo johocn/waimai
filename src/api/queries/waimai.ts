@@ -18,7 +18,7 @@ const PRODUCT_LIST_QUERY = `
     query MenuProducts {
         products(options: { take: 100, sort: { name: ASC } }) {
             items {
-                id name slug description
+                id name slug description createdAt
                 featuredAsset { preview }
                 variants { id name priceWithTax stockLevel enabled options { id name code } }
                 optionGroups { id name code options { id name code } }

@@ -244,6 +244,8 @@
     "actLive": "店铺直播",
     "actRank": "热销榜",
     "actNew": "新品",
+    "actCate": "品类合集",
+    "actCateSub": "按品类逛全站，饮品 · 主食 · 小吃一站买齐",
     "circle": "购物圈"
   },
   "menu": {
@@ -2365,6 +2367,23 @@
     "soldOut": "该商品已售罄",
     "storePaused": "店铺休息中",
     "note": "按商品上架时间排序 · 仅展示近 30 天新上架且在售的菜品"
+  },
+  "categoryCollections": {
+    "title": "品类合集",
+    "sub": "{c} 个品类 · {s} 家店铺 · {m} 款在售",
+    "loading": "正在按品类整理货架…",
+    "empty": "暂无可逛的品类",
+    "emptyHint": "店铺上架商品后会自动归类到这里",
+    "all": "全部",
+    "more": "更多",
+    "itemCount": "{n} 款",
+    "storeCount": "{n} 店",
+    "sales": "月售 {n}",
+    "added": "已加入购物车",
+    "addFail": "加购失败，请稍后重试",
+    "soldOut": "该商品已售罄",
+    "storePaused": "店铺休息中",
+    "note": "同一品类跨店聚合 · 价格取可售最低规格"
   },
   "live": {
     "title": "店铺直播",

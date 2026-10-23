@@ -244,6 +244,8 @@
     "actLive": "Live",
     "actRank": "Hot List",
     "actNew": "New",
+    "actCate": "Categories",
+    "actCateSub": "Browse the whole campus by category — drinks, staples, snacks in one place",
     "circle": "Food Circle"
   },
   "menu": {
@@ -2365,6 +2367,23 @@
     "soldOut": "Sold out",
     "storePaused": "Shop is resting",
     "note": "Sorted by listing time · Only dishes listed in the last 30 days and still on sale"
+  },
+  "categoryCollections": {
+    "title": "Category Collections",
+    "sub": "{c} categories · {s} shops · {m} items on sale",
+    "loading": "Sorting the shelves by category…",
+    "empty": "No categories to browse yet",
+    "emptyHint": "Items are grouped here once shops list them",
+    "all": "All",
+    "more": "More",
+    "itemCount": "{n} items",
+    "storeCount": "{n} shops",
+    "sales": "{n}/mo",
+    "added": "Added to cart",
+    "addFail": "Failed to add, please retry",
+    "soldOut": "Sold out",
+    "storePaused": "Shop is resting",
+    "note": "Same category across shops · Lowest available price"
   },
   "live": {
     "title": "Store Live",

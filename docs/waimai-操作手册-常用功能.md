@@ -2817,3 +2817,59 @@
 | 新品聚合页 | 标题「新品尝鲜」、副标题「2 家店铺 · 近 30 天 5 款上新」，默认 Tab 自动落「近 30 天」，5 张卡片、无空态 | 通过 |
 | 分包部署 | `pkg-promotion-pages-new-arrivals` chunk 已上线且含 `newArrivals` / `na-card` 标识 | 通过 |
 | 运行时报错 | 页面无 pageerror | 通过 |
+
+## 142 品类合集（跨店按品类逛）（第三十五轮，2026-10-23）
+
+入口：首页活动宫格下方「品类合集」入口条（🗂️ 品类合集 · 按品类逛全站）。
+
+### 142.1 功能说明
+
+- **定位**：把全站各店商品按**一级品类**跨店聚合，形成「饮品 / 主食 / 小吃 / 热菜」等货架，解决「想喝奶茶/想吃面，但不知道哪家店有」的问题；不进店即可跨店加购。
+- **页面结构**（mockup 方案 A 定稿：分组卡片流）：橙渐变英雄区（「品类合集」+「N 个品类 · M 家店铺 · K 款在售」）→ 品类胶囊（全部 + 款数前 8 的品类）→ 每个品类一个区块（品类名 + 款数/店数 + 「更多 ›」+ 横滑商品卡）→ 底部说明。
+- **两种浏览态**：
+  - **全部**：按品类分组横滑货架，每区块最多 10 款，区块头「更多 ›」直接切到该品类。
+  - **选中品类**：胶囊高亮，改为该品类**全量双列**卡片（含月售），区块头「全部 ›」返回分组态。
+- **商品卡**：图片、菜名、店名、价格（可售最低规格）、⊕ 跨店加购；点卡片进对应店铺菜单页。
+- **数据源**：`fetchStoreList()` 取各店 → `fetchProductListForChannel(token)` 取商品，复用热销榜的跨店拉取与加购机制。
+
+### 142.2 实现细节
+
+| 项 | 说明 |
+|---|---|
+| 纯函数层 | `src/utils/category-collections.ts`：`catCategory`（一级品类：`__root_collection__` 子级优先，退首个子集，「全部」返回空串）、`catAggregate`（跨店聚合：在售 + 有品类，按月售降序 + id 稳定）、`catSort`、`catCategories`（Tab：款数降序 + 首次出现，最多 8 个）、`catGroups`（分组：款数降序，每区块最多 N 款）、`catFilter`（按品类过滤，空 = 全部） |
+| 页面 | `src/pkg-promotion/pages/category-collections.vue`：hero + 品类胶囊 + 分组横滑货架 / 选中品类双列全量 + 空态 + ⊕ 加购 + 进店；`onLoad` 首次加载、`onShow` 回页刷新；支持 `?cat=品类名` 直达 |
+| 刷新回退 | 刷新后若选中品类已无在售商品，自动回「全部」，避免空白页 |
+| 入口 | `pages.json` 注册 `pkg-promotion/pages/category-collections`；首页 `.cate-entry` 入口条（宫格下方、时段推荐上方） |
+| i18n | `categoryCollections.*` 15 键 + `home.actCate` / `home.actCateSub`（zh/en 同步）；`nav.categoryCollections` 三份 uni-app 导航文件同步 |
+
+纯函数断言（`node .secrets/assert-v35.cjs`，esbuild 打包 `src/utils/category-collections.ts`）：**49 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| catCategory | 根品类优先 / 无根品类退首个子集 / 「全部」不算品类 / 无 collections / null 安全 | 通过 |
+| catAggregate | 排除售罄、无品类、空 token 组；店名/token/月售/图片；可售最低价与对应规格；全局月售降序；空数组与 null；不改入参 | 通过 |
+| catSort | 同销量按 id 数值升序；不改原数组 | 通过 |
+| catCategories | 款数降序 + 首次出现顺序；max 截断 / max 0；空列表 | 通过 |
+| catGroups | 分组数、分组顺序、组内月售降序、款数/店数、每区块截取上限、空列表 | 通过 |
+| catFilter | 过滤品类、过滤排序、空品类=全部、不存在品类=空、null 安全、不改原数组 | 通过 |
+| i18n/接线 | 15 键中英齐全且全量键集合一致；home 入口双语；三份导航含 nav.categoryCollections；pages.json 注册；首页入口与页面接线 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本轮功能未部署时用本地静态服务 `dist/build/h5` + shop-api 全 mock；店铺/商品为脚本注入的模拟数据）：
+
+| 断言项 | 结果 |
+|---|---|
+| 首页入口条 | 宫格仍为 8 项，下方入口条「品类合集 / 按品类逛全站，饮品 · 主食 · 小吃一站买齐 ›」（通过） |
+| 分组货架 | 英雄区「4 个品类 · 3 家店铺 · 10 款在售」；胶囊 全部/主食/饮品/热菜/小吃；4 个区块各带款数与店数（通过） |
+| 售罄排除 | 饮品店 4 款中「售罄柠檬茶」不入聚合，饮品区块为 3 款（通过） |
+| 选中品类 | 点「饮品」胶囊 → 高亮，双列全量 3 款（招牌奶茶 ¥12 / 紫米芋泥奶绿 ¥14 / 冰镇可乐 ¥5）+ 月售（通过） |
+| ⊕ 跨店加购 | 点 ⊕ → toast「已加入购物车」（通过） |
+
+### 142.3 边界与已知限制
+
+- **品类来源**：取商品所属 `__root_collection__` 的一级品类；无品类的商品不进入合集（正常上架商品都会有品类）。多品类商品只按首个一级品类归组，不重复出现在多个区块。
+- **只收在售**：全部规格售罄的商品不进合集；价格取可售规格最低价，加购规格与该价格一致。
+- **区块上限**：分组态每区块展示前 10 款（月售降序），点「更多 ›」进入该品类全量双列，避免首页式长列表过长。
+- **跨店加购**：与热销榜同机制，加购写入对应店铺渠道订单；购物车已有其他店铺订单时由后端返回错误并 toast 提示。
+- **性能**：各店商品目录并发拉取（`Promise.all`），单店失败仅跳过该店。
+
+截图：[236-home-cate-entry.png](screenshots/common-features-v35/236-home-cate-entry.png)、[237-category-collections.png](screenshots/common-features-v35/237-category-collections.png)、[238-category-drinks.png](screenshots/common-features-v35/238-category-drinks.png)、[239-category-add-cart.png](screenshots/common-features-v35/239-category-add-cart.png)

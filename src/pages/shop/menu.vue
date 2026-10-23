@@ -43,6 +43,17 @@
             <text class="notice-bar__txt">{{ storeNotice }}</text>
             <text class="notice-bar__more">{{ $t('menu.noticeMore') }} ›</text>
         </view>
+        <!-- 好友分享的菜品：定位并高亮，一键加购 -->
+        <view v-if="sharedDish" class="dish-share">
+            <view class="dish-share__info">
+                <text class="dish-share__tag">{{ $t('menu.dishFromFriend') }}</text>
+                <text class="dish-share__name">{{ sharedDish.name || sharedDishName }}</text>
+                <text class="dish-share__hint">{{ $t('menu.dishFromFriendHint') }}</text>
+            </view>
+            <view class="dish-share__add" :class="{ disabled: sharedDishMissing }" @tap="addSharedDish">
+                {{ sharedDishMissing ? $t('menu.dishNotFound') : $t('menu.dishAddNow') }}
+            </view>
+        </view>
         <!-- 常点搭配：按本店历史订单高频共现组合一键整组加购 -->
         <view v-if="combo" class="combo">
             <view class="combo__head">
@@ -79,7 +90,7 @@
                         {{ c.id === 'all' ? $t('menu.catAll') : c.name }}
                     </view>
                 </scroll-view>
-                <scroll-view scroll-y class="goods">
+                <scroll-view scroll-y class="goods" :scroll-into-view="scrollInto" scroll-with-animation>
                     <!-- 店内搜索：实时本地过滤 + 历史/热门词（纯前端，无额外请求） -->
                     <view class="shop-search">
                         <text class="shop-search__ico">🔍</text>
@@ -122,15 +133,22 @@
                         <text class="good-search__txt">{{ $t('menu.searchChip').replace('{q}', productQuery) }}</text>
                         <text class="good-search__x" @tap="clearProductQuery">✕</text>
                     </view>
-                    <view v-for="g in goodsOf(activeCat)" :key="g.id" class="good" :class="{ 'good--sold': goodSoldOut(g) }" @tap="pickSku(g)">
+                    <view
+                        v-for="g in goodsOf(activeCat)" :key="g.id" :id="'g-' + g.id"
+                        class="good" :class="{ 'good--sold': goodSoldOut(g), 'good--hl': isSharedGood(g) }"
+                        @tap="pickSku(g)"
+                    >
                         <VImage :src="g.featuredAsset?.preview" width="140rpx" height="140rpx" class="good-img" />
                         <view class="good-info">
                             <view class="good-title">
                                 <text class="good-name">{{ g.name }}</text>
+                                <text v-if="isSharedGood(g)" class="good-tag good-tag--shared">{{ $t('menu.dishFromFriend') }}</text>
                                 <text v-if="goodSoldOut(g)" class="good-tag good-tag--sold">{{ $t('menu.soldOut') }}</text>
                                 <text v-else-if="goodLowStock(g)" class="good-tag good-tag--low">{{ $t('menu.lowStock') }}</text>
                             </view>
                             <text class="good-desc">{{ plainDescription(g.description) }}</text>
+                            <!-- 口味偏好命中：忌口 / 过敏原（进店即提示，避免误点） -->
+                            <text v-if="tasteTag(g)" class="good-taste" :class="{ warn: tasteTag(g).warn }">{{ tasteTag(g).text }}</text>
                             <view class="good-rate" v-if="g.customFields?.reviewCount > 0">
                                 <text class="good-rate__star">★</text>
                                 <text class="good-rate__num">{{ (g.customFields.reviewRating || 0).toFixed(1) }}</text>
@@ -147,6 +165,7 @@
                         </view>
                         <view class="add-btn spec" :class="{ disabled: goodSoldOut(g) }" v-if="(g.variants?.length ?? 0) > 1" @tap.stop="pickSku(g)">{{ $t('menu.pickSpec') }}</view>
                         <view class="add-btn" :class="{ disabled: goodSoldOut(g) }" v-else @tap.stop="addToCart(g)">+</view>
+                        <view class="good-share" @tap.stop="shareDish(g)">↗</view>
                         <view class="good-fav" :class="{ on: isGoodFav(g) }" @tap.stop="toggleGoodFav(g)">{{ isGoodFav(g) ? '♥' : '♡' }}</view>
                     </view>
                     <view class="scroll-pad"></view>
@@ -318,7 +337,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
@@ -344,6 +363,8 @@ import EmptyState from '../../components/EmptyState.vue';
 import SkuSheet from '../../components/SkuSheet.vue';
 import { recordFootprint } from '../../utils/footprint';
 import { rememberVariant, resolvePreferredVariant } from '../../utils/sku-memory';
+import { readTasteProfile, tasteHits, tasteLabels, hasTaste } from '../../utils/taste-profile';
+import { decodeDish, encodeDish, dishQuery } from '../../utils/share-dish';
 
 const tenant = useTenantStore();
 const cart = useCartStore();
@@ -380,6 +401,19 @@ type SortKey = 'default' | 'sales' | 'price';
 const sortKey = ref<SortKey>('default');
 const priceAsc = ref(true);
 const soldOutTipShown = ref(false);
+// 好友分享进店：解析出的菜品（variantId / 名称），命中后高亮并定位
+const sharedDish = ref<{ variantId: string; name: string } | null>(null);
+const scrollInto = ref('');
+// 我的口味偏好：只读，用于菜品忌口/过敏原提示（弹层、菜单行共用）
+const tasteProfile = ref(readTasteProfile());
+const sharedDishName = computed(() => sharedDish.value?.name || '');
+/** 链接里的菜在本店已下架/售罄 */
+const sharedDishMissing = computed(() => {
+    const id = sharedDish.value?.variantId;
+    if (!id) return false;
+    const v = findVariant(id);
+    return !v || !variantAvailable(v);
+});
 
 const cartCount = computed(() => cart.totalQuantity);
 const cartTotal = computed(() => cart.totalPrice);
@@ -543,6 +577,78 @@ async function shareProduct(p: any) {
     if (how === 'copy') uni.showToast({ title: locale.t('menu.shareCopied'), icon: 'none' });
 }
 
+/**
+ * 单品分享：把本店 + 这道菜（规格）编进链接，好友打开直达本店菜单页，
+ * 自动高亮定位该菜并提供一键加购，省去在菜单里翻找。
+ */
+async function shareDish(g: any) {
+    const variant = resolvePreferredVariant(g?.id, g?.variants) || g?.variants?.[0];
+    if (!variant) { toastSoldOut(); return; }
+    const enc = encodeDish({ token: shopToken.value, variantId: String(variant.id), name: String(g?.name || '') });
+    const base = `/pages/shop/menu?token=${encodeURIComponent(shopToken.value)}&name=${encodeURIComponent(shopName.value)}&routes=${encodeURIComponent(shopRoutes.value)}${favChannelId.value != null ? `&cid=${favChannelId.value}` : ''}`;
+    const how = await sharePage({
+        title: locale.t('menu.shareDishTitle').replace('{n}', String(g?.name || '')),
+        desc: locale.t('menu.shareDishDesc'),
+        path: `${base}${dishQuery(enc)}`,
+        image: g?.featuredAsset?.preview || '',
+    });
+    if (how === 'copy') uni.showToast({ title: locale.t('menu.shareCopied'), icon: 'none' });
+}
+
+/** 本行商品是否为好友分享的那道菜（按 variantId 归属商品判定，多规格一并高亮） */
+function isSharedGood(g: any): boolean {
+    const id = sharedDish.value?.variantId;
+    if (!id) return false;
+    return (g?.variants ?? []).some((v: any) => String(v.id) === String(id));
+}
+
+/** 选项 key → 中文名（用于菜品命中提示拼接） */
+function tasteNames(keys: string[], kind: 'avoid' | 'allergen'): string {
+    const L = tasteLabels((k: string) => locale.t(k));
+    return keys.map((k) => (kind === 'avoid' ? L.avoid(k as any) : L.allergen(k as any))).join('、');
+}
+
+/** 菜名/描述命中忌口或过敏原 → 提示行（过敏原优先，红字更醒目） */
+function tasteTag(g: any): { text: string; warn: boolean } | null {
+    if (!hasTaste(tasteProfile.value)) return null;
+    const text = `${g?.name || ''} ${plainDescription(g?.description)}`;
+    const hits = tasteHits(text, tasteProfile.value);
+    if (!hits.length) return null;
+    const allergen = hits.filter((h) => h.kind === 'allergen').map((h) => h.key);
+    if (allergen.length) {
+        return { text: locale.t('menu.tasteAllergen').replace('{n}', tasteNames(allergen, 'allergen')), warn: true };
+    }
+    const avoid = hits.filter((h) => h.kind === 'avoid').map((h) => h.key);
+    return { text: locale.t('menu.tasteAvoid').replace('{n}', tasteNames(avoid, 'avoid')), warn: false };
+}
+
+/** 好友分享进店：定位到该菜所属分类并滚动高亮；已下架则只提示 */
+function applySharedDish() {
+    const d = sharedDish.value;
+    if (!d) return;
+    const hit = products.value.find((p: any) => (p.variants ?? []).some((v: any) => String(v.id) === String(d.variantId)));
+    if (!hit) return;
+    const cat = hit.collections?.find((c: any) => c.parent?.name === '__root_collection__')?.name
+        || hit.collections?.[0]?.name || '全部';
+    if (cats.value.some((c) => c.id === cat)) activeCat.value = cat;
+    nextTick(() => { scrollInto.value = 'g-' + hit.id; });
+    if (!d.name) sharedDish.value = { ...d, name: hit.name || '' };
+}
+
+/** 分享条「加入购物车」：走常规加购（已下架给出提示） */
+async function addSharedDish() {
+    const d = sharedDish.value;
+    if (!d || sharedDishMissing.value) return;
+    const v = findVariant(d.variantId);
+    if (!v || !variantAvailable(v)) { toastSoldOut(); return; }
+    const ok = await doAddItem(d.variantId, 1);
+    if (ok) {
+        const owner = products.value.find((p: any) => (p.variants ?? []).some((x: any) => String(x.id) === String(d.variantId)));
+        rememberVariant(owner?.id, d.variantId);
+        uni.showToast({ title: locale.t('menu.added'), icon: 'none' });
+    }
+}
+
 /** 商品收藏：任一 variant 已收藏即显示实心（多规格商品用首个 variant 作为代表） */
 function isGoodFav(g: any): boolean {
     return (g.variants ?? []).some((v: any) => favorites.isVariantFavorite(v.id));
@@ -686,12 +792,16 @@ function distPct(count: number) {
 
 onLoad(async (q: any) => {
     initTheme();
+    tasteProfile.value = readTasteProfile();
     shopToken.value = q?.token ?? '';
     shopRoutes.value = decodeURIComponent(q?.routes ?? '');
     shopName.value = decodeURIComponent(q?.name ?? '') || locale.t('menu.defaultShop');
     routesText.value = routeText(shopRoutes.value.split(',').filter(Boolean));
     promoText.value = decodeURIComponent(q?.promo ?? '');
     productQuery.value = decodeURIComponent(q?.q ?? '');
+    // 好友分享的菜品：解码后待商品加载完成再定位高亮
+    const dish = decodeDish(q?.d ?? '');
+    sharedDish.value = dish ? { variantId: dish.variantId, name: dish.name } : null;
     const pendingAdd = q?.add ? String(q.add) : '';
     // 常买店铺：首页会带 cid 直接记；直接进店时等 storeInfo 匹配到 channelId 再记（下方 then）
     const cid = q?.cid ? String(q.cid) : '';
@@ -718,6 +828,7 @@ onLoad(async (q: any) => {
         cats.value = buildCats(products.value);
         loadProductCoupons(goodsOf(activeCat.value));
         void loadCombo();
+        applySharedDish();
         // 首页「常买商品」点进来的 add 参数：加载完成后自动加购 1 件（仅消费一次）
         if (pendingAdd) {
             const ok = await doAddItem(pendingAdd, 1);
@@ -1190,6 +1301,14 @@ function goCheckout() {
 .notice-bar__ico { font-size: 24rpx; flex-shrink: 0; }
 .notice-bar__txt { flex: 1; min-width: 0; font-size: 24rpx; color: #8a5a1f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notice-bar__more { flex-shrink: 0; font-size: 22rpx; color: #ff6600; }
+/* 好友分享的菜品：定位条（高亮该菜 + 一键加购） */
+.dish-share { display: flex; align-items: center; gap: 16rpx; margin: 12rpx 24rpx 0; padding: 18rpx 20rpx; border-radius: 14rpx; background: var(--w-brand-soft); border: 1rpx solid $brand; flex-shrink: 0; }
+.dish-share__info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.dish-share__tag { align-self: flex-start; font-size: 20rpx; line-height: 1; padding: 4rpx 10rpx; border-radius: 6rpx; color: #fff; background: $brand; }
+.dish-share__name { font-size: 28rpx; font-weight: 600; color: var(--w-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dish-share__hint { font-size: 20rpx; color: var(--w-text-muted); }
+.dish-share__add { flex-shrink: 0; height: 60rpx; padding: 0 26rpx; border-radius: 999rpx; background: $brand; color: #fff; font-size: 24rpx; display: flex; align-items: center; justify-content: center; }
+.dish-share__add.disabled { background: var(--w-surface-muted); color: var(--w-text-muted); }
 /* 常点搭配：历史高频组合一键加购 */
 .combo { margin: 12rpx 24rpx 0; padding: 18rpx 20rpx; border-radius: 14rpx; background: #fff8ef; border: 1rpx solid #ffe2c2; flex-shrink: 0; }
 .combo__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
@@ -1258,6 +1377,10 @@ function goCheckout() {
 .good-tag { flex-shrink: 0; font-size: 20rpx; line-height: 1; padding: 4rpx 10rpx; border-radius: 6rpx; }
 .good-tag--sold { color: var(--w-surface); background: var(--w-text-muted); }
 .good-tag--low { color: var(--w-brand-text); background: var(--w-brand-soft); }
+.good-tag--shared { color: #fff; background: $brand; }
+.good--hl { background: var(--w-brand-soft); border-radius: $radius; box-shadow: inset 0 0 0 2rpx $brand; }
+.good-taste { font-size: 20rpx; line-height: 1.4; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 6rpx; padding: 4rpx 10rpx; align-self: flex-start; }
+.good-taste.warn { color: #b42318; background: #fff2f0; }
 .good--sold .good-img, .good--sold .good-info { opacity: 0.5; }
 .good-desc { font-size: 22rpx; color: var(--w-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .good-rate { display: flex; align-items: center; gap: 6rpx; font-size: 22rpx; }
@@ -1275,6 +1398,8 @@ function goCheckout() {
 /* 商品收藏心标 + 搜索定位 chip（复用 --w-* 主题 token） */
 .good-fav { position: absolute; right: 0; top: 16rpx; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; font-size: 36rpx; color: var(--w-text-muted); }
 .good-fav.on { color: #ff4d6d; }
+/* 单品分享：跟在加购按钮左侧的圆形「↗」（不动加购原始位置） */
+.good-share { position: absolute; right: 72rpx; bottom: 20rpx; width: 56rpx; height: 56rpx; border-radius: 999rpx; border: 1rpx solid var(--w-border); color: var(--w-text-muted); font-size: 28rpx; display: flex; align-items: center; justify-content: center; }
 .good-sort { display: flex; gap: 12rpx; padding: 16rpx 0 0; flex-wrap: wrap; }
 .good-filter { display: flex; gap: 12rpx; padding: 12rpx 0 0; flex-wrap: wrap; }
 .sort-chip { font-size: 22rpx; line-height: 1; color: var(--w-text-muted); background: var(--w-surface-muted); border-radius: 999rpx; padding: 12rpx 22rpx; white-space: nowrap; }

@@ -26,6 +26,7 @@
             <text v-if="invalidCount(g) > 0" class="cart-card__clean" @click.stop="cleanInvalid(g)">{{ $t('cart.cleanInvalid').replace('{n}', String(invalidCount(g))) }}</text>
             <text v-if="closedText(g)" class="cart-card__closed">{{ closedTag(g) }}</text>
             <text class="cart-card__group" @click.stop="goGroup(g)">{{ $t('cart.groupBtn') }}</text>
+            <text class="cart-card__hold" @click.stop="holdGroup(g)">{{ $t('cart.holdBtn') }}</text>
             <text class="cart-card__clear" @click.stop="clearGroup(g)">{{ $t('cart.clear') }}</text>
           </view>
         </view>
@@ -129,6 +130,41 @@
       </view>
     </view>
 
+    <!-- 稍后再买：本机暂存的商品，可增减 / 恢复加购 / 删除（恢复按当前价重新加购） -->
+    <view v-if="holdBuckets.length" class="hold">
+      <view class="hold__head">
+        <text class="hold__title">{{ $t('cart.holdSection').replace('{n}', String(holdQtyTotal)) }}</text>
+        <text class="hold__sub">{{ $t('cart.holdSectionSub') }}</text>
+      </view>
+      <view v-for="b in holdBuckets" :key="'hold-' + b.token" class="hold-card">
+        <view class="hold-card__head">
+          <text class="hold-card__shop">{{ b.shop || $t('menu.defaultShop') }}</text>
+          <view class="hold-card__ops">
+            <text class="hold-card__all" @click="restoreAll(b)">{{ $t('cart.holdRestoreAll') }}</text>
+            <text class="hold-card__clear" @click="clearBucket(b)">{{ $t('cart.holdClear') }}</text>
+          </view>
+        </view>
+        <view v-for="it in b.items" :key="'hi-' + it.variantId" class="hold-line">
+          <VImage :src="it.image" width="88rpx" height="88rpx" class="hold-line__img" />
+          <view class="hold-line__body">
+            <text class="hold-line__name">{{ it.name }}</text>
+            <text v-if="it.options" class="hold-line__opt">{{ it.options }}</text>
+            <text class="hold-line__price">¥{{ fen(it.price) }}</text>
+          </view>
+          <view class="hold-line__ops">
+            <text class="hold-line__step" @click="bump(b, it, -1)">−</text>
+            <text class="hold-line__qty">{{ it.qty }}</text>
+            <text class="hold-line__step" @click="bump(b, it, 1)">＋</text>
+          </view>
+          <view class="hold-line__acts">
+            <text class="hold-line__back" :class="{ busy: holdBusy === b.token + ':' + it.variantId }" @click="restoreOne(b, it)">{{ $t('cart.holdRestore') }}</text>
+            <text class="hold-line__rm" @click="removeOne(b, it)">🗑</text>
+          </view>
+        </view>
+        <text class="hold-card__hint">{{ $t('cart.holdHint') }}</text>
+      </view>
+    </view>
+
     <!-- 凑单推荐规格弹层：多规格商品先选规格再加购 -->
     <view class="rec-mask" v-if="recPick" @click="recPick = null">
       <view class="rec-sheet" @click.stop>
@@ -211,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { onShow, onUnload } from '@dcloudio/uni-app';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { getActiveOrderForChannel } from '../../api/queries/order';
@@ -231,6 +267,7 @@ import { getStoreStatus } from '../../utils/store-status';
 import { promoTiers, yuan as promoYuan } from '../../utils/promo';
 import { lineIssueOf, isRemovableIssue, linePriceFen, readLinePrices, writeLinePrices, type CartLineIssue, type PriceMap } from '../../utils/cart-inspect';
 import { pruneLineNotes, setLineNote, clearStoreNotes } from '../../utils/line-notes';
+import { readAllBuckets, holdLines, bumpHeld, removeHeld, clearHold, holdTotalQty, type HoldBucket, type HoldItem } from '../../utils/cart-hold';
 import { findOpenSession, createSession, itemsFromLines, upsertSession, participantsOf, encodeInvite, invitePath } from '../../utils/group-order';
 import VImage from '../../components/VImage.vue';
 
@@ -409,8 +446,109 @@ async function toggleAddon(g: CartGroup, t: any) {
   }
 }
 
+// ── 稍后再买（暂存）：本机清单，恢复时按当前价重新加购 ──
+const holdBuckets = ref<HoldBucket[]>([]);
+const holdBusy = ref('');
+const holdQtyTotal = computed(() => holdBuckets.value.reduce((s, b) => s + holdTotalQty(b.items), 0));
+
+function reloadHold() {
+  holdBuckets.value = readAllBuckets();
+}
+
+/** 整店暂存：把本店购物车全部行移入清单，再清空服务端购物车 */
+async function holdGroup(g: CartGroup) {
+  const lines = g.order?.lines ?? [];
+  if (!lines.length) return;
+  const count = lines.reduce((s: number, l: any) => s + Math.max(1, Number(l.quantity) || 1), 0);
+  const ok = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: locale.t('cart.holdTitle'),
+      content: locale.t('cart.holdConfirm').replace('{s}', g.name).replace('{n}', String(count)),
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false),
+    });
+  });
+  if (!ok) return;
+  try {
+    holdLines(g.token, { token: g.token, shop: g.name, channelId: g.channelId, routes: g.routes }, lines);
+    await removeAllOrderLinesForChannel(g.token);
+    clearStoreNotes(g.token);
+    lineNotes.value = { ...lineNotes.value, [g.token]: {} };
+    if (tenant.token === g.token) cart.clearCart();
+    reloadHold();
+    uni.showToast({ title: locale.t('cart.holdDone'), icon: 'none' });
+  } catch {
+    uni.showToast({ title: locale.t('cart.holdFail'), icon: 'none' });
+  }
+  void load();
+}
+
+/** 加成数量的展示口径：与购物车一致用行数量 */
+function holdItemQty(it: any): number {
+  return Math.max(1, Number(it?.qty) || 1);
+}
+
+function bump(b: HoldBucket, it: HoldItem, delta: number) {
+  holdBuckets.value = holdBuckets.value
+    .map((x) => (x.token === b.token ? { ...x, items: bumpHeld(b.token, it.variantId, delta) } : x))
+    .filter((x) => x.items.length > 0);
+}
+
+function removeOne(b: HoldBucket, it: HoldItem) {
+  holdBuckets.value = holdBuckets.value
+    .map((x) => (x.token === b.token ? { ...x, items: removeHeld(b.token, it.variantId) } : x))
+    .filter((x) => x.items.length > 0);
+}
+
+async function clearBucket(b: HoldBucket) {
+  const ok = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: locale.t('cart.holdClear'),
+      content: locale.t('cart.holdConfirm').replace('{s}', b.shop).replace('{n}', String(holdTotalQty(b.items))),
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false),
+    });
+  });
+  if (!ok) return;
+  clearHold(b.token);
+  reloadHold();
+  uni.showToast({ title: locale.t('cart.holdCleared'), icon: 'none' });
+}
+
+/** 恢复单件：按当前价重新加购（下架/售罄会失败并保留在清单里） */
+async function restoreOne(b: HoldBucket, it: HoldItem): Promise<boolean> {
+  const key = `${b.token}:${it.variantId}`;
+  if (holdBusy.value) return false;
+  holdBusy.value = key;
+  try {
+    const res: any = await addItemToOrderInChannel(b.token, it.variantId, holdItemQty(it));
+    if (res?.addItemToOrder?.errorCode) {
+      uni.showToast({ title: res.addItemToOrder.message || locale.t('cart.holdRestoreFail'), icon: 'none' });
+      return false;
+    }
+    removeOne(b, it);
+    if (tenant.token === b.token && res?.addItemToOrder?.id) cart.setOrder(res.addItemToOrder);
+    return true;
+  } catch {
+    uni.showToast({ title: locale.t('cart.holdRestoreFail'), icon: 'none' });
+    return false;
+  } finally {
+    holdBusy.value = '';
+  }
+}
+
+async function restoreAll(b: HoldBucket) {
+  let done = 0;
+  for (const it of [...b.items]) {
+    if (await restoreOne(b, it)) done += 1;
+  }
+  if (done) uni.showToast({ title: locale.t('cart.holdRestored').replace('{n}', String(done)), icon: 'none' });
+  void load();
+}
+
 onShow(() => {
   prevPrices.value = readLinePrices();
+  reloadHold();
   void load();
 });
 onUnload(() => { void tenant.backToDefault(); });
@@ -926,6 +1064,7 @@ function goHome() {
   &__sub { font-size: 22rpx; color: $text-color-secondary; }
   &__clear { font-size: 24rpx; color: $text-color-placeholder; padding: 8rpx; flex-shrink: 0; }
   &__group { font-size: 20rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 6rpx; padding: 2rpx 10rpx; flex-shrink: 0; }
+  &__hold { font-size: 20rpx; color: $text-color-secondary; border: 1rpx solid $border-color; border-radius: 6rpx; padding: 2rpx 10rpx; flex-shrink: 0; }
   &__head-right { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 56%; }
   &__closed { font-size: 20rpx; color: #b42318; background: #fff2f0; border: 1rpx solid #f3b6b0; border-radius: 6rpx; padding: 2rpx 8rpx; max-width: 300rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__foot { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid $border-color; }
@@ -934,6 +1073,34 @@ function goHome() {
   &__gap { font-size: 22rpx; color: $brand-color;
     &--ok { color: $text-color-secondary; } }
   &__btns { display: flex; gap: 12rpx; }
+}
+/* 稍后再买（暂存）：本机清单 */
+.hold { margin-top: 24rpx; display: flex; flex-direction: column; gap: 16rpx;
+  &__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12rpx; }
+  &__title { font-size: 28rpx; font-weight: 600; color: $text-color; }
+  &__sub { font-size: 20rpx; color: $text-color-placeholder; }
+}
+.hold-card { background: $surface; border-radius: $radius-md; padding: 20rpx;
+  &__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; padding-bottom: 12rpx; border-bottom: 1rpx solid $border-color; }
+  &__shop { font-size: 26rpx; font-weight: 600; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__ops { display: flex; align-items: center; gap: 16rpx; flex-shrink: 0; }
+  &__all { font-size: 22rpx; color: $brand-color; }
+  &__clear { font-size: 22rpx; color: $text-color-placeholder; }
+  &__hint { display: block; margin-top: 12rpx; font-size: 20rpx; color: $text-color-placeholder; }
+}
+.hold-line { display: flex; align-items: center; gap: 14rpx; padding: 14rpx 0; border-bottom: 1rpx solid $border-color;
+  &__img { border-radius: $radius-sm; background: $bg-color; flex-shrink: 0; }
+  &__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+  &__name { font-size: 26rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__opt { font-size: 20rpx; color: $text-color-secondary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__price { font-size: 24rpx; color: $price-color; }
+  &__ops { display: flex; align-items: center; gap: 14rpx; flex-shrink: 0; }
+  &__step { width: 44rpx; height: 44rpx; line-height: 42rpx; text-align: center; border-radius: 50%; border: 1rpx solid $border-color; color: $text-color-secondary; font-size: 26rpx; }
+  &__qty { min-width: 28rpx; text-align: center; font-size: 26rpx; color: $text-color; }
+  &__acts { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; }
+  &__back { font-size: 22rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 6rpx; padding: 4rpx 14rpx; }
+  &__back.busy { opacity: 0.5; }
+  &__rm { font-size: 26rpx; color: $text-color-placeholder; }
 }
 /* 凑单进度条 */
 .cart-progress { display: flex; align-items: center; gap: 16rpx; margin-top: 16rpx;

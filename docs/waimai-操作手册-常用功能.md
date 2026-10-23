@@ -2406,3 +2406,112 @@
 - 单品备注不落后端行级字段（见 135.4 取舍说明）。
 
 截图：[192-home-quick-entries.png](screenshots/common-features-v28/192-home-quick-entries.png)、[192a-home-closed-store-watch.png](screenshots/common-features-v28/192a-home-closed-store-watch.png)、[192b-home-open-watch-chip.png](screenshots/common-features-v28/192b-home-open-watch-chip.png)、[193-home-open-banner.png](screenshots/common-features-v28/193-home-open-banner.png)、[194-group-order-list.png](screenshots/common-features-v28/194-group-order-list.png)、[195-group-order-invited.png](screenshots/common-features-v28/195-group-order-invited.png)、[195b-group-order-pick-link.png](screenshots/common-features-v28/195b-group-order-pick-link.png)、[196-group-order-merge-list.png](screenshots/common-features-v28/196-group-order-merge-list.png)、[197-random-pick.png](screenshots/common-features-v28/197-random-pick.png)、[198-random-pick-reroll.png](screenshots/common-features-v28/198-random-pick-reroll.png)、[199-cart-line-note-entry.png](screenshots/common-features-v28/199-cart-line-note-entry.png)、[200-cart-line-note-sheet.png](screenshots/common-features-v28/200-cart-line-note-sheet.png)、[200b-cart-line-note-saved.png](screenshots/common-features-v28/200b-cart-line-note-saved.png)、[200c-cart-to-group-invite.png](screenshots/common-features-v28/200c-cart-to-group-invite.png)、[201-checkout-line-notes.png](screenshots/common-features-v28/201-checkout-line-notes.png)、[202-favorites-open-banner.png](screenshots/common-features-v28/202-favorites-open-banner.png)
+
+---
+
+## 136 我的口味 / 稍后再买 / 搜索兜底 / 单品分享（第二十九轮，2026-10-23）
+
+本轮新增四个高频功能，全部为纯前端实现（无后端字段、无 prod migration）。新增工具层 `src/utils/taste-profile.ts`、`src/utils/cart-hold.ts`、`src/utils/share-dish.ts`，新增页面 `src/pkg-user/pages/taste-profile.vue`（路由 `%nav.tasteProfile%` = 我的口味）。
+
+### 136.1 我的口味偏好中心
+
+入口：我的 →「我的口味」（`/pkg-user/pages/taste-profile`，免登录）；结算页「我的口味」入口卡右侧「设置 ›」也直达此页。
+
+能力：
+- 四类偏好：辣度（不辣/微辣/中辣/重辣，单选）、忌口（香菜/葱/蒜/韭菜/姜，多选）、过敏原（花生/海鲜/麸质/乳制品/坚果/蛋，多选，红字样式）、餐具（0–5 份，0 显示「无需餐具」）；
+- 页面底部「带入效果预览」实时拼出最终备注段（如「中辣；忌香菜、葱；对花生过敏；无需餐具」）；
+- 「保存并带入下单」写入本机 `taste_profile`；「清空口味偏好」一键移除。
+
+下单带入口径（结算页 `composeOrderNote()`）：
+```
+[配送偏好] + [配送说明] + [用户备注] + [口味段：辣度；忌X、Y；对Z过敏]
+```
+口味段由 `tasteNoteParts(profile, labels, { includeTableware: false })` 生成（餐具不进整单备注，走结算页「餐具份数」字段）；总长仍受 ≤200 字约束，超长优先保留用户备注、截断餐品段。
+
+与其他入口的一致性：
+- 旧结算页勾选（`noSpicy/lessSpicy/noCoriander/noOnion`，存本机 `taste_preferences`）在首次读取时**自动迁移**到新档（`normalizeProfile` 兼容旧数据）；
+- 结算页餐具 chip 点击即写回 `taste_profile.tableware`（单一数据源，改完回「我的口味」页可见）。
+
+菜单页菜品提示：店铺菜单每道菜的「菜名 + 描述」文本用 `tasteHits()` 做关键词命中（中英兼顾），命中忌口显示灰底提示「含忌口：香菜」，命中过敏原显示红字「含过敏原：花生」（过敏原优先）。
+
+### 136.2 稍后再买（购物车暂存）
+
+入口：购物车 → 店铺卡右侧「暂存」小按钮。
+
+操作路径：
+1. 点店铺卡「暂存」→ 该店购物车商品移入本机暂存清单（服务端订单同步减少）；
+2. 购物车「稍后再买 N 件」区块按店铺分卡展示：店铺名、每行商品（名称/单价/数量）；
+3. 每行支持 `−/＋` 改件数、单行「恢复」、🗑 删除；卡片级「全部恢复」「清空」；区块级「清空」；
+4. 「恢复」走 `addItemToOrderInChannel`（跨渠道 header `vendure-token`）重新加购，成功后从清单移除；失败保留并提示「恢复失败，请稍后重试」。
+
+技术要点：
+- 本机存储 `cart_hold_buckets`（key = 店铺 token），`HOLD_MAX = 30` 上限裁剪；
+- 每桶含 `seq` 全局递增序号，与 `updatedAt` 一起决定「多店清单」排序（避免同毫秒更新导致顺序抖动）；
+- 价格存「分」，恢复时按当前价重新加购（暂存不动服务端订单，只把商品移到本机清单）。
+
+### 136.3 搜索无结果兜底与纠错
+
+入口：首页搜索框输入并提交。
+
+触发条件：已提交搜索、非加载中、**店铺命中数与跨店商品命中数都为 0**。
+
+兜底四块（自上而下，全部点击直达）：
+1. 提示卡：「没有找到「牛腩饭」相关店铺 / 试试下面的相近关键词，或换个品类逛逛」；
+2. **是不是想找**（角标「自动纠错」）：`similarKeywords()` 产出近似词。规则 = ① 词库同词根优先（取搜索词前 2 字命中店铺标签/店名/常买商品名，且不含原词）；② 后缀替换兜底（饭→粉/面/套餐/盖饭/煲仔饭，粉/面/汤/粥/茶/鸡/奶茶同理）；
+3. **换个品类试试**：`fallbackCategories()` 取店铺标签里与搜索词无关、未出现的品类（如川菜/快餐/烧烤/夜宵）；
+4. **猜你想吃**：`computeGuess(false)` —— 忽略搜索词限制，用浏览足迹 + 常买商品按时间衰减打分，叠加店铺月售加成，取前 8；
+5. **热销店铺推荐**：`hotStores` = 全店按月售降序前 4（含休息中的店，点进去有休息提示）。
+
+搜索词清洗：`cleanKeyword()` 去掉空白与常见语气前缀（我想吃/想吃/来一份/来个/整一份/给我来），「想吃 牛腩饭」也能正确搜到。
+
+### 136.4 单品分享（菜品卡片）
+
+入口：店铺菜单每道菜行右侧「↗」分享按钮（`@tap.stop`，不触发加购）。
+
+分享内容：`sharePage()` 生成「店铺 + 菜品」链接，`path = /pages/shop/menu?token=…&name=…&routes=…&cid=…&d=<菜品参数>`；`d` 为 `encodeDish()` 产出的 base64url（JSON 缩写 `{t,v,n}`，中文安全、URL 安全、长度 <200）。标题/描述走 i18n（`menu.shareDishTitle` 含 `{n}` 菜名、`menu.shareDishDesc`），可选择微信好友卡片/朋友圈/复制链接。
+
+好友打开后的行为（`menu.vue`）：
+- 顶部出现定位条「好友分享的菜，已为你定位」+ 菜名 + 「加入购物车」；
+- 对应菜品行加高亮样式与「好友分享」标签，`scroll-view` 自动滚动定位到该行（`scroll-into-view="g-xx"`）；
+- 「加入购物车」= 按该菜首选规格加购（切到该店铺渠道），成功后购物车角标更新；
+- 菜品已下架/不存在时，定位条按钮置灰、文案改为「好友分享的菜品已下架」，不可加购。
+
+### 136.5 验收断言
+
+纯函数断言（`node .secrets/assert-v29.cjs`，用 esbuild 打包 `src/utils/*` 后执行）：**44 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| 口味档 | 默认空档、保存读回一致、非法辣度/未知项过滤去重、餐具越界钳到 5、旧勾选迁移、清空后读回空档 | 通过 |
+| 备注拼装 | 辣度→忌口→过敏原→餐具顺序、`includeTableware:false` 时餐具不进备注、带份数文案、空档不产生任何段、口味段+自由备注+单品段并存且 ≤200 字 | 通过 |
+| 菜品命中 | 花生→过敏原、香菜→忌口、多项命中、未命中返回空、英文菜名可命中、空文本不命中 | 通过 |
+| 暂存清单 | 金额取分、合计件数、同规格合并、不同规格独立、按店隔离、改/增/减数量（下限 1）、删除单件、桶信息完整、多店按更新时间倒序、清空单店、超 30 件截断 | 通过 |
+| 菜品链接 | round-trip（含中文）、URL 安全、长度 <200、坏链接返回 null、站内路径带 `d` 参数 | 通过 |
+| 搜索兜底 | 清洗语气词与空白、无前缀保持原样、纠错给出主食替换词、不含原词且去重、补齐词库同词根词、空词不产生建议、换品类排除「全部」与搜索词并去重 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；店铺/菜单/购物车由脚本注入模拟响应，其余请求透传线上）：
+
+| 断言项 | 结果 |
+|---|---|
+| 我的口味页（空档） | 标题「我的口味」、四张卡「辣度/忌口/过敏原/餐具」、预览「还未设置任何偏好」（通过） |
+| 我的口味页（勾选+保存） | 勾「中辣/香菜/葱/花生」+ 无需餐具 → 预览「中辣；忌香菜、葱；对花生过敏；无需餐具」，保存后 `taste_profile` = `{"spicy":"medium","avoid":["coriander","onion"],"allergens":["peanut"],"tableware":0}`（通过） |
+| 菜单分享定位条 | 「宫保鸡丁 (大份) / 好友分享的菜，已为你定位 / 加入购物车」，高亮 1 行、分享按钮 1 个（通过） |
+| 分享加购 | 点「加入购物车」触发 1 次加购、购物车角标 3（通过） |
+| 菜品忌口提示 | 「含过敏原：花生」且 `warn=true`（红字）（通过） |
+| 已下架兜底 | 定位条「已下架菜」、按钮文案「好友分享的菜品已下架」且 `disabled`（通过） |
+| 购物车暂存 | 店铺卡「暂存」入口存在；「稍后再买 13 件 / 本机暂存 · 恢复后按当前价加购」；两店三品（深夜烧烤屋/川味小馆）；每行「恢复」、每卡「全部恢复」（通过） |
+| 暂存增减 | 第一行 `＋` 后数量由「2」变「11」；清单数量 `["11","2","1"]`（通过） |
+| 暂存恢复 | 点「恢复」后该行从清单移除（3 行 → 2 行）（通过） |
+| 结算页口味入口 | 「我的口味 / 中辣；忌香菜、葱；对花生过敏；无需餐具 / 设置 ›」，提示文案「辣度、忌口、过敏原与餐具在「我的口味」中设置，下单时自动并入订单备注」（通过） |
+| 搜索无结果兜底 | 标题「没有找到「牛腩饭」相关店铺」；纠错词「牛腩粉/牛腩面/牛腩套餐/牛腩盖饭」+「自动纠错」角标；品类「川菜/快餐/烧烤/夜宵」；栏目「是不是想找 / 换个品类试试 / 猜你想吃 / 热销店铺推荐」；猜你想吃 2 品（香菜牛肉面/冰镇酸梅汤）、热销店铺 2 店（川味小馆/深夜烧烤屋）（通过） |
+| i18n | 新增 `taste.*`(29)、`cart.hold*`(86 段合计)、`menu.shareDish*` 等、`home.search*`、`profile.tasteProfile`、`checkout.tasteHint`，中英同步（`taste`/`cart`/`menu`/`home`/`profile`/`checkout` 六段 zh 与 en 键数完全一致）；`nav.tasteProfile` ×3 文件（通过） |
+| 构建/部署 | `pnpm build:h5` 通过；`node .secrets/deploy-waimai.mjs` 产物校验 3438 KB、`deploy done`（通过） |
+
+边界与已知限制：
+- 三项本机能力（口味档、暂存清单、足迹）均不落服务端：换手机/清缓存会丢，需重新设置；
+- 忌口/过敏原提示是**关键词匹配**（菜名 + 描述），不是配料表解析：描述里没写「花生」的菜不会提示，存在漏报；
+- 搜索纠错的「词库同词根」依赖店铺标签/店名/常买商品名，冷启动（无历史）时只能靠后缀替换；
+- 暂存恢复按「当前价」重新加购，与暂存时价格可能不同（价格波动以加购时为准）；
+- 单品分享链接不含价格快照，好友看到的是该店铺当前菜单与价格。
+
+截图：[203-taste-profile-empty.png](screenshots/common-features-v29/203-taste-profile-empty.png)、[204-taste-profile-selected.png](screenshots/common-features-v29/204-taste-profile-selected.png)、[205-menu-dish-share-bar.png](screenshots/common-features-v29/205-menu-dish-share-bar.png)、[205b-menu-dish-added.png](screenshots/common-features-v29/205b-menu-dish-added.png)、[206-menu-taste-warning.png](screenshots/common-features-v29/206-menu-taste-warning.png)、[207-menu-dish-gone.png](screenshots/common-features-v29/207-menu-dish-gone.png)、[208-cart-hold-list.png](screenshots/common-features-v29/208-cart-hold-list.png)、[208b-cart-hold-bump.png](screenshots/common-features-v29/208b-cart-hold-bump.png)、[208c-cart-hold-restored.png](screenshots/common-features-v29/208c-cart-hold-restored.png)、[209-checkout-taste-entry.png](screenshots/common-features-v29/209-checkout-taste-entry.png)、[210-home-search-fallback.png](screenshots/common-features-v29/210-home-search-fallback.png)、[210b-home-search-fallback-scroll.png](screenshots/common-features-v29/210b-home-search-fallback-scroll.png)、[210c-home-search-guess-hot.png](screenshots/common-features-v29/210c-home-search-guess-hot.png)

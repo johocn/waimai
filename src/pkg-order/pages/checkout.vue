@@ -259,18 +259,13 @@
         <text class="note-card__label">{{ $t('checkout.noteLabel') }}</text>
         <text class="note-card__manage" @click="noteManageOpen = true">{{ $t('checkout.noteManage') }}</text>
       </view>
-      <!-- 口味与忌口：本地记忆默认偏好，切换后自动同步到订单备注 -->
-      <view class="taste-row">
-        <text class="taste-row__label">{{ $t('checkout.tasteLabel') }}</text>
-        <scroll-view scroll-x class="taste-chips">
-          <view
-            v-for="t in tasteOptions"
-            :key="'taste-' + t.key"
-            class="taste-chip"
-            :class="{ on: tasteSelected.includes(t.key) }"
-            @click="toggleTaste(t.key)"
-          >{{ t.label }}</view>
-        </scroll-view>
+      <!-- 我的口味：辣度/忌口/过敏原在「我的口味」页维护，下单自动并入备注 -->
+      <view class="taste-entry" @click="goTasteProfile">
+        <view class="taste-entry__body">
+          <text class="taste-entry__label">{{ $t('taste.entryTitle') }}</text>
+          <text class="taste-entry__value">{{ tasteSummary || $t('taste.entrySub') }}</text>
+        </view>
+        <text class="taste-entry__arrow">{{ $t('taste.manage') }} ›</text>
       </view>
       <text class="taste-hint">{{ $t('checkout.tasteHint') }}</text>
       <scroll-view scroll-x class="note-chips">
@@ -311,7 +306,7 @@
             :key="n"
             class="chip"
             :class="{ on: tablewareCount === n }"
-            @click="tablewareCount = n"
+            @click="pickTableware(n)"
           >
             {{ n === 0 ? $t('checkout.tablewareNone') : $t('checkout.tablewareCount').replace('{n}', String(n)) }}
           </view>
@@ -429,7 +424,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import PickupLocationSheet from '../../components/PickupLocationSheet.vue';
 import RegionPicker from '../../components/RegionPicker.vue';
 import type { PickupLocation } from '../../types/pickup';
@@ -452,6 +447,7 @@ import { ADDRESS_LABELS, addressLabelKey } from '../../utils/addressLabel';
 import { useFavoritesStore } from '../../stores/favorites';
 import { nextPromoHint, yuan } from '../../utils/promo';
 import { readDeliveryPref, writeDeliveryPref, readDeliveryPrefNote, type DeliveryPrefKey } from '../../utils/delivery-prefs';
+import { readTasteProfile, writeTasteProfile, tasteNoteParts, tasteLabels } from '../../utils/taste-profile';
 import { getMyCoupons } from '../../api/queries/coupon';
 import { applyCouponToOrder, clearCouponFromOrder } from '../../api/mutations/coupon';
 import { estimateDiscountFen, pickBestCoupon, couponUnavailableReason, type CouponTemplateLike } from '../../utils/coupon-estimate';
@@ -507,41 +503,29 @@ function persistNoteTemplates() {
   uni.setStorageSync(NOTE_TPL_KEY, JSON.stringify(customNoteTemplates.value));
 }
 
-// ── 口味与忌口偏好：本地记忆（taste_preferences），默认带入订单备注 ──
-const TASTE_KEY = 'taste_preferences';
-const TASTE_KEYS = ['noSpicy', 'lessSpicy', 'noCoriander', 'noOnion'] as const;
-/** 辣度二选一：同时勾选「不要辣 + 少辣」会在备注里写出矛盾要求 */
-const SPICY_KEYS: readonly string[] = ['noSpicy', 'lessSpicy'];
-const tasteSelected = ref<string[]>((() => {
-  try {
-    const raw = uni.getStorageSync(TASTE_KEY);
-    const arr = typeof raw === 'string' ? JSON.parse(raw || '[]') : raw;
-    return Array.isArray(arr) ? arr.map(String).filter(k => (TASTE_KEYS as readonly string[]).includes(k)) : [];
-  } catch {
-    return [];
-  }
-})());
-const tasteOptions = computed(() => TASTE_KEYS.map(k => ({ key: k, label: locale.t('checkout.taste.' + k) })));
+// ── 我的口味偏好：在「我的口味」页维护，下单自动并入整单备注 ──
+const tasteProfile = ref(readTasteProfile());
+const tasteLabelSet = computed(() => tasteLabels((k: string) => locale.t(k)));
+/** 备注里带入口味段（餐具另走 tablewareCount 字段，不重复写进备注） */
+const tasteParts = computed(() => tasteNoteParts(tasteProfile.value, tasteLabelSet.value, { includeTableware: false }));
+/** 卡片右侧摘要：与备注口径一致，额外带上餐具偏好 */
+const tasteSummary = computed(() => tasteNoteParts(tasteProfile.value, tasteLabelSet.value).join('；'));
 
-/** 把当前口味偏好同步进备注：先清掉所有口味段，再按选中顺序前置，保留用户自由输入与其它模板 */
-function applyTasteToNote() {
-  const allLabels = TASTE_KEYS.map(k => locale.t('checkout.taste.' + k));
-  const picked = TASTE_KEYS.filter(k => tasteSelected.value.includes(k)).map(k => locale.t('checkout.taste.' + k));
-  const rest = orderNote.value.split('；').map(s => s.trim()).filter(s => s && !allLabels.includes(s));
-  orderNote.value = [...picked, ...rest].join('；').slice(0, 200);
+function goTasteProfile() {
+  uni.navigateTo({ url: '/pkg-user/pages/taste-profile' });
+}
+/** 餐具在结算页也能改：写回口味偏好，保持单一数据源（备注不重复写餐具） */
+function pickTableware(n: number) {
+  tablewareCount.value = n;
+  tasteProfile.value = writeTasteProfile({ ...tasteProfile.value, tableware: n });
 }
 
-function toggleTaste(key: string) {
-  const on = tasteSelected.value.includes(key);
-  let next = tasteSelected.value.filter(k => k !== key);
-  if (!on) {
-    if (SPICY_KEYS.includes(key)) next = next.filter(k => !SPICY_KEYS.includes(k));
-    next = [...next, key];
-  }
-  tasteSelected.value = next;
-  uni.setStorageSync(TASTE_KEY, JSON.stringify(tasteSelected.value));
-  applyTasteToNote();
-}
+// 从「我的口味」页返回时刷新（本机存储非响应式）
+onShow(() => {
+  const fresh = readTasteProfile();
+  tasteProfile.value = fresh;
+  tablewareCount.value = fresh.tableware;
+});
 
 function noteHas(t: string): boolean {
   return orderNote.value.includes(t);
@@ -594,14 +578,14 @@ function pickDeliveryPref(key: DeliveryPrefKey | '') {
 function goDeliveryPrefs() {
   uni.navigateTo({ url: '/pkg-user/pages/delivery-prefs' });
 }
-/** 备注首段拼装：配送偏好 → 自定义配送说明 → 用户备注 → 单品备注（≤200） */
+/** 备注首段拼装：配送偏好 → 自定义配送说明 → 用户备注 → 我的口味 → 单品备注（≤200） */
 function composeOrderNote(): string | null {
   const prefKey = deliveryPref.value;
   const prefLabel = prefKey
     ? locale.t(prefKey === 'door' ? 'deliveryPrefs.optDoor' : prefKey === 'reception' ? 'deliveryPrefs.optReception' : 'deliveryPrefs.optCall')
     : '';
   const segs = lineNoteSegments(lineNotes.value);
-  return composeNote([prefLabel, readDeliveryPrefNote(), orderNote.value.trim()], segs, 200) || null;
+  return composeNote([prefLabel, readDeliveryPrefNote(), orderNote.value.trim(), ...tasteParts.value], segs, 200) || null;
 }
 /** 当前店铺 token（单品备注按店铺隔离） */
 const currentChannelToken = computed(() => storeMeta.value.channelToken || tenantStore.token || '');
@@ -1310,8 +1294,9 @@ function chooseInvoice(i: number) {
 }
 
 onMounted(async () => {
-    // 记忆的口味/忌口默认带入备注（用户仍可手动删改）
-    if (tasteSelected.value.length) applyTasteToNote();
+    // 我的口味（本机）→ 餐具默认值；备注在提交时由 composeOrderNote 并入
+    tasteProfile.value = readTasteProfile();
+    tablewareCount.value = tasteProfile.value.tableware;
     // Load saved addresses（发票抬头复用同一份 customFields，避免重复请求）
     let custFields: any = null;
     try { const custRes: any = await getActiveCustomer(); customerAddresses.value = custRes.activeCustomer?.addresses || []; custFields = custRes.activeCustomer?.customFields; if (customerAddresses.value.length > 0) { selectedAddress.value = customerAddresses.value.find((a: any) => a.defaultShippingAddress) || customerAddresses.value[0]; } } catch (e) {}
@@ -1605,12 +1590,12 @@ onLoad((q: any) => {
   &__item { display: block; font-size: 22rpx; color: $text-color-secondary; line-height: 1.7; }
 }
 .note-chips { margin-top: 12rpx; white-space: nowrap; }
-// 口味偏好：浅蓝底与常用备注模板区分，避免误以为同一组
-.taste-row { display: flex; align-items: center; gap: 12rpx; margin-top: 14rpx; }
-.taste-row__label { flex-shrink: 0; font-size: 22rpx; color: $text-color-secondary; }
-.taste-chips { flex: 1; white-space: nowrap; }
-.taste-chip { display: inline-block; padding: 8rpx 18rpx; margin-right: 12rpx; border-radius: 999rpx; font-size: 22rpx; background: #eef4ff; color: #2d5bd1; border: 1rpx solid transparent;
-  &.on { color: #fff; background: #2d5bd1; border-color: #2d5bd1; } }
+/* 我的口味入口：摘要 + 去设置（跳「我的口味」页） */
+.taste-entry { display: flex; align-items: center; gap: 16rpx; margin-top: 14rpx; padding: 16rpx 20rpx; border-radius: $radius-sm; background: $bg-color; }
+.taste-entry__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.taste-entry__label { font-size: 24rpx; font-weight: 600; color: $text-color; }
+.taste-entry__value { font-size: 22rpx; color: $text-color-secondary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.taste-entry__arrow { flex-shrink: 0; font-size: 22rpx; color: $brand-color; }
 .taste-hint { display: block; margin-top: 6rpx; font-size: 20rpx; color: $text-color-placeholder; }
 .note-chip { display: inline-block; padding: 8rpx 18rpx; margin-right: 12rpx; border-radius: 999rpx; font-size: 22rpx; background: $bg-color; color: $text-color-secondary; border: 1rpx solid transparent;
   &.on { color: $brand-color; border-color: $brand-color; background: $brand-color-light; }

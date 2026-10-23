@@ -305,25 +305,59 @@
                     </view>
                 </view>
             </template>
-            <!-- 无结果：热销店铺推荐兜底 -->
-            <view v-if="searchKeyword && !searching && !shown.length && !searchProductHits.length && hotStores.length" class="recent">
-                <view class="sec"><text class="sec-t">{{ $t('home.hotStores') }}</text></view>
-                <scroll-view scroll-x class="recent-row">
-                    <view v-for="s in hotStores" :key="'hot-' + s.channelId" class="recent-card" @tap="enterStore(s)">
-                        <image v-if="s.logo" class="recent-logo" :src="s.logo" mode="aspectFill" />
-                        <view v-else class="recent-logo recent-logo--text">{{ s.name.slice(0, 1) }}</view>
-                        <text class="recent-name">{{ s.name }}</text>
-                        <text class="recent-meta">{{ $t('home.monthlySales').replace('{n}', String(s.monthlySales)) }}</text>
+            <!-- 无结果兜底：纠错近似词 / 换品类 / 猜你想吃 / 热门店铺，点击直达 -->
+            <template v-if="searchNoResult">
+                <view class="empty-search">
+                    <text class="empty-search__ico">🍽️</text>
+                    <text class="empty-search__t">{{ $t('home.searchNoResult').replace('{kw}', searchKeyword) }}</text>
+                    <text class="empty-search__s">{{ $t('home.searchNoResultHint') }}</text>
+                </view>
+                <view v-if="fixWords.length" class="sec-block">
+                    <view class="sec-block__head">
+                        <text class="sec-t">{{ $t('home.searchMaybe') }}</text>
+                        <text class="sec-badge">{{ $t('home.searchAutoFix') }}</text>
                     </view>
-                </scroll-view>
-            </view>
+                    <view class="chips">
+                        <text v-for="w in fixWords" :key="'fix-' + w" class="chip chip--fix" @tap="pickWord(w)">{{ w }}</text>
+                    </view>
+                </view>
+                <view v-if="fallbackCats.length" class="sec-block">
+                    <view class="sec-block__head"><text class="sec-t">{{ $t('home.searchOtherCat') }}</text></view>
+                    <view class="chips">
+                        <text v-for="c in fallbackCats" :key="'cat-' + c" class="chip" @tap="pickWord(c)">{{ c }}</text>
+                    </view>
+                </view>
+                <view v-if="searchGuessProducts.length" class="recent">
+                    <view class="sec"><text class="sec-t">{{ $t('home.searchGuess') }}</text></view>
+                    <scroll-view scroll-x class="recent-row">
+                        <view v-for="p in searchGuessProducts" :key="'sg-' + p.key" class="item-card" @tap="openGuessProduct(p)">
+                            <image v-if="p.image" class="item-img" :src="p.image" mode="aspectFill" />
+                            <view v-else class="item-img item-img--text">{{ p.name.slice(0, 1) }}</view>
+                            <text class="item-name">{{ p.name }}</text>
+                            <text class="item-price" v-if="p.price">¥{{ fenText(p.price) }}</text>
+                            <text class="item-store">{{ p.storeName || '' }}</text>
+                        </view>
+                    </scroll-view>
+                </view>
+                <view v-if="hotStores.length" class="recent">
+                    <view class="sec"><text class="sec-t">{{ $t('home.hotStores') }}</text></view>
+                    <scroll-view scroll-x class="recent-row">
+                        <view v-for="s in hotStores" :key="'hot-' + s.channelId" class="recent-card" @tap="enterStore(s)">
+                            <image v-if="s.logo" class="recent-logo" :src="s.logo" mode="aspectFill" />
+                            <view v-else class="recent-logo recent-logo--text">{{ s.name.slice(0, 1) }}</view>
+                            <text class="recent-name">{{ s.name }}</text>
+                            <text class="recent-meta">{{ $t('home.monthlySales').replace('{n}', String(s.monthlySales)) }}</text>
+                        </view>
+                    </scroll-view>
+                </view>
+            </template>
             <LoadingSkeleton v-if="loading" />
             <template v-else>
                 <view class="sec" v-if="shown.length">
                     <text class="sec-t">{{ secTitle }}</text>
                     <text class="sec-n">{{ $t('home.nearbyCount').replace('{n}', String(shown.length)) }}</text>
                 </view>
-                <EmptyState v-if="!shown.length && !(searchKeyword && (searching || searchProductHits.length || hotStores.length))" :text="emptyText" />
+                <EmptyState v-if="!shown.length && !searchNoResult && !(searchKeyword && (searching || searchProductHits.length || hotStores.length))" :text="emptyText" />
                 <view v-else class="cards">
                     <view v-for="s in shown" :key="s.channelId" class="card" @tap="enterStore(s)">
                         <image v-if="s.logo" class="logo" :src="s.logo" mode="aspectFill" />
@@ -420,7 +454,7 @@ import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/wa
 import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
 import { getMyCoupons } from '../../api/queries/coupon';
 import { getPublishedContent, type ContentItemPublic } from '../../api/queries/operations';
-import { readSearchHistory, pushSearchHistory, clearSearchHistory, buildHotWords, matchesProduct } from '../../utils/search';
+import { readSearchHistory, pushSearchHistory, clearSearchHistory, buildHotWords, matchesProduct, similarKeywords, fallbackCategories, cleanKeyword } from '../../utils/search';
 import { filterStores, applyStoreFilters, sortStores, type StoreSort, type StoreFilterOptions } from '../../utils/store-filter';
 import { storeDisplayName, routeText, deliveryTag } from '../../utils/store-display';
 import { getStoreStatus, type StoreOpenState } from '../../utils/store-status';
@@ -529,9 +563,26 @@ function clearHistory() {
     searchHistory.value = [];
 }
 
+/** 搜索无结果：已提交搜索、非加载中、店铺与商品都没命中 */
+const searchNoResult = computed(() =>
+    !!searchKeyword.value && !searching.value && !shown.value.length && !searchProductHits.value.length,
+);
+/** 纠错词库：店铺标签 + 店名 + 已搜到的商品名，供同词根近似推荐 */
+const searchVocab = computed(() => {
+    const vocab: string[] = [];
+    for (const s of stores.value ?? []) {
+        for (const t of s.tags ?? []) vocab.push(String(t));
+        vocab.push(String(s.name || ''));
+    }
+    for (const p of favorites.recentItems ?? []) vocab.push(String(p.name || ''));
+    return vocab.filter(Boolean);
+});
+const fixWords = computed(() => (searchNoResult.value ? similarKeywords(searchKeyword.value, searchVocab.value, 4) : []));
+const fallbackCats = computed(() => (searchNoResult.value ? fallbackCategories(stores.value, searchKeyword.value, 6) : []));
+
 /** 提交搜索：写历史 → 店铺即时过滤（keyword）→ 跨店并发搜商品 */
 async function submitSearch(raw: string) {
-    const kw = String(raw ?? '').trim();
+    const kw = cleanKeyword(raw);
     keyword.value = kw;
     searchFocused.value = false;
     if (!kw) return;
@@ -610,9 +661,10 @@ function openRecentProduct(it: any) {
 
 // ── 猜你喜欢：足迹 + 常买 + 店铺月售打分的个性化推荐（v14） ──
 const guessTick = ref(0);
-const guessProducts = computed(() => {
+/** 打分池构建：excludeShown=false 时用于搜索无结果兜底（此时不受搜索词限制） */
+function computeGuess(excludeShown: boolean): any[] {
     guessTick.value; // 依赖 onShow 自增，返回首页时重读足迹
-    if (keyword.value || searchKeyword.value) return [] as any[];
+    if (excludeShown && (keyword.value || searchKeyword.value)) return [] as any[];
     // 收藏/常买区已展示的 variant 不重复出现
     const favIds = new Set(favorites.variantItems.map(v => String(v.variantId)));
     const recentIds = new Set(favorites.recentItems.map(v => String(v.variantId)));
@@ -653,7 +705,10 @@ const guessProducts = computed(() => {
     for (const it of favorites.recentItems) add(it, 3);   // 常买权重高
     for (const it of readFootprint()) add(it, 1);          // 足迹权重次之
     return Array.from(pool.values()).sort((a, b) => b.score - a.score).slice(0, 8);
-});
+}
+const guessProducts = computed(() => computeGuess(true));
+/** 搜索无结果时的「猜你想吃」：忽略搜索词限制，兜底展示历史偏好 */
+const searchGuessProducts = computed(() => (searchNoResult.value ? computeGuess(false) : []));
 
 /** 猜你喜欢点击：有 variantId 直接进店自动加购，否则带关键词定位 */
 function openGuessProduct(p: any) {
@@ -1108,6 +1163,17 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .sec-t { font-size: 32rpx; font-weight: 600; color: var(--w-text); }
 .sec-n { font-size: 22rpx; color: var(--w-text-muted); }
 .sec-more { font-size: 22rpx; color: var(--w-brand-text); }
+/* 搜索无结果兜底：提示 + 纠错词 + 换品类 */
+.empty-search { display: flex; flex-direction: column; align-items: center; gap: 10rpx; padding: 40rpx 30rpx; background: var(--w-surface); border-radius: $radius-card; margin-top: 16rpx; }
+.empty-search__ico { font-size: 56rpx; }
+.empty-search__t { font-size: 28rpx; font-weight: 600; color: var(--w-text); text-align: center; }
+.empty-search__s { font-size: 22rpx; color: var(--w-text-muted); text-align: center; line-height: 1.5; }
+.sec-block { background: var(--w-surface); border-radius: $radius-card; padding: 22rpx; margin-top: 16rpx; }
+.sec-block__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16rpx; }
+.sec-badge { font-size: 20rpx; line-height: 1; padding: 6rpx 12rpx; border-radius: 999rpx; background: var(--w-brand-soft); color: var(--w-brand-text); }
+.chips { display: flex; flex-wrap: wrap; gap: 14rpx; }
+.chip { font-size: 24rpx; line-height: 1; padding: 16rpx 26rpx; border-radius: 999rpx; background: var(--w-bg, #f5f5f5); color: var(--w-text-secondary, #666); border: 1rpx solid transparent; }
+.chip--fix { color: var(--w-brand-text); border-color: $brand; font-weight: 600; }
 .cards { display: flex; flex-direction: column; gap: 16rpx; padding-bottom: 8rpx; }
 .card { display: flex; align-items: center; gap: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx; }
 .logo { width: 120rpx; height: 120rpx; border-radius: $radius; flex-shrink: 0; }

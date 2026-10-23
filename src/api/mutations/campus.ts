@@ -112,3 +112,20 @@ export const CAMPUS_URGE_ORDER = gql`
 export function urgeOrder(orderId: string) {
     return getGraphQLClient().request(CAMPUS_URGE_ORDER, { orderId });
 }
+
+/** 改址：取货前可改（可跨分区），返回运费差额（分）；取货后后端拒绝，前端应提示联系客服 */
+export const CAMPUS_CHANGE_DELIVERY_ADDRESS = gql`
+    mutation campusChangeDeliveryAddress($orderId: ID!, $zoneId: ID!, $buildingId: ID!, $detail: String) {
+        campusChangeDeliveryAddress(orderId: $orderId, zoneId: $zoneId, buildingId: $buildingId, detail: $detail) {
+            diff
+            oldFee
+            newFee
+            fromZone
+            toZone
+            recordId
+        }
+    }
+`;
+export function changeDeliveryAddress(v: { orderId: string; zoneId: string; buildingId: string; detail?: string }) {
+    return getGraphQLClient().request(CAMPUS_CHANGE_DELIVERY_ADDRESS, v).then((r: any) => r?.campusChangeDeliveryAddress);
+}

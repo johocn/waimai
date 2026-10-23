@@ -5,6 +5,15 @@
       <text class="status-header__sub">{{ statusHint }}</text>
     </view>
 
+    <!-- 准时达承诺条（P0 超时赔付）：支付时固化承诺送达时间，超时自动发券，送达后原地展示赔付结果 -->
+    <view v-if="promiseVisible" class="section promise-card" :class="'promise-card--' + promiseState">
+      <view class="promise-card__row">
+        <text class="promise-card__title">{{ promiseTitle }}</text>
+        <text class="promise-card__tag">{{ promiseTag }}</text>
+      </view>
+      <text class="promise-card__hint">{{ promiseHint }}</text>
+    </view>
+
     <!-- 预约单提醒：带送达时段且未完成时置顶展示，避免用户错过预约时间 -->
     <view class="section sched-card" v-if="scheduledText && !['Delivered', 'Cancelled'].includes(order.state)">
       <view class="sched-card__row">
@@ -15,7 +24,7 @@
     </view>
 
     <!-- 预计送达倒计时：仅待配送/配送中，预约单与已送达单不展示 -->
-    <view class="section eta-card" v-if="etaText" :class="{ 'eta-card--late': etaLate }">
+    <view class="section eta-card" v-if="etaText && !promiseVisible" :class="{ 'eta-card--late': etaLate }">
       <text class="eta-card__title">{{ etaText }}</text>
       <text class="eta-card__hint">{{ etaLate ? $t('orderDetail.etaLateHint') : $t('orderDetail.etaHint') }}</text>
     </view>
@@ -159,6 +168,16 @@
       />
     </view>
 
+    <!-- 改址（取货前可改，可跨分区）：方案 A 居中弹层；差额多退少补后台台账结算 -->
+    <view class="section addr-change" v-if="campusRoute && campusRoute !== 'R4'">
+      <view class="addr-change__head">
+        <text class="section__title">{{ $t('orderDetail.changeAddrTitle') }}</text>
+        <text v-if="canChangeAddr" class="addr-change__btn" @tap="openAddrChange">{{ $t('orderDetail.changeAddrBtn') }}</text>
+      </view>
+      <text class="addr-change__cur">{{ $t('orderDetail.changeAddrCurrent').replace('{t}', currentAddrText) }}</text>
+      <text class="addr-change__hint">{{ canChangeAddr ? $t('orderDetail.changeAddrHint') : $t('orderDetail.changeAddrLocked') }}</text>
+    </view>
+
     <view class="section" v-if="!campusRoute && order.shippingAddress">
       <text class="section__title">{{ $t('orderDetail.addrTitle') }}</text>
       <text>{{ order.shippingAddress.fullName }} {{ order.shippingAddress.phoneNumber }}</text>
@@ -247,6 +266,59 @@
       <button class="action-btn action-btn--ghost" @click="goReceipt">{{ $t('orderDetail.receiptBtn') }}</button>
     </view>
 
+    <!-- 改址弹层（方案 A 居中）：分区含运费 → 楼栋 → 门牌；提交后展示运费差额 -->
+    <view class="addr-mask" v-if="addrShow" @tap.self="closeAddrChange">
+      <view class="addr-dialog">
+        <template v-if="!addrResult">
+          <text class="addr-dialog__title">{{ $t('orderDetail.changeAddrTitle') }}</text>
+          <scroll-view scroll-y class="addr-dialog__body">
+            <text class="addr-label">{{ $t('orderDetail.changeZone') }}</text>
+            <view class="addr-chips">
+              <view
+                v-for="z in addrZones"
+                :key="z.id"
+                class="addr-chip"
+                :class="{ on: addrZoneId === z.id }"
+                @tap="pickZone(z.id)"
+              >
+                <text>{{ z.name }}</text>
+                <text class="addr-chip__fee">¥{{ (Number(z.fee || 0) / 100).toFixed(2) }}</text>
+              </view>
+            </view>
+            <text class="addr-label">{{ $t('orderDetail.changeBuilding') }}</text>
+            <view class="addr-chips" v-if="addrBuildings.length">
+              <view
+                v-for="b in addrBuildings"
+                :key="b.id"
+                class="addr-chip"
+                :class="{ on: addrBuildingId === b.id }"
+                @tap="addrBuildingId = b.id"
+              >
+                <text>{{ b.name }}</text>
+              </view>
+            </view>
+            <text v-else class="addr-empty">{{ $t('orderDetail.changeNoBuildings') }}</text>
+            <text class="addr-label">{{ $t('orderDetail.changeDetail') }}</text>
+            <input class="addr-input" v-model="addrDetail" :placeholder="$t('orderDetail.changeDetailPh')" />
+            <text class="addr-note">{{ $t('orderDetail.changeDiffNote') }}</text>
+          </scroll-view>
+          <view class="addr-dialog__actions">
+            <button class="addr-btn addr-btn--ghost" @tap="closeAddrChange">{{ $t('orderDetail.changeCancel') }}</button>
+            <button class="addr-btn addr-btn--primary" :disabled="addrSubmitting" @tap="submitAddrChange">
+              {{ addrSubmitting ? $t('orderDetail.changeSubmitting') : $t('orderDetail.changeSubmit') }}
+            </button>
+          </view>
+        </template>
+        <template v-else>
+          <text class="addr-dialog__title">{{ $t('orderDetail.changeOkTitle') }}</text>
+          <text class="addr-result">{{ addrResultText }}</text>
+          <view class="addr-dialog__actions">
+            <button class="addr-btn addr-btn--primary" @tap="closeAddrChange">{{ $t('orderDetail.changeOkBtn') }}</button>
+          </view>
+        </template>
+      </view>
+    </view>
+
     <!-- 开发票弹层（Task 11）：抬头选择 + 接收邮箱 + 提交申请 -->
     <view class="invoice-mask" v-if="invoiceShow" @click="invoiceShow = false">
       <view class="invoice-sheet" @click.stop>
@@ -304,7 +376,7 @@ import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
 import { getGraphQLClient } from '../../api/client';
-import { fetchOrderRider, urgeOrder } from '../../api/mutations/campus';
+import { fetchOrderRider, urgeOrder, fetchZones, fetchBuildings, changeDeliveryAddress } from '../../api/mutations/campus';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { orderEta, clockHM } from '../../utils/order-eta';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
@@ -469,6 +541,49 @@ const etaText = computed(() => {
         ? locale.t('orderDetail.etaOverdue').replace('{n}', String(e.overdueMin))
         : locale.t('orderDetail.etaArrive').replace('{t}', clockHM(e.etaAt)).replace('{n}', String(e.remainMin));
 });
+
+// —— 准时达承诺条（P0 超时赔付）：承诺时间由后端支付时固化，超时自动赔券 ——
+const promisedAt = computed(() => order.value?.customFields?.promisedAt ?? null);
+const promiseVisible = computed(() => {
+    if (!promisedAt.value) return false;
+    if (!['R1', 'R2', 'R3'].includes(String(campusRoute.value))) return false;
+    return String(order.value?.state ?? '') !== 'Cancelled';
+});
+/** 超时分钟：已送达按实际送达时间算，未送达按当前时间动态算（30s 刷新） */
+const promiseLateMin = computed(() => {
+    const p = promisedAt.value ? new Date(promisedAt.value).getTime() : NaN;
+    if (!Number.isFinite(p)) return 0;
+    const end = deliveredAt.value ? new Date(deliveredAt.value).getTime() : nowTs.value;
+    return Math.max(0, Math.floor((end - p) / 60_000));
+});
+const promiseState = computed(() => {
+    const late = promiseLateMin.value > 0;
+    if (!deliveredAt.value) return late ? 'late' : 'ontime';
+    if (order.value?.customFields?.timeoutCompensatedAt) return 'compensated';
+    return late ? 'pending' : 'ontime';
+});
+const promiseTitle = computed(() => {
+    const p = promisedAt.value ? new Date(promisedAt.value).getTime() : NaN;
+    switch (promiseState.value) {
+        case 'late': return locale.t('orderDetail.promiseLate').replace('{n}', String(promiseLateMin.value));
+        case 'compensated': return locale.t('orderDetail.promiseCompensated');
+        case 'pending': return locale.t('orderDetail.promisePending').replace('{n}', String(promiseLateMin.value));
+        default:
+            return deliveredAt.value
+                ? locale.t('orderDetail.promiseOnTimeDone')
+                : locale.t('orderDetail.promiseOnTime').replace('{t}', Number.isFinite(p) ? clockHM(p) : '');
+    }
+});
+const promiseTag = computed(() => (promiseState.value === 'ontime' ? locale.t('orderDetail.promiseTag') : ''));
+const promiseHint = computed(() => {
+    switch (promiseState.value) {
+        case 'ontime': return deliveredAt.value ? '' : locale.t('orderDetail.promiseHint');
+        case 'late': return locale.t('orderDetail.promiseLateHint');
+        case 'pending': return locale.t('orderDetail.promisePendingHint');
+        case 'compensated': return locale.t('orderDetail.promiseCompHint');
+        default: return '';
+    }
+});
 function startEtaTicker() {
     stopEtaTicker();
     etaTimer = setInterval(() => { nowTs.value = Date.now(); }, 30000);
@@ -611,6 +726,97 @@ async function reloadOrder() {
     const pages = getCurrentPages(); const page = pages[pages.length - 1] as any;
     const code = page?.options?.code; if (!code) return;
     try { const res: any = await getOrderByCode(code); order.value = res.orderByCode; } catch (e) {}
+}
+
+// —— 改址（取货前可改，可跨分区；差额多退少补，后台台账结算）——
+const addrShow = ref(false);
+const addrZones = ref<any[]>([]);
+const addrBuildings = ref<any[]>([]);
+const addrZoneId = ref('');
+const addrBuildingId = ref('');
+const addrDetail = ref('');
+const addrSubmitting = ref(false);
+const addrResult = ref<{ diff: number } | null>(null);
+// 锁死条件与后端 address-change.service 同口径：已取消/已送达/已取货/外部配送已接单
+const addrLocked = computed(() => {
+    const o = order.value; if (!o) return true;
+    const cf = o.customFields ?? {};
+    if (String(o.state ?? '') === 'Cancelled') return true;
+    if (cf.deliveredAt || cf.deliveryStatus === 'delivered') return true;
+    if (cf.deliveryStatus === 'in_progress') return true;
+    return ['accepted', 'pickup', 'delivered'].includes(String(cf.thirdPartyState ?? ''));
+});
+const canChangeAddr = computed(() => !!campusRoute.value && campusRoute.value !== 'R4' && !addrLocked.value);
+const currentAddrText = computed(() => {
+    const cf = order.value?.customFields ?? {};
+    const zone = cf.campusZone ? String(cf.campusZone) : '';
+    const detail = cf.deliveryDetail ? String(cf.deliveryDetail) : '';
+    return [zone, detail].filter(Boolean).join(' ') || '—';
+});
+const addrResultText = computed(() => {
+    const d = addrResult.value?.diff ?? 0;
+    if (!d) return locale.t('orderDetail.changeDiffNone');
+    const y = (Math.abs(d) / 100).toFixed(2);
+    return d > 0
+        ? locale.t('orderDetail.changeDiffCollect').replace('{y}', y)
+        : locale.t('orderDetail.changeDiffRefund').replace('{y}', y);
+});
+async function openAddrChange() {
+    if (!canChangeAddr.value) return;
+    addrShow.value = true;
+    addrResult.value = null;
+    addrSubmitting.value = false;
+    addrBuildings.value = [];
+    addrBuildingId.value = '';
+    const cf = order.value?.customFields ?? {};
+    addrDetail.value = cf.deliveryDetail ? String(cf.deliveryDetail) : '';
+    try {
+        if (!addrZones.value.length) addrZones.value = await fetchZones();
+        const cur = addrZones.value.find((z: any) => z.name === cf.campusZone);
+        addrZoneId.value = String(cur?.id ?? addrZones.value[0]?.id ?? '');
+        if (!addrZoneId.value) return;
+        addrBuildings.value = await fetchBuildings(addrZoneId.value);
+        if (cur && cf.buildingId && addrBuildings.value.some((b: any) => String(b.id) === String(cf.buildingId))) {
+            addrBuildingId.value = String(cf.buildingId);
+        }
+    } catch (e) { /* 分区/楼栋加载失败静默，弹层仍可取消 */ }
+}
+async function loadAddrBuildings() {
+    addrBuildings.value = [];
+    addrBuildingId.value = '';
+    if (!addrZoneId.value) return;
+    try { addrBuildings.value = await fetchBuildings(addrZoneId.value); } catch (e) {}
+}
+function pickZone(id: string) {
+    if (addrZoneId.value === id) return;
+    addrZoneId.value = id;
+    void loadAddrBuildings();
+}
+function closeAddrChange() {
+    addrShow.value = false;
+    addrResult.value = null;
+}
+async function submitAddrChange() {
+    if (addrSubmitting.value || !order.value?.id) return;
+    if (!addrZoneId.value || !addrBuildingId.value) {
+        uni.showToast({ title: locale.t('orderDetail.changeNeedAddr'), icon: 'none' });
+        return;
+    }
+    addrSubmitting.value = true;
+    try {
+        const r = await changeDeliveryAddress({
+            orderId: String(order.value.id),
+            zoneId: addrZoneId.value,
+            buildingId: addrBuildingId.value,
+            detail: addrDetail.value.trim() || undefined,
+        });
+        addrResult.value = { diff: Number(r?.diff ?? 0) };
+        await reloadOrder();
+    } catch (e: any) {
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('orderDetail.changeFail'), icon: 'none' });
+    } finally {
+        addrSubmitting.value = false;
+    }
 }
 // —— R4 到店自取核销码（fetchMyPickupCode 返回 { myPickupCode } 由调用方解包，Task 12 Step 4）——
 const isR4 = computed(() => campusRoute.value === 'R4');
@@ -942,6 +1148,16 @@ async function confirmReorder() {
   &__slot { font-size: 26rpx; color: #2d5bd1; font-weight: bold; }
   &__hint { display: block; margin-top: 10rpx; font-size: 22rpx; color: #5b76b8; }
 }
+// 准时达承诺条（绿=准时/已赔，琥珀=超时或待赔）
+.promise-card { background: #eaf8ee; border: 1rpx solid #b7e3c4;
+  &__row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+  &__title { font-size: 26rpx; font-weight: bold; color: #0a7d45; }
+  &__tag { font-size: 22rpx; color: #0a7d45; }
+  &__hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #3f7a56; }
+  &--late, &--pending { background: #fff8ef; border-color: #ffd9ad; }
+  &--late &__title, &--pending &__title { color: #b45309; }
+  &--late &__hint, &--pending &__hint { color: #9a6a2a; }
+}
 // 预计送达卡（品牌色浅底，超时转红）
 .eta-card { background: #fff8ef; border: 1rpx solid #ffd9ad;
   &__title { font-size: 26rpx; font-weight: bold; color: #b45309; }
@@ -1009,4 +1225,34 @@ async function confirmReorder() {
 .reorder-hint { font-size: 22rpx; color: #c47b00; background: #fff7e6; border-radius: 10rpx; padding: 12rpx 16rpx; margin-top: 16rpx; }
 .reorder-btn { margin-top: 24rpx; height: 88rpx; line-height: 88rpx; border-radius: 999rpx; background: $brand-color; color: #fff; font-size: 30rpx; font-weight: 600; }
 .reorder-btn[disabled] { opacity: .5; }
+/* 改址卡片 + 方案 A 居中弹层 */
+.addr-change {
+  &__head { display: flex; align-items: center; justify-content: space-between; }
+  &__btn { font-size: 26rpx; color: $brand-color; padding: 8rpx 0 8rpx 24rpx; }
+  &__cur { display: block; font-size: 26rpx; color: $text-color; margin-top: 8rpx; }
+  &__hint { display: block; font-size: 22rpx; color: $text-color-placeholder; margin-top: 6rpx; }
+}
+.addr-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 0 48rpx; }
+.addr-dialog { width: 100%; max-height: 76vh; background: #fff; border-radius: 24rpx; padding: 36rpx 32rpx; display: flex; flex-direction: column; }
+.addr-dialog__title { display: block; font-size: 32rpx; font-weight: 600; color: $text-color; text-align: center; margin-bottom: 20rpx; }
+.addr-dialog__body { max-height: 50vh; }
+.addr-label { display: block; font-size: 24rpx; color: $text-color-secondary; margin: 18rpx 0 10rpx; }
+.addr-chips { display: flex; flex-wrap: wrap; gap: 14rpx; }
+.addr-chip {
+  display: flex; align-items: center; gap: 8rpx; padding: 12rpx 22rpx;
+  border: 1rpx solid $border-color; border-radius: $radius-md;
+  font-size: 24rpx; color: $text-color;
+  &.on { border-color: $brand-color; color: $brand-color; background: #fff3e6; }
+}
+.addr-chip__fee { font-size: 22rpx; color: $text-color-placeholder; }
+.addr-chip.on .addr-chip__fee { color: $brand-color; }
+.addr-empty { display: block; font-size: 24rpx; color: $text-color-placeholder; padding: 12rpx 0; }
+.addr-input { height: 80rpx; border: 1rpx solid $border-color; border-radius: $radius-md; padding: 0 20rpx; font-size: 26rpx; }
+.addr-note { display: block; font-size: 22rpx; color: #c47b00; background: #fff7e6; border-radius: 10rpx; padding: 12rpx 16rpx; margin-top: 20rpx; }
+.addr-dialog__actions { display: flex; gap: 20rpx; margin-top: 28rpx; }
+.addr-btn { flex: 1; height: 80rpx; line-height: 80rpx; border-radius: $radius-md; font-size: 28rpx; border: none; }
+.addr-btn--primary { background: $brand-color; color: #fff; }
+.addr-btn--ghost { background: $surface; color: $text-color-secondary; border: 1rpx solid $border-color; }
+.addr-btn[disabled] { opacity: .5; }
+.addr-result { display: block; font-size: 30rpx; color: $text-color; text-align: center; padding: 24rpx 0 8rpx; }
 </style>

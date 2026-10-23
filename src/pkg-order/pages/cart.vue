@@ -48,7 +48,10 @@
                 <text class="cart-line__step" :class="{ busy: busyKey === g.token + ':' + l.id }" @click.stop="incLine(g, l)">＋</text>
                 <text class="cart-line__rm" @click.stop="removeLine(g, l)">🗑</text>
               </view>
-              <text v-else class="cart-line__qty">×{{ l.quantity }}</text>
+              <view v-else class="cart-line__foot-right">
+                <text v-if="canSwap(g, l)" class="cart-line__alt" @click.stop="openAlt(g, l)">{{ $t('cart.altBtn') }}</text>
+                <text class="cart-line__qty">×{{ l.quantity }}</text>
+              </view>
             </view>
           </view>
         </view>
@@ -139,13 +142,42 @@
             @click="recPick.variantId = String(v.id)"
           >
             <text class="rec-opt__name">{{ variantLabel(v) }}</text>
-            <text class="rec-opt__stock">{{ $t('cart.recSpecStock').replace('{n}', String(v.stockLevel ?? '')) }}</text>
+            <text class="rec-opt__stock">{{ stockText(v) }}</text>
             <text class="rec-opt__price">¥{{ fen(v.priceWithTax) }}</text>
           </view>
         </view>
         <button class="rec-sheet__btn" :disabled="!!recBusy" @click="confirmRec">
           {{ recBusy ? $t('cart.recSpecAdding') : $t('cart.recSpecConfirm') }}
         </button>
+      </view>
+    </view>
+
+    <!-- 失效餐品同类替代：售罄/下架行旁给同店同类在售商品，一键替换 -->
+    <view class="rec-mask" v-if="altSheet" @click="closeAlt">
+      <view class="rec-sheet" @click.stop>
+        <view class="rec-sheet__head">
+          <text class="rec-sheet__title">{{ $t('cart.altTitle') }}</text>
+          <text class="rec-sheet__close" @click="closeAlt">✕</text>
+        </view>
+        <text class="rec-sheet__hint">{{ $t('cart.altSub').replace('{n}', altSheet.name) }}</text>
+        <view v-if="altSheet.loading" class="alt-tip">{{ $t('cart.altLoading') }}</view>
+        <view v-else-if="!altSheet.items.length" class="alt-tip">{{ $t('cart.altEmpty') }}</view>
+        <view v-else class="alt-list">
+          <view
+            v-for="c in altSheet.items"
+            :key="'alt-' + c.v.id"
+            class="alt-item"
+            :class="{ busy: swapBusy === c.v.id }"
+            @click="swapLine(c)"
+          >
+            <VImage :src="c.p.featuredAsset?.preview" width="88rpx" height="88rpx" class="alt-item__img" />
+            <view class="alt-item__body">
+              <text class="alt-item__name">{{ c.p.name }}</text>
+              <text class="alt-item__meta">{{ variantLabel(c.v) }} · {{ stockText(c.v) }}</text>
+            </view>
+            <text class="alt-item__price">¥{{ fen(c.price) }}</text>
+          </view>
+        </view>
       </view>
     </view>
   </view>
@@ -317,9 +349,16 @@ function variantLabel(v: any): string {
   const opts = (v?.options ?? []).map((o: any) => o?.name).filter(Boolean);
   return opts.length ? opts.join(' / ') : String(v?.name ?? '');
 }
-/** 判断规格可售：上架、有库存、价格有效 */
+/** 规格库存文案：stockLevel 为枚举，null 表示商家不跟踪库存 */
+function stockText(v: any): string {
+  const s = v?.stockLevel;
+  if (s === 'LOW_STOCK') return locale.t('cart.recStockLow');
+  if (s === 'IN_STOCK') return locale.t('cart.recStockOk');
+  return locale.t('cart.recStockUnknown');
+}
+/** 判断规格可售：上架、非售罄、价格有效（shop-api stockLevel 为枚举 IN_STOCK / LOW_STOCK / OUT_OF_STOCK / null=不跟踪） */
 function saleableVariant(v: any): boolean {
-  return v?.enabled !== false && Number(v?.stockLevel) > 0 && Number(v?.priceWithTax) > 0;
+  return !!v && v.enabled !== false && v.stockLevel !== 'OUT_OF_STOCK' && Number(v.priceWithTax) > 0;
 }
 function recGap(g: CartGroup): { fen: number; kind: 'min' | 'tier' | 'ship'; tier?: any } | null {
   const minFen = gapFen(g);
@@ -338,13 +377,21 @@ function recHint(g: CartGroup, gap: { fen: number; kind: string; tier?: any }): 
   if (gap.kind === 'tier') return locale.t('cart.recHintTier').replace('{t}', tierYuan(gap.tier.thresholdFen)).replace('{d}', yuan(gap.fen));
   return locale.t('cart.recHintShip').replace('{d}', yuan(gap.fen));
 }
+/** 店铺商品目录缓存：凑单推荐与同类替代共用，避免重复请求 */
+const catalogs = ref<Record<string, any[]>>({});
+async function ensureCatalog(token: string): Promise<any[]> {
+  if (catalogs.value[token]) return catalogs.value[token];
+  const products = await fetchProductListForChannel(token);
+  catalogs.value = { ...catalogs.value, [token]: products };
+  return products;
+}
 async function loadRecs() {
   if (!groups.value.length) { recs.value = {}; return; }
   const entries = await Promise.all(groups.value.map(async (g) => {
     const gap = recGap(g);
     if (!gap) return [g.token, { items: [], hint: '' }] as const;
     try {
-      const products = await fetchProductListForChannel(g.token);
+      const products = await ensureCatalog(g.token);
       const inCart = new Set((g.order?.lines ?? []).map((l: any) => String(l?.productVariant?.id ?? '')));
       const items = products
         .map((p: any) => {
@@ -426,6 +473,78 @@ async function addRec(token: string, variantId: string): Promise<boolean> {
     return false;
   } finally {
     recBusy.value = '';
+  }
+}
+
+// ── 失效餐品同类替代：售罄/下架行提供同店同类在售商品，一键替换 ──
+interface AltSheet { token: string; lineId: string; name: string; qty: number; loading: boolean; items: any[] }
+const altSheet = ref<AltSheet | null>(null);
+const swapBusy = ref('');
+/** 仅「售罄 / 下架」这类不可调整的失效行可替换；变价行仍可正常改数量 */
+function canSwap(g: CartGroup, l: any): boolean {
+  return isRemovableIssue(lineIssue(l, g));
+}
+function closeAlt() {
+  if (swapBusy.value) return;
+  altSheet.value = null;
+}
+async function openAlt(g: CartGroup, l: any) {
+  if (swapBusy.value) return;
+  const vid = String(l?.productVariant?.id ?? '');
+  altSheet.value = {
+    token: g.token,
+    lineId: String(l.id),
+    name: l?.productVariant?.name || '',
+    qty: Number(l.quantity) || 1,
+    loading: true,
+    items: [],
+  };
+  try {
+    const products = await ensureCatalog(g.token);
+    const origin = products.find((p: any) => (p.variants ?? []).some((v: any) => String(v.id) === vid));
+    // 同类判定：优先共享 collection（分类），无分类时退化为同店其它在售商品
+    const cats = new Set((origin?.collections ?? []).map((c: any) => String(c.slug ?? c.id ?? c.name)));
+    const inCart = new Set((g.order?.lines ?? []).map((x: any) => String(x?.productVariant?.id ?? '')));
+    const candidates = products
+      .filter((p: any) => String(p.id) !== String(origin?.id))
+      .map((p: any) => {
+        const shared = (p.collections ?? []).some((c: any) => cats.has(String(c.slug ?? c.id ?? c.name)));
+        const vars = (p.variants ?? [])
+          .filter(saleableVariant)
+          .sort((a: any, b: any) => Number(a.priceWithTax) - Number(b.priceWithTax));
+        const avail = vars.filter((v: any) => !inCart.has(String(v.id)));
+        const v = avail[0] || vars[0];
+        if (!v) return null;
+        return { p, v, price: Number(v.priceWithTax) || 0, shared };
+      })
+      .filter((it: any) => it)
+      .sort((a: any, b: any) => Number(b.shared) - Number(a.shared) || a.price - b.price)
+      .slice(0, 6);
+    if (altSheet.value) altSheet.value = { ...altSheet.value, loading: false, items: candidates };
+  } catch {
+    if (altSheet.value) altSheet.value = { ...altSheet.value, loading: false, items: [] };
+  }
+}
+async function swapLine(c: any) {
+  const sheet = altSheet.value;
+  if (!sheet || swapBusy.value) return;
+  const g = groupOf(sheet.token);
+  if (!g) return;
+  swapBusy.value = String(c.v.id);
+  try {
+    const rm: any = await removeOrderLineForChannel(g.token, sheet.lineId);
+    if (rm?.removeOrderLine?.errorCode) throw new Error(rm.removeOrderLine.message || '');
+    const add: any = await addItemToOrderInChannel(g.token, String(c.v.id), sheet.qty);
+    const order = add?.addItemToOrder;
+    if (!order?.id) throw new Error(order?.message || '');
+    applyOrder(g, order);
+    refreshRecs(g);
+    altSheet.value = null;
+    uni.showToast({ title: locale.t('cart.altDone'), icon: 'none' });
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || locale.t('cart.altFail'), icon: 'none' });
+  } finally {
+    swapBusy.value = '';
   }
 }
 
@@ -738,6 +857,8 @@ function goHome() {
   &__price { font-size: 26rpx; color: $price-color; }
   &__old { font-size: 20rpx; color: $text-color-placeholder; text-decoration: line-through; }
   &__qty { font-size: 24rpx; color: $text-color-secondary; }
+  &__foot-right { display: flex; align-items: center; gap: 12rpx; }
+  &__alt { font-size: 20rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 20rpx; padding: 2rpx 12rpx; }
   &__ops { display: flex; align-items: center; gap: 8rpx; }
   &__step { width: 44rpx; height: 44rpx; line-height: 42rpx; text-align: center; font-size: 30rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 50%; box-sizing: border-box;
     &.busy { opacity: 0.4; } }
@@ -793,6 +914,17 @@ function goHome() {
   &__stock { font-size: 18rpx; color: $text-color-placeholder; }
   &__price { font-size: 24rpx; font-weight: 600; color: $price-color; }
   &.on { border-color: $brand-color; background: $brand-color-light; }
+}
+/* 同类替代 */
+.alt-tip { margin-top: 20rpx; padding: 28rpx 0; text-align: center; font-size: 24rpx; color: $text-color-placeholder; }
+.alt-list { margin-top: 16rpx; max-height: 52vh; overflow-y: auto; }
+.alt-item { display: flex; align-items: center; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid $border-color;
+  &__img { border-radius: $radius-sm; background: $bg-color; flex-shrink: 0; }
+  &__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+  &__name { font-size: 26rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__meta { font-size: 20rpx; color: $text-color-secondary; }
+  &__price { font-size: 26rpx; font-weight: 600; color: $price-color; }
+  &.busy { opacity: .5; }
 }
 .cart-addons { margin-top: 14rpx; padding-top: 14rpx; border-top: 1rpx dashed $border-color;
   &__head { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }

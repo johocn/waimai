@@ -25,7 +25,8 @@
                 { "path": "pages/payment-schedule", "style": { "navigationBarTitleText": "%nav.paymentSchedule%" } },
                 { "path": "pages/delivery-track", "style": { "navigationBarTitleText": "%nav.deliveryTrack%" } },
                 { "path": "pages/guest-order", "style": { "navigationBarTitleText": "%nav.guestOrder%" } },
-                { "path": "pages/pickup-pass", "style": { "navigationBarTitleText": "%nav.pickupPass%" } }
+                { "path": "pages/pickup-pass", "style": { "navigationBarTitleText": "%nav.pickupPass%" } },
+                { "path": "pages/share-poster", "style": { "navigationBarTitleText": "%nav.poster%" } }
             ]
         },
         {

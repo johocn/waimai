@@ -61,8 +61,15 @@
         <button class="fav-empty__btn" @click="goHome">{{ $t('favorites.goHome') }}</button>
       </view>
       <view v-else class="fav-items">
+        <!-- 补货提醒：订阅过且已到货的收藏商品汇总提示 -->
+        <view v-if="arrivedCount > 0" class="restock-banner">
+          <text class="restock-banner__text">{{ $t('favorites.restockBanner').replace('{n}', String(arrivedCount)) }}</text>
+          <text class="restock-banner__clear" @click="clearArrived">{{ $t('favorites.restockBannerClear') }}</text>
+        </view>
         <view class="fav-item" v-for="p in itemList" :key="'fi-' + p.variantId" @click="openItem(p)">
           <VImage :src="p.image" width="100%" height="220rpx" class="fav-item__img" />
+          <text v-if="stockOf(p) === 'out'" class="fav-item__soldout">{{ $t('favorites.soldOut') }}</text>
+          <text v-else-if="isWatched(p)" class="fav-item__arrived">{{ $t('favorites.restockArrived') }}</text>
           <view class="fav-item__body">
             <text class="fav-item__name">{{ p.name || $t('favorites.itemFallback') }}</text>
             <text class="fav-item__store">{{ p.storeName || '' }}</text>
@@ -72,7 +79,10 @@
                 <text v-if="dropOf(p)" class="fav-item__old">¥{{ fen(dropOf(p).original) }}</text>
               </view>
               <view class="fav-item__acts">
-                <text class="fav-item__add" @click.stop="addCart(p)">{{ $t('favorites.addCart') }}</text>
+                <text v-if="stockOf(p) === 'out'" class="fav-item__restock" @click.stop="toggleRestock(p)">
+                  {{ isWatched(p) ? $t('favorites.restockCancel') : $t('favorites.restockWatch') }}
+                </text>
+                <text v-else class="fav-item__add" @click.stop="addCart(p)">{{ $t('favorites.addCart') }}</text>
                 <text class="fav-item__del" @click.stop="removeItem(p)">{{ $t('favorites.remove') }}</text>
               </view>
             </view>
@@ -165,6 +175,10 @@ import { useCartStore } from '../../stores/cart';
 import { useLocaleStore } from '../../stores/locale';
 import { routeText } from '../../utils/store-display';
 import { priceDrop } from '../../utils/fav-price';
+import {
+    readRestockWatch, toggleRestockWatch, readStockSnapshot, writeStockSnapshot, stockStateOf,
+    type RestockWatchItem, type StockState,
+} from '../../utils/restock';
 import VImage from '../../components/VImage.vue';
 
 const favorites = useFavoritesStore();
@@ -296,7 +310,7 @@ function dropOf(p: any) {
     return priceDrop(p?.variantId, p?.price);
 }
 
-/** 刷新收藏商品当前价：按渠道各拉一次商品，命中 variant 后用最新价覆盖（失败保留旧价） */
+/** 刷新收藏商品当前价：按渠道各拉一次商品，命中 variant 后用最新价覆盖（失败保留旧价）；同时记录库存快照 */
 async function refreshPrices() {
     const groups = new Map<string, Set<string>>();
     for (const v of itemList.value) {
@@ -308,6 +322,7 @@ async function refreshPrices() {
     }
     if (!groups.size) return;
     const prices = new Map<string, number>();
+    const stock: Record<string, StockState> = { ...readStockSnapshot() };
     await Promise.all(Array.from(groups.entries()).map(async ([token, ids]) => {
         const goods = await fetchProductListForChannel(token).catch(() => [] as any[]);
         for (const p of goods) {
@@ -316,10 +331,42 @@ async function refreshPrices() {
                 if (!ids.has(id)) continue;
                 const fen = Math.round(Number(v.priceWithTax));
                 if (Number.isFinite(fen) && fen > 0) prices.set(id, fen);
+                stock[id] = stockStateOf(v);
             }
         }
     }));
+    stockMap.value = stock;
+    writeStockSnapshot(stock);
     favorites.refreshVariantPrices(prices);
+}
+
+// —— 收藏商品补货提醒（本地订阅，进入页面按最新库存比对） ——
+const stockMap = ref<Record<string, StockState>>(readStockSnapshot());
+const watchList = ref<RestockWatchItem[]>(readRestockWatch());
+function stockOf(p: any): StockState {
+    return stockMap.value[String(p?.variantId ?? '')] ?? 'ok';
+}
+function isWatched(p: any): boolean {
+    return watchList.value.some((x) => x.variantId === String(p?.variantId ?? ''));
+}
+/** 已到货 = 订阅过且当前有货 */
+const arrivedCount = computed(() => itemList.value.filter((p) => isWatched(p) && stockOf(p) === 'ok').length);
+function toggleRestock(p: any) {
+    const token = p?.channelToken
+        || stores.value.find((s: any) => String(s.channelId) === String(p?.channelId))?.channelToken
+        || '';
+    watchList.value = toggleRestockWatch({ variantId: String(p?.variantId ?? ''), name: p?.name, channelToken: token });
+    const watched = isWatched(p);
+    uni.showToast({ title: locale.t(watched ? 'favorites.restockWatchOk' : 'favorites.restockCancelOk'), icon: 'none' });
+}
+/** 一键取消全部「已到货」订阅 */
+function clearArrived() {
+    for (const p of itemList.value) {
+        if (isWatched(p) && stockOf(p) === 'ok') {
+            watchList.value = toggleRestockWatch({ variantId: String(p.variantId) });
+        }
+    }
+    uni.showToast({ title: locale.t('favorites.restockCancelOk'), icon: 'none' });
 }
 
 // —— 店铺动态：本地记录已见商品 ID，用于区分「上新」与常规商品 ——
@@ -356,6 +403,7 @@ onShow(async () => {
     await favorites.loadRemote().catch(() => {});
     stores.value = await fetchStoreList().catch(() => [] as any[]);
     await favorites.hydrateVariantMeta(stores.value);
+    watchList.value = readRestockWatch();
     void refreshPrices();
     if (tab.value === 'dynamics') dynLoaded.value = false;
 });
@@ -542,19 +590,29 @@ function goHome() {
   &__go { font-size: 32rpx; color: $text-color-placeholder; }
 }
 .fav-items { display: flex; flex-wrap: wrap; gap: 16rpx; }
-.fav-item { width: calc(50% - 8rpx); background: $surface; border-radius: $radius-md; padding: 16rpx; box-sizing: border-box;
+.fav-item { position: relative; width: calc(50% - 8rpx); background: $surface; border-radius: $radius-md; padding: 16rpx; box-sizing: border-box;
   &__img { border-radius: $radius-sm; background: $bg-color; display: block; width: 100%; height: 220rpx; }
+  &__soldout, &__arrived { position: absolute; top: 24rpx; left: 24rpx; font-size: 20rpx; color: #fff; border-radius: 6rpx; padding: 2rpx 10rpx; }
+  &__soldout { background: rgba(0, 0, 0, .62); }
+  &__arrived { background: #2e7d32; }
   &__body { display: flex; flex-direction: column; gap: 6rpx; margin-top: 12rpx; }
   &__name { font-size: 26rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__store { font-size: 22rpx; color: $text-color-secondary; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  &__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4rpx; gap: 8rpx; }
+  &__foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; row-gap: 8rpx; margin-top: 4rpx; gap: 8rpx; }
   &__prices { display: flex; align-items: baseline; gap: 8rpx; min-width: 0; }
   &__price { font-size: 28rpx; color: $price-color; font-weight: 600; }
   &__old { font-size: 20rpx; color: $text-color-placeholder; text-decoration: line-through; }
   &__drop { align-self: flex-start; margin-top: 4rpx; font-size: 20rpx; color: #fff; background: #ff6600; border-radius: 999rpx; padding: 2rpx 12rpx; }
-  &__acts { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; }
+  &__acts { display: flex; align-items: center; gap: 12rpx; flex-shrink: 0; margin-left: auto; }
   &__add { font-size: 22rpx; color: #fff; background: $brand-color; border-radius: 999rpx; padding: 6rpx 22rpx; font-weight: 600; }
   &__del { font-size: 22rpx; color: $text-color-placeholder; padding: 4rpx 10rpx; border: 1rpx solid $border-color; border-radius: 999rpx; }
+  &__restock { font-size: 22rpx; color: $brand-color; border: 1rpx solid $brand-color; border-radius: 999rpx; padding: 4rpx 18rpx; }
+}
+/* 补货提醒汇总条 */
+.restock-banner { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12rpx; margin-bottom: 4rpx;
+  padding: 14rpx 20rpx; border-radius: $radius-md; background: #eef8ee; border: 1rpx solid #b7dfb9;
+  &__text { font-size: 24rpx; color: #2e7d32; font-weight: 600; }
+  &__clear { font-size: 22rpx; color: #2e7d32; text-decoration: underline; }
 }
 .fav-empty { padding: 120rpx 0; display: flex; flex-direction: column; align-items: center; gap: 16rpx;
   &__ico { font-size: 72rpx; }

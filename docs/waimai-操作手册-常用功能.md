@@ -2253,3 +2253,70 @@
 | 对称场景 | 单规格商品点击不弹层、直接加购；全部规格加入后卡片消失（逻辑与首轮断言一致） |
 | 构建/部署 | `pnpm build:h5` 通过并已部署；线上购物车页回归无报错 |
 | 手机视口截图 | [182-rec-multi-variant-badge.png](screenshots/common-features-v26/182-rec-multi-variant-badge.png)、[183-rec-variant-sheet.png](screenshots/common-features-v26/183-rec-variant-sheet.png)、[184-rec-variant-added.png](screenshots/common-features-v26/184-rec-variant-added.png) |
+
+## 134 晒单海报 / 失效餐品同类替代 / 收藏补货提醒（第二十七轮，2026-10-23）
+
+### 134.1 晒单海报
+
+入口：订单详情操作区「生成晒单海报」→ `src/pkg-order/pages/share-poster.vue`（路由 `#/pkg-order/pages/share-poster?code=<订单号>&shop=<店铺名>`）
+
+实现：uni canvas 离屏绘制 750×1180 文字海报（品牌渐变头图 + 店铺名 + 实付金额 + 菜品最多 4 行 + 虚线分割 + 订单号 + 寄语），`uni.canvasToTempFilePath` 转图后展示；「保存图片」在 H5 保存相册失败时回退为预览（长按保存），「分享给好友」微信内走 JS-SDK 卡片、其它环境复制订单链接。
+
+数据：`getOrderByCode(code)`（`src/api/queries/order.ts`）。
+
+### 134.2 失效餐品同类替代
+
+入口：购物车售罄/下架行右侧「换同类」（`src/pkg-order/pages/cart.vue`）
+
+规则：
+1. 仅「售罄 / 下架」行提供替换（变价行仍可正常改数量），判定复用 `lineIssueOf` + `isRemovableIssue`；
+2. 候选来自同店商品目录：优先与失效商品共享 collection（同分类），不足时补同店其它在售商品，按「同类优先 → 价格升序」取前 6；
+3. 替换 = 移除原行 + 以原数量加购所选规格，成功后刷新凑单推荐并 toast「已替换为同类商品」；
+4. 商品目录与凑单推荐共用 `ensureCatalog` 缓存，一次打开购物车只按店铺拉一次。
+
+同时修复库存判定缺陷：旧的 `Number(v.stockLevel) > 0` 在真实 shop-api 下恒为 `NaN`（`stockLevel` 是枚举字符串 `IN_STOCK` / `LOW_STOCK` / `OUT_OF_STOCK` / `null`=商家不跟踪库存），会把所有商品判为不可售；现统一按枚举判断，并新增 `stockText()` 展示「有货 / 仅剩少量 / 库存充足」。
+
+### 134.3 收藏商品补货提醒
+
+入口：我的收藏 → 收藏商品（`src/pkg-user/pages/favorites.vue`），工具 `src/utils/restock.ts`
+
+存储：`restock_watch`（订阅清单 variantId/name/channelToken/at）、`fav_stock_snapshot`（上次库存快照）
+
+流程：
+1. 进入收藏商品页时按收藏商品所属店铺拉一次商品目录，记录各规格库存状态（兼容枚举与旧数字）；
+2. 售罄商品显示「已售罄」角标 + 「到货提醒」按钮，点击订阅；再点变「取消提醒」；
+3. 已订阅且当前有货 → 显示「已到货」徽标并可加购；页面顶部汇总「有 N 件收藏商品补货了」，可一键「全部取消提醒」；
+4. 纯本机记录，无后端改动，换设备/清缓存后失效。
+
+### 134.4 搜索联想与热门搜索（回归）
+
+既有能力复核（本轮未改代码）：`src/utils/search.ts`（历史最多 10 条、热搜取店铺标签、商品匹配）+ `src/pages/home/index.vue`（热搜 chip、历史/热搜/店铺/商品联想面板）。
+
+### 134.5 验收断言
+
+验收方式：Playwright 390×844 dpr=2 手机视口；店铺/购物车/商品目录/订单由脚本注入模拟响应（含枚举库存 `IN_STOCK` / `OUT_OF_STOCK`），其余请求透传线上真实接口。
+
+| 断言项 | 结果 |
+|---|---|
+| 失效行入口 | 红烧牛肉面行显示「已售罄」徽标 + 「换同类」按钮，正常行不显示（通过） |
+| 替代弹层 | 标题「换一份同类」、提示「「红烧牛肉面」已失效，以下是同店同类在售商品」，候选 3 个：酸辣米线 ¥16.00（同分类排首）→ 冰镇酸梅汤 ¥5.00 → 藤椒鸡腿饭 ¥20.00，均标「有货」（通过） |
+| 一键替换 | 点击第一项后请求依次为 `removeOrderLine` + `addItemToOrder{"productVariantId":"v-noodle","quantity":1}`；弹层关闭，行变为「藤椒鸡腿饭 / 酸辣米线」，失效按钮消失（通过） |
+| 补货横幅 | 顶部「有 1 件收藏商品补货了」+「全部取消提醒」（通过） |
+| 售罄/到货标识 | 红烧牛肉面「已售罄」+「到货提醒」；藤椒鸡腿饭「已到货」+「加购」（通过） |
+| 订阅到货提醒 | 点击后 `restock_watch` 由 1 条变 2 条，按钮文案变「取消提醒」并 toast「已订阅到货提醒」（通过） |
+| 海报生成 | 订单 WM20261023001 海报成功生成（图片 `src` 为 `data:image/png;base64,…`），展示店铺/金额 ¥30.00/2 件/菜品 2 行/订单号（通过） |
+| 海报操作 | 「保存图片」「分享给好友」双按钮 + 提示「长按海报图片即可保存到相册」（通过） |
+| 详情入口 | 订单详情操作区含「分享订单」「生成晒单海报」「电子小票」（通过） |
+| 搜索回归 | 聚焦搜索框后展示「搜索历史」（鸡腿饭/奶茶）+「热搜」（川菜/面食/川味小馆）（通过） |
+| 布局修复 | 收藏商品双列卡片底部价格与「到货提醒/取消收藏」在小屏会挤压重叠，已改为 `flex-wrap` 折行 + 操作区右对齐（通过） |
+| i18n | 新增 `poster.*`(18)、`cart.alt*`/`recStock*`(9)、`favorites.restock*`(8)、`orderDetail.posterBtn`(1)、`nav.poster` 1 条×3 文件，中英同步 |
+| 构建/部署 | `pnpm build:h5` 通过；新增 `share-poster` 页面路由与 chunk 线上 200 |
+| 手机视口截图 | 390×844 dpr=2，共 8 张（185-191，存放 `docs/screenshots/common-features-v27/`） |
+
+边界与已知限制：
+- 海报为纯文字版式（不含商品图），规避 H5 canvas 跨域污染；版式固定 750×1180，菜品超过 4 行合并为「等 N 件」；H5 不支持保存相册时回退预览长按保存；
+- 同类替代以「分类交集」判定同类，无分类的店铺退化为全店在售商品；替换是「删一行 + 加一行」，跨行满减/赠品由服务端重算；
+- 补货提醒为「本机订阅 + 进入页面比对」，不做服务端推送；`stockLevel` 为 `null`（商家不跟踪库存）时视为有货；
+- 本轮为纯前端改动，无后端发布、无新增字段。
+
+截图：[185-cart-soldout-swap-btn.png](screenshots/common-features-v27/185-cart-soldout-swap-btn.png)、[186-cart-alternatives-sheet.png](screenshots/common-features-v27/186-cart-alternatives-sheet.png)、[186b-cart-alt-swapped.png](screenshots/common-features-v27/186b-cart-alt-swapped.png)、[187-fav-restock-banner.png](screenshots/common-features-v27/187-fav-restock-banner.png)、[188-fav-restock-subscribed.png](screenshots/common-features-v27/188-fav-restock-subscribed.png)、[189-share-poster.png](screenshots/common-features-v27/189-share-poster.png)、[190-order-detail-poster-entry.png](screenshots/common-features-v27/190-order-detail-poster-entry.png)、[191-home-search-hot-history.png](screenshots/common-features-v27/191-home-search-hot-history.png)

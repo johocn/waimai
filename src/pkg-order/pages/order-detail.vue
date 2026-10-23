@@ -237,6 +237,7 @@
       <button v-if="canReview" class="action-btn" @click="goReview">{{ $t('orderDetail.reviewBtn') }}</button>
       <button class="action-btn action-btn--primary" @click="reorder">{{ $t('orderDetail.reorderBtn') }}</button>
       <button class="action-btn action-btn--ghost" @click="shareOrder">{{ $t('orderDetail.shareOrderBtn') }}</button>
+      <button class="action-btn action-btn--ghost" @click="goPoster">{{ $t('orderDetail.posterBtn') }}</button>
       <button class="action-btn action-btn--ghost" @click="goReceipt">{{ $t('orderDetail.receiptBtn') }}</button>
     </view>
 
@@ -468,14 +469,24 @@ function startEtaTicker() {
 }
 function stopEtaTicker() { if (etaTimer) { clearInterval(etaTimer); etaTimer = null; } }
 /** 店铺配送时长：优先按 channelToken 匹配，回退店名 */
+const shopNameOfOrder = ref('');
 async function loadEtaMinutes() {
     try {
         const list: any[] = await fetchStoreList();
         const o = order.value;
         const hit = list.find(s => s.channelToken === o?.channelToken) || list.find(s => s.name === o?.channelName);
+        if (hit?.name) shopNameOfOrder.value = String(hit.name);
         const mins = Number(hit?.deliveryMinutes);
         if (Number.isFinite(mins) && mins > 0) etaMinutes.value = mins;
     } catch (e) { /* 静默：无配置按默认 40 分钟估算 */ }
+}
+/** 晒单海报：带订单号与店名进入绘图页 */
+function goPoster() {
+    if (!order.value?.code) return;
+    uni.navigateTo({
+        url: '/pkg-order/pages/share-poster?code=' + encodeURIComponent(order.value.code)
+            + '&shop=' + encodeURIComponent(shopNameOfOrder.value),
+    });
 }
 // 「平台调度中」降级（spec §5.4）：无骑手且在大厅停留超 2 分钟
 const dispatching = computed(() => {

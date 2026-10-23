@@ -129,3 +129,23 @@ export const CAMPUS_CHANGE_DELIVERY_ADDRESS = gql`
 export function changeDeliveryAddress(v: { orderId: string; zoneId: string; buildingId: string; detail?: string }) {
     return getGraphQLClient().request(CAMPUS_CHANGE_DELIVERY_ADDRESS, v).then((r: any) => r?.campusChangeDeliveryAddress);
 }
+
+/** 本单最近一次改址（差额状态感知：待补/待退/已结清） */
+export const CAMPUS_MY_ADDRESS_CHANGE = gql`
+    query campusMyAddressChange($orderId: ID!) {
+        campusMyAddressChange(orderId: $orderId) {
+            id
+            diff
+            status
+            settleAction
+            fromZone
+            fromBuilding
+            toZone
+            toBuilding
+            createdAt
+        }
+    }
+`;
+export function fetchMyAddressChange(orderId: string) {
+    return getGraphQLClient().request(CAMPUS_MY_ADDRESS_CHANGE, { orderId }).then((r: any) => r?.campusMyAddressChange ?? null);
+}

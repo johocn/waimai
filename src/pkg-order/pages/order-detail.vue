@@ -176,6 +176,15 @@
       </view>
       <text class="addr-change__cur">{{ $t('orderDetail.changeAddrCurrent').replace('{t}', currentAddrText) }}</text>
       <text class="addr-change__hint">{{ canChangeAddr ? $t('orderDetail.changeAddrHint') : $t('orderDetail.changeAddrLocked') }}</text>
+      <!-- 改址运费差额状态条：待补 / 待退 / 已结清 -->
+      <view class="addr-diff" v-if="addrLatest" :class="addrLatestClass">
+        <view class="addr-diff__top">
+          <text class="addr-diff__label">{{ addrLatestText }}</text>
+          <text class="addr-diff__tag">{{ addrLatestTag }}</text>
+        </view>
+        <text class="addr-diff__meta">{{ addrLatestMeta }}</text>
+        <text class="addr-diff__note" v-if="addrLatest.status === 'pending'">{{ $t('orderDetail.diffStripNote') }}</text>
+      </view>
     </view>
 
     <view class="section" v-if="!campusRoute && order.shippingAddress">
@@ -376,7 +385,7 @@ import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
 import { getGraphQLClient } from '../../api/client';
-import { fetchOrderRider, urgeOrder, fetchZones, fetchBuildings, changeDeliveryAddress } from '../../api/mutations/campus';
+import { fetchOrderRider, urgeOrder, fetchZones, fetchBuildings, changeDeliveryAddress, fetchMyAddressChange } from '../../api/mutations/campus';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { orderEta, clockHM } from '../../utils/order-eta';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
@@ -697,6 +706,7 @@ onMounted(async () => {
             ?? mine.find(r => r.order?.id === order.value?.id) ?? null;
     } catch (e) { /* 未登录等场景静默 */ }
     loadPickupCode();
+    void loadAddrLatest();
     void loadScheduleFlag();
     void loadPackageFlag();
     startRiderPolling();
@@ -761,6 +771,35 @@ const addrResultText = computed(() => {
         ? locale.t('orderDetail.changeDiffCollect').replace('{y}', y)
         : locale.t('orderDetail.changeDiffRefund').replace('{y}', y);
 });
+// 最近一次改址的差额状态（待补/待退/已结清）；失败静默，不影响主流程
+const addrLatest = ref<any>(null);
+const addrLatestClass = computed(() => {
+    const r = addrLatest.value; if (!r) return '';
+    if (r.status === 'settled') return 'done';
+    return Number(r.diff) > 0 ? 'collect' : Number(r.diff) < 0 ? 'refund' : 'done';
+});
+const addrLatestText = computed(() => {
+    const r = addrLatest.value; if (!r) return '';
+    const y = (Math.abs(Number(r.diff ?? 0)) / 100).toFixed(2);
+    if (r.status !== 'settled') {
+        return Number(r.diff) > 0
+            ? locale.t('orderDetail.diffStripCollect').replace('{y}', y)
+            : locale.t('orderDetail.diffStripRefund').replace('{y}', y);
+    }
+    if (r.settleAction === 'collect') return locale.t('orderDetail.diffStripSettledCollect').replace('{y}', y);
+    if (r.settleAction === 'refund') return locale.t('orderDetail.diffStripSettledRefund').replace('{y}', y);
+    return locale.t('orderDetail.diffStripSettledWaive');
+});
+const addrLatestTag = computed(() => (addrLatest.value?.status === 'settled' ? locale.t('orderDetail.diffStripTagDone') : locale.t('orderDetail.diffStripTagPending')));
+const addrLatestMeta = computed(() => {
+    const r = addrLatest.value; if (!r) return '';
+    return `${r.fromZone} ${r.fromBuilding} → ${r.toZone} ${r.toBuilding}`;
+});
+async function loadAddrLatest() {
+    if (!order.value?.id) return;
+    try { addrLatest.value = await fetchMyAddressChange(String(order.value.id)); } catch (e) { /* 静默 */ }
+}
+
 async function openAddrChange() {
     if (!canChangeAddr.value) return;
     addrShow.value = true;
@@ -812,6 +851,7 @@ async function submitAddrChange() {
         });
         addrResult.value = { diff: Number(r?.diff ?? 0) };
         await reloadOrder();
+        void loadAddrLatest();
     } catch (e: any) {
         uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('orderDetail.changeFail'), icon: 'none' });
     } finally {
@@ -1231,6 +1271,18 @@ async function confirmReorder() {
   &__btn { font-size: 26rpx; color: $brand-color; padding: 8rpx 0 8rpx 24rpx; }
   &__cur { display: block; font-size: 26rpx; color: $text-color; margin-top: 8rpx; }
   &__hint { display: block; font-size: 22rpx; color: $text-color-placeholder; margin-top: 6rpx; }
+}
+.addr-diff {
+  margin-top: 14rpx; padding: 18rpx 20rpx; border-radius: $radius-md;
+  background: #f7f8fa; border-left: 6rpx solid $border-color;
+  &.collect { background: #fff7ec; border-left-color: #f59e0b; }
+  &.refund { background: #eef6ff; border-left-color: #2f7cf6; }
+  &.done { background: #f2fbf5; border-left-color: #16a34a; }
+  &__top { display: flex; align-items: center; justify-content: space-between; }
+  &__label { font-size: 26rpx; font-weight: 600; color: $text-color; }
+  &__tag { font-size: 20rpx; color: $text-color-secondary; background: #fff; border-radius: 999rpx; padding: 2rpx 14rpx; }
+  &__meta { display: block; font-size: 22rpx; color: $text-color-secondary; margin-top: 6rpx; }
+  &__note { display: block; font-size: 20rpx; color: $text-color-placeholder; margin-top: 6rpx; }
 }
 .addr-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 0 48rpx; }
 .addr-dialog { width: 100%; max-height: 76vh; background: #fff; border-radius: 24rpx; padding: 36rpx 32rpx; display: flex; flex-direction: column; }

@@ -2515,3 +2515,70 @@
 - 单品分享链接不含价格快照，好友看到的是该店铺当前菜单与价格。
 
 截图：[203-taste-profile-empty.png](screenshots/common-features-v29/203-taste-profile-empty.png)、[204-taste-profile-selected.png](screenshots/common-features-v29/204-taste-profile-selected.png)、[205-menu-dish-share-bar.png](screenshots/common-features-v29/205-menu-dish-share-bar.png)、[205b-menu-dish-added.png](screenshots/common-features-v29/205b-menu-dish-added.png)、[206-menu-taste-warning.png](screenshots/common-features-v29/206-menu-taste-warning.png)、[207-menu-dish-gone.png](screenshots/common-features-v29/207-menu-dish-gone.png)、[208a-cart-hold-entry.png](screenshots/common-features-v29/208a-cart-hold-entry.png)、[208-cart-hold-list.png](screenshots/common-features-v29/208-cart-hold-list.png)、[208b-cart-hold-bump.png](screenshots/common-features-v29/208b-cart-hold-bump.png)、[208c-cart-hold-restored.png](screenshots/common-features-v29/208c-cart-hold-restored.png)、[209-checkout-taste-entry.png](screenshots/common-features-v29/209-checkout-taste-entry.png)、[210-home-search-fallback.png](screenshots/common-features-v29/210-home-search-fallback.png)、[210b-home-search-fallback-scroll.png](screenshots/common-features-v29/210b-home-search-fallback-scroll.png)、[210c-home-search-guess-hot.png](screenshots/common-features-v29/210c-home-search-guess-hot.png)
+
+## 137. 点餐日程（用餐计划）——第 30 轮（2026-10-23）
+
+按周安排用餐计划：为某家店配置「餐段 + 送达时段 + 重复星期 + 商品清单」，到点前 30 分钟在本页与首页提醒，一键把整单商品带入购物车（**不自动下单扣款**）。纯本机能力（localStorage），零后端改动。
+
+### 137.1 入口与页面
+
+- 入口：我的 → 「点餐日程」（登录后可见；路由 `#/pkg-user/pages/meal-plan`，标题 `nav.mealPlan`）。
+- 页面结构（方案 A 周视图）：📅 hero → 到点提醒条（±30 分钟窗口内出现，点击一键带入）→ 周条 7 格（今日高亮、有计划的日期带橙点）→ 当日标题（今天 · M/D 周X + 本周 N 顿角标）→ 按「午餐 / 晚餐」分组的计划卡 → 空态 → 提示条 → 「＋ 新建用餐计划」CTA。
+- 计划卡：店名 + 启停 switch（暂停后不提醒不统计）、商品行 chips（名称 ×数量）、重复规则 tag（每天/工作日/周X·周Y）、送达时间、¥ 合计；操作行「编辑计划 / 一键带入」；**长按卡片删除**（确认弹窗）。
+- 编辑器（底部弹层）：餐段 chips（午餐 11:00 / 晚餐 17:30 默认，picker 自定义时间）→ 重复星期 chips（每天/工作日快捷）→ 店铺候选横滑 chips → 商品行步进器（+/-，0-20）→ 保存校验（未选店/未选日/未选商品 toast 提示）。
+
+### 137.2 实现细节
+
+| 文件 | 说明 |
+|---|---|
+| `src/utils/meal-plan.ts` | 存储与纯函数层：`normalizePlan`（脏数据过滤：slot 回退、days 1-7 去重排序、time 00:00-23:59 校验、行数量钳 1-20）、`readMealPlans`（坏 JSON 返回空、createdAt 倒序、截 20 条）、`upsert/removePlanById/setPlanEnabled`、`planHits/planTimeOn`（ISO 星期 1-7）、`nextOccurrence`（8 天窗口找下一顿，含当日已过点场景）、`imminentPlans`（送达时段前 30min 至后 30min 提醒/带入窗口）、`weekPlanCount`、`repeatLabel`、`fenText`（分→元文本） |
+| `src/utils/meal-plan-order.ts` | `addPlanToCart(plan)`：逐行 `addItemToOrderInChannel(plan.storeToken, …)` 跨店加购（固定 vendure-token 指向计划店铺渠道）→ `useCartStore().setOrder` → toast；失败不中断提示 |
+| `src/pkg-user/pages/meal-plan.vue` | 页面（`mp-` BEM 前缀）；店铺候选 = 常买店铺 + 足迹店铺 + 云端收藏店铺（fetchStoreList ∩ 本地收藏 ids，失败静默）；商品候选 = 收藏商品 + 常买商品 + 足迹（按所选店铺过滤）；冷启动零后端依赖 |
+| `src/pages/home/index.vue` | 首页 `plan-banner` 提醒横幅（搜索框下方）：`imminentPlans(readMealPlans())[0]`，挂靠首页每分钟 `nowTick` 重算；「一键带入」成功后跳购物车；✕ 关闭本次不再弹 |
+| `src/pages.json` / `profile/index.vue` | 路由注册 + 我的页菜单行（登录可见） |
+| locale | `mealPlan.*` 45 键 + `profile.mealPlan`（zh-Hans/en 同步）；`nav.mealPlan` ×3（uni-app.json / uni-app.zh-Hans.json / uni-app.en.json） |
+
+存储键 `meal_plan`（JSON 数组，上限 20 条）。计划数据结构：`{ id, enabled, slot(lunch|dinner), time(HH:mm), days(1-7，1=周一), storeToken, storeName, routes?, lines[{variantId,name,qty,price?,image?}], createdAt }`。
+
+### 137.3 验收断言
+
+纯函数断言（`node .secrets/assert-v30.cjs`，esbuild 打包 `src/utils/meal-plan.ts` 后执行）：**50 项全部通过**（断言过程修复 2 个边界 bug：`validHM` 补 00-23/00-59 范围校验避免 `25:99` 滚动到次日；`nextOccurrence` 窗口 7→8 天，修复「当日已过点后找不到下一顿」）。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| 常量/星期 | PLAN_MAX=20、提醒窗口 30min、餐段默认 11:00/17:30、周日→7/周一→1/周六→6 | 通过 |
+| normalizePlan | 缺店铺/缺商品行/空星期丢弃、非法 slot 回退 lunch、`25:99` 回退默认、days 越界过滤+去重+排序、行缺 ID 剔除、数量钳 1-20、enabled 缺省启用 | 通过 |
+| 存储 round-trip | 空档/坏 JSON/非数组返回空数组、createdAt 倒序、upsert 自动生成 `mp*` id、超 20 条读时截断保留最新 | 通过 |
+| 增删改 | 更新原位替换不改顺序、启停生效、删除后减一 | 通过 |
+| 命中/时刻 | 周五命中/周六不命中、执行时刻=当日 17:30、未命中日 null | 通过 |
+| nextOccurrence | 周五 10:00→今晚 17:30、周五 18:00→下周五（8 天窗口）、停用不参与、多计划取最近、刚过点 1 分钟内仍算当前一顿 | 通过 |
+| imminentPlans | 前 29min 提醒、前 31min 不提醒、正刻提醒、后 29min 仍提醒（带入窗口）、后 31min 不提醒、非命中日不提醒、多条按时刻升序 | 通过 |
+| weekPlanCount | 单日 1 顿、工作日 5 顿、停用不计入、两条叠加 | 通过 |
+| repeatLabel | 全 7 天=每天、周一到五=工作日、其余升序「二·六」、重复值去重判定 | 通过 |
+| fenText | 2500→25、2550→25.5（去尾零）、2555→25.55、无价/0/负/NaN→空串、1 分→0.01 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本轮功能未部署，用本地静态服务 `dist/build/h5` + shop-api 全 mock，店铺/商品/计划为脚本注入模拟数据）：
+
+| 断言项 | 结果 |
+|---|---|
+| 日程页空态 | 「点餐日程 / 按周安排用餐，到点提醒一键下单」、周条 7 格今日（五 23）高亮、空态文案、CTA「＋ 新建用餐计划」、本周 0 顿（通过） |
+| 今日计划+提醒条 | 提醒条「⏰ 15:42 晚餐 · 深夜烧烤屋 / 到点前 30 分钟 · 点击一键带入购物车 / 一键带入」；周条 1 圆点、本周 2 顿；午餐/晚餐两组卡片：川味小馆（宫保鸡丁 ×1、酸梅汤 ×2、五、送达 11:00、¥38）与深夜烧烤屋（烤羊肉串 ×10、送达 15:42、¥60）（通过） |
+| 新建弹层 | 「新建用餐计划」、餐段 chips（午餐 11:00/晚餐/自定义时间）、星期 7 chips + 每天/工作日、店铺候选（川味小馆/深夜烧烤屋，来自常买+足迹+云端收藏合并）（通过） |
+| 选店选菜 | 选川味小馆 → 商品池（宫保鸡丁 ¥28/酸梅汤 ¥5）步进 +1/+2 → 工作日 5 天高亮（通过） |
+| 保存落库 | `meal_plan` 落 1 条（store/days[1-5]/lines 名称×数量）、卡片「工作日」tag、周条 5 圆点、「已保存」toast（通过） |
+| 编辑回填 | 点「编辑计划」→ 弹层回填店铺高亮、days 高亮（五）、商品数量 1/2（通过） |
+| 首页横幅 | `.plan-banner` 出现：「晚餐 15:42 · 深夜烧烤屋 / 一键带入」（通过） |
+| 一键带入 | 触发 1 次 `AddToCart`（跨店 vendure-token 指向计划店铺）、跳转 `#/pkg-order/pages/cart`、购物车展示「烤羊肉串」（通过） |
+| i18n | `mealPlan.*` 45 键 zh/en 同步（补漏 `mealPlan.save`，修复弹层按钮显示原始 key）、`profile.mealPlan`、`nav.mealPlan` ×3（通过） |
+| 构建 | `npm run build:h5` 通过，产物含 `pkg-user-pages-meal-plan.*.js`（通过） |
+
+### 137.4 边界与已知限制
+
+- 纯本机能力：计划不落服务端，换手机/清缓存/无痕模式会丢；同一账号多设备不同步；
+- H5 无推送，提醒是「到点检测」：打开本页或首页时（每分钟重算）才出现提醒条，页面没开着不会弹系统通知；
+- 不自动下单扣款：提醒/卡片上的「一键带入」需用户手动点击，带入后到购物车手动结算；
+- 带入按**当前价**重新加购，计划里存的价格仅用于合计预估；商品下架/售罄时加购会 toast 失败；
+- 店铺/商品候选来自本机元数据（常买店铺、收藏商品、常买商品、足迹）：全新设备无历史时编辑器会引导「去收藏」；
+- 长按删除为 H5 手势，桌面浏览器需按住鼠标左键模拟长按。
+
+截图：[211-meal-plan-empty.png](screenshots/common-features-v30/211-meal-plan-empty.png)、[212-meal-plan-imminent.png](screenshots/common-features-v30/212-meal-plan-imminent.png)、[213-meal-plan-cards.png](screenshots/common-features-v30/213-meal-plan-cards.png)、[214-meal-plan-sheet.png](screenshots/common-features-v30/214-meal-plan-sheet.png)、[215-meal-plan-sheet-picked.png](screenshots/common-features-v30/215-meal-plan-sheet-picked.png)、[216-meal-plan-saved.png](screenshots/common-features-v30/216-meal-plan-saved.png)、[217-meal-plan-edit-backfill.png](screenshots/common-features-v30/217-meal-plan-edit-backfill.png)、[218-home-plan-banner.png](screenshots/common-features-v30/218-home-plan-banner.png)、[218b-home-plan-go-cart.png](screenshots/common-features-v30/218b-home-plan-go-cart.png)

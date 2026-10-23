@@ -52,6 +52,16 @@
                 <text class="open-banner__go" @tap.stop="goOpened(openedList[0])">{{ $t('openWatch.go') }}</text>
                 <text class="open-banner__close" @tap.stop="dismissOpen">✕</text>
             </view>
+            <!-- 点餐日程到点提醒：送达时段前 30 分钟起（本机存储计划，一键带入购物车） -->
+            <view v-if="!loading && planBanner && planBanner.id !== planDismissed" class="plan-banner">
+                <text class="plan-banner__ico">⏰</text>
+                <view class="plan-banner__body">
+                    <text class="plan-banner__title">{{ $t(planBanner.slot === 'lunch' ? 'mealPlan.slotLunch' : 'mealPlan.slotDinner') }} {{ planBanner.time }} · {{ planBanner.store }}</text>
+                    <text class="plan-banner__sub">{{ $t('mealPlan.imminentHint') }}</text>
+                </view>
+                <text class="plan-banner__go" @tap.stop="goPlanCart">{{ $t('mealPlan.bannerGo') }}</text>
+                <text class="plan-banner__close" @tap.stop="dismissPlan">✕</text>
+            </view>
             <view class="quick">
                 <view class="qk" @tap="goOrders">
                     <view class="qico">🧾</view>
@@ -461,6 +471,8 @@ import { getStoreStatus, type StoreOpenState } from '../../utils/store-status';
 import { isWatched, watchStore, unwatchStore, openedWatched, type OpenedStore } from '../../utils/open-watch';
 import { currentMealSlot, recommendStores } from '../../utils/time-slot';
 import { readFootprint } from '../../utils/footprint';
+import { readMealPlans, imminentPlans } from '../../utils/meal-plan';
+import { addPlanToCart } from '../../utils/meal-plan-order';
 import { theme, initTheme, toggleTheme } from '../../utils/theme';
 import { useLocaleStore } from '../../stores/locale';
 import { useFavoritesStore } from '../../stores/favorites';
@@ -882,6 +894,26 @@ const mealSlotLabel = computed(() => {
 });
 const mealPicks = computed(() => (keyword.value ? [] : recommendStores(stores.value, mealSlot.value, 4)));
 const mealFilterable = computed(() => tagList.value.includes(mealSlot.value.filterTag));
+// ── 点餐日程到点提醒：送达时段前 30 分钟起显示，一键带入购物车 ──
+const planDismissed = ref('');
+const planBanner = computed(() => {
+    nowTick.value; // 每分钟重算，跨过提醒时刻自动出现/消失
+    const hit = imminentPlans(readMealPlans())[0];
+    if (!hit) return null;
+    return { id: hit.plan.id, slot: hit.plan.slot, time: hit.plan.time, store: hit.plan.storeName };
+});
+function dismissPlan() {
+    planDismissed.value = planBanner.value?.id ?? '';
+}
+let planBusy = false;
+async function goPlanCart() {
+    const hit = imminentPlans(readMealPlans())[0];
+    if (!hit || planBusy) return;
+    planBusy = true;
+    const ok = await addPlanToCart(hit.plan, (k: string) => locale.t(k));
+    planBusy = false;
+    if (ok) setTimeout(() => uni.navigateTo({ url: '/pkg-order/pages/cart' }), 500);
+}
 /** 查看全部：切到该时段对应类目并滚到店铺列表 */
 function showMealAll() {
     if (!mealFilterable.value) return;
@@ -1224,6 +1256,16 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
   &__sub { display: block; margin-top: 4rpx; font-size: 20rpx; color: #3b8f63; }
   &__go { flex-shrink: 0; font-size: 23rpx; color: #fff; background: #0a9d58; border-radius: 999rpx; padding: 6rpx 18rpx; }
   &__close { flex-shrink: 0; font-size: 24rpx; color: #6b9a7f; padding: 4rpx 6rpx; }
+}
+/* 点餐日程到点提醒（本机计划，一键带入购物车） */
+.plan-banner { display: flex; align-items: center; gap: 12rpx; margin: 16rpx 0; padding: 16rpx 18rpx;
+  background: #fff3e6; border: 1rpx solid #ffd9b3; border-radius: 16rpx;
+  &__ico { font-size: 28rpx; }
+  &__body { flex: 1; min-width: 0; }
+  &__title { display: block; font-size: 25rpx; color: #b34700; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__sub { display: block; margin-top: 4rpx; font-size: 20rpx; color: #c97a3d; }
+  &__go { flex-shrink: 0; font-size: 23rpx; color: #fff; background: #ff6600; border-radius: 999rpx; padding: 6rpx 18rpx; }
+  &__close { flex-shrink: 0; font-size: 24rpx; color: #c9926a; padding: 4rpx 6rpx; }
 }
 /* 筛选弹层 */
 /* z-index 需高于 uni tabbar（998），否则底部按钮被 tab 栏拦截点击 */

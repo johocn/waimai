@@ -80,7 +80,8 @@
                 { "path": "pages/bill-pay", "style": { "navigationBarTitleText": "%nav.billPay%" } },
                 { "path": "pages/checkin", "style": { "navigationBarTitleText": "%nav.checkin%" } },
                 { "path": "pages/vouchers", "style": { "navigationBarTitleText": "%nav.vouchers%" } },
-                { "path": "pages/subscriptions", "style": { "navigationBarTitleText": "%nav.subscriptions%" } }
+                { "path": "pages/subscriptions", "style": { "navigationBarTitleText": "%nav.subscriptions%" } },
+                { "path": "pages/meal-plan", "style": { "navigationBarTitleText": "%nav.mealPlan%" } }
             ]
         },
         {
@@ -95,7 +96,8 @@
                 { "path": "pages/jh-story", "style": { "navigationBarTitleText": "江湖志" } },
                 { "path": "pages/jh-admin", "style": { "navigationBarTitleText": "江湖运营后台" } },
                 { "path": "pages/jh-deaddrop", "style": { "navigationBarTitleText": "北山老树·死信箱" } },
-                { "path": "pages/jh-teahouse", "style": { "navigationBarTitleText": "听雨茶馆·暗号茶阵" } }
+                { "path": "pages/jh-teahouse", "style": { "navigationBarTitleText": "听雨茶馆·暗号茶阵" } },
+                { "path": "pages/jh-chamber", "style": { "navigationBarTitleText": "总舵密室·机关锁" } }
             ]
         },
         {

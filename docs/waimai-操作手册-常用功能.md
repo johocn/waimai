@@ -2836,23 +2836,24 @@
 
 | 项 | 说明 |
 |---|---|
-| 纯函数层 | `src/utils/category-collections.ts`：`catCategory`（一级品类：`__root_collection__` 子级优先，退首个子集，「全部」返回空串）、`catAggregate`（跨店聚合：在售 + 有品类，按月售降序 + id 稳定）、`catSort`、`catCategories`（Tab：款数降序 + 首次出现，最多 8 个）、`catGroups`（分组：款数降序，每区块最多 N 款）、`catFilter`（按品类过滤，空 = 全部） |
+| 纯函数层 | `src/utils/category-collections.ts`：`catCategory`（一级品类：`__root_collection__` 子级优先，退首个子集，「全部」返回空串）、`catAggregate`（跨店聚合：在售商品全收，无品类记空串；按月售降序 + id 稳定）、`catSort`、`catCategories`（Tab：款数降序 + 首次出现，最多 8 个）、`catGroups`（分组：款数降序，每区块最多 N 款；无品类归入 `CAT_OTHER` 兜底组）、`catFilter`（按品类过滤，空 = 全部，`CAT_OTHER` = 未分类） |
 | 页面 | `src/pkg-promotion/pages/category-collections.vue`：hero + 品类胶囊 + 分组横滑货架 / 选中品类双列全量 + 空态 + ⊕ 加购 + 进店；`onLoad` 首次加载、`onShow` 回页刷新；支持 `?cat=品类名` 直达 |
 | 刷新回退 | 刷新后若选中品类已无在售商品，自动回「全部」，避免空白页 |
 | 入口 | `pages.json` 注册 `pkg-promotion/pages/category-collections`；首页 `.cate-entry` 入口条（宫格下方、时段推荐上方） |
-| i18n | `categoryCollections.*` 15 键 + `home.actCate` / `home.actCateSub`（zh/en 同步）；`nav.categoryCollections` 三份 uni-app 导航文件同步 |
+| 未分类兜底 | 商品未配品类时不丢弃，归入「其他好物」分组（`CAT_OTHER = '__other__'`，展示名走 i18n `categoryCollections.other`）；hero 品类数 = 真实品类 + 兜底组，避免「0 个品类」却有货架 |
+| i18n | `categoryCollections.*` 16 键 + `home.actCate` / `home.actCateSub`（zh/en 同步）；`nav.categoryCollections` 三份 uni-app 导航文件同步 |
 
-纯函数断言（`node .secrets/assert-v35.cjs`，esbuild 打包 `src/utils/category-collections.ts`）：**49 项全部通过**。
+纯函数断言（`node .secrets/assert-v35.cjs`，esbuild 打包 `src/utils/category-collections.ts`）：**53 项全部通过**。
 
 | 断言组 | 覆盖项 | 结果 |
 |---|---|---|
 | catCategory | 根品类优先 / 无根品类退首个子集 / 「全部」不算品类 / 无 collections / null 安全 | 通过 |
-| catAggregate | 排除售罄、无品类、空 token 组；店名/token/月售/图片；可售最低价与对应规格；全局月售降序；空数组与 null；不改入参 | 通过 |
+| catAggregate | 排除售罄、空 token 组，保留无品类（category 记空串）；店名/token/月售/图片；可售最低价与对应规格；全局月售降序；空数组与 null；不改入参 | 通过 |
 | catSort | 同销量按 id 数值升序；不改原数组 | 通过 |
 | catCategories | 款数降序 + 首次出现顺序；max 截断 / max 0；空列表 | 通过 |
-| catGroups | 分组数、分组顺序、组内月售降序、款数/店数、每区块截取上限、空列表 | 通过 |
-| catFilter | 过滤品类、过滤排序、空品类=全部、不存在品类=空、null 安全、不改原数组 | 通过 |
-| i18n/接线 | 15 键中英齐全且全量键集合一致；home 入口双语；三份导航含 nav.categoryCollections；pages.json 注册；首页入口与页面接线 | 通过 |
+| catGroups | 分组数（含兜底组）、分组顺序、组内月售降序、款数/店数、每区块截取上限、空列表、全部无品类→仅兜底组 | 通过 |
+| catFilter | 过滤品类、过滤排序、空品类=全部、兜底组=未分类、不存在品类=空、null 安全、不改原数组 | 通过 |
+| i18n/接线 | 16 键中英齐全且全量键集合一致；home 入口双语；三份导航含 nav.categoryCollections；pages.json 注册；首页入口与页面接线；兜底组展示名走 i18n | 通过 |
 
 页面验收（Playwright 390×844 dpr=2；本轮功能未部署时用本地静态服务 `dist/build/h5` + shop-api 全 mock；店铺/商品为脚本注入的模拟数据）：
 
@@ -2863,13 +2864,25 @@
 | 售罄排除 | 饮品店 4 款中「售罄柠檬茶」不入聚合，饮品区块为 3 款（通过） |
 | 选中品类 | 点「饮品」胶囊 → 高亮，双列全量 3 款（招牌奶茶 ¥12 / 紫米芋泥奶绿 ¥14 / 冰镇可乐 ¥5）+ 月售（通过） |
 | ⊕ 跨店加购 | 点 ⊕ → toast「已加入购物车」（通过） |
+| 未分类兜底 | 全部商品 `collections: []` 时：hero「1 个品类 · 3 家店铺 · 10 款在售」、无胶囊、单区块「其他好物 10 款 · 3 店」、10 张卡正常（无空态） |
+
+线上回归（`node .secrets/regress-v35.cjs`，生产真链路无 mock，**PASS**）：
+
+| 项 | 结果 |
+|---|---|
+| API 口径 | 2 家在营店铺 / 在售 5 款 / 生产商品均无品类 → 仅兜底组 `__other__`（5 款） |
+| 首页入口 | `.cate-entry` 存在，文案「品类合集」，活动宫格仍 8 项 |
+| 品类页 | 英雄区「1 个品类 · 2 家店铺 · 5 款在售」，单区块「其他好物 5 款 · 2 店」，5 张商品卡，无空态 |
+| 点「更多 ›」 | 双列全量 5 款，区块标题「其他好物」，无胶囊高亮（品类数 ≤1 时胶囊隐藏） |
+| 分包 chunk | 8692 字节，含 `categoryCollections` / `cc-card` |
+| 运行时报错 | pageErrors 0 |
 
 ### 142.3 边界与已知限制
 
-- **品类来源**：取商品所属 `__root_collection__` 的一级品类；无品类的商品不进入合集（正常上架商品都会有品类）。多品类商品只按首个一级品类归组，不重复出现在多个区块。
+- **品类来源**：取商品所属 `__root_collection__` 的一级品类；**无品类的商品归入「其他好物」兜底组**（不丢弃，生产环境当前商品均未配品类，页面也不会空态；运营在后台补品类后会自动归位）。多品类商品只按首个一级品类归组，不重复出现在多个区块。
 - **只收在售**：全部规格售罄的商品不进合集；价格取可售规格最低价，加购规格与该价格一致。
 - **区块上限**：分组态每区块展示前 10 款（月售降序），点「更多 ›」进入该品类全量双列，避免首页式长列表过长。
 - **跨店加购**：与热销榜同机制，加购写入对应店铺渠道订单；购物车已有其他店铺订单时由后端返回错误并 toast 提示。
 - **性能**：各店商品目录并发拉取（`Promise.all`），单店失败仅跳过该店。
 
-截图：[236-home-cate-entry.png](screenshots/common-features-v35/236-home-cate-entry.png)、[237-category-collections.png](screenshots/common-features-v35/237-category-collections.png)、[238-category-drinks.png](screenshots/common-features-v35/238-category-drinks.png)、[239-category-add-cart.png](screenshots/common-features-v35/239-category-add-cart.png)
+截图：[236-home-cate-entry.png](screenshots/common-features-v35/236-home-cate-entry.png)、[237-category-collections.png](screenshots/common-features-v35/237-category-collections.png)、[238-category-drinks.png](screenshots/common-features-v35/238-category-drinks.png)、[239-category-add-cart.png](screenshots/common-features-v35/239-category-add-cart.png)、[240-category-other-fallback.png](screenshots/common-features-v35/240-category-other-fallback.png)

@@ -2383,6 +2383,7 @@
     "empty": "No categories to browse yet",
     "emptyHint": "Items are grouped here once shops list them",
     "all": "All",
+    "other": "More picks",
     "more": "More",
     "itemCount": "{n} items",
     "storeCount": "{n} shops",

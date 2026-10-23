@@ -2383,6 +2383,7 @@
     "empty": "暂无可逛的品类",
     "emptyHint": "店铺上架商品后会自动归类到这里",
     "all": "全部",
+    "other": "其他好物",
     "more": "更多",
     "itemCount": "{n} 款",
     "storeCount": "{n} 店",

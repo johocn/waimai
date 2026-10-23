@@ -34,6 +34,9 @@ export interface CatSection {
     items: CatEntry[];
 }
 
+/** 未分类商品的兜底分组键（生产商品可能未配品类，不能直接丢弃） */
+export const CAT_OTHER = '__other__';
+
 /** 商品所属一级品类：与热销榜同口径（__root_collection__ 子级，缺失返回空串） */
 export function catCategory(g: any): string {
     return rankCategory(g);
@@ -52,7 +55,8 @@ export function catSort(list: CatEntry[]): CatEntry[] {
 }
 
 /**
- * 跨店聚合：仅收「在售 + 有一级品类」商品；空 token 组跳过，单店失败传空 products。
+ * 跨店聚合：收「在售」商品；空 token 组跳过，单店失败传空 products。
+ * 无一级品类的商品不丢弃，category 记空串，由 catGroups 归入「其他好物」兜底分组。
  */
 export function catAggregate(groups: CatStoreGroup[] | null | undefined): CatEntry[] {
     const list: CatEntry[] = [];
@@ -63,7 +67,6 @@ export function catAggregate(groups: CatStoreGroup[] | null | undefined): CatEnt
         (g.products ?? []).forEach((p: any) => {
             if (!hotHasStock(p)) return;
             const category = catCategory(p);
-            if (!category) return;
             list.push({
                 id: String(p?.id ?? ''),
                 name: String(p?.name ?? ''),
@@ -92,17 +95,17 @@ export function catCategories(list: CatEntry[], max = 8): string[] {
     return order.sort((a, b) => (count.get(b) || 0) - (count.get(a) || 0)).slice(0, Math.max(0, max));
 }
 
-/** 按品类分组：组序按款数降序（并列按首次出现顺序），组内按 catSort */
+/** 按品类分组：组序按款数降序（并列按首次出现顺序），组内按 catSort；无品类归入 CAT_OTHER */
 export function catGroups(list: CatEntry[], maxPerSection = 10): CatSection[] {
     const order: string[] = [];
     const map = new Map<string, { key: string; name: string; items: CatEntry[] }>();
     (list ?? []).forEach((e) => {
-        if (!e.category) return;
-        let g = map.get(e.category);
+        const key = e.category || CAT_OTHER;
+        let g = map.get(key);
         if (!g) {
-            g = { key: e.category, name: e.category, items: [] };
-            map.set(e.category, g);
-            order.push(e.category);
+            g = { key, name: key, items: [] };
+            map.set(key, g);
+            order.push(key);
         }
         g.items.push(e);
     });
@@ -121,8 +124,10 @@ export function catGroups(list: CatEntry[], maxPerSection = 10): CatSection[] {
         .sort((a, b) => b.count - a.count);
 }
 
-/** 按品类过滤（cat 为空 = 全部） */
+/** 按品类过滤（cat 为空 = 全部；CAT_OTHER = 未分类商品） */
 export function catFilter(list: CatEntry[], cat: string): CatEntry[] {
     const c = String(cat ?? '');
-    return c ? (list ?? []).filter((e) => e.category === c) : [...(list ?? [])];
+    if (!c) return [...(list ?? [])];
+    if (c === CAT_OTHER) return (list ?? []).filter((e) => !e.category);
+    return (list ?? []).filter((e) => e.category === c);
 }

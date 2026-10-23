@@ -28,7 +28,7 @@
         <view class="cc-sec__head">
           <view class="cc-sec__l">
             <view class="cc-sec__dot"></view>
-            <text class="cc-sec__nm">{{ s.name }}</text>
+            <text class="cc-sec__nm">{{ catName(s.key) }}</text>
             <text class="cc-sec__meta">{{ itemCount(s.count) }} · {{ storeUnit(s.storeCount) }}</text>
           </view>
           <text class="cc-sec__more" @tap="selectCat(s.key)">{{ $t('categoryCollections.more') }} ›</text>
@@ -58,7 +58,7 @@
       <view class="cc-sec__head cc-sec__head--single">
         <view class="cc-sec__l">
           <view class="cc-sec__dot"></view>
-          <text class="cc-sec__nm">{{ activeCat }}</text>
+          <text class="cc-sec__nm">{{ catName(activeCat) }}</text>
           <text class="cc-sec__meta">{{ itemCount(filtered.length) }} · {{ storeUnit(filteredStoreCount) }}</text>
         </view>
         <text class="cc-sec__more" @tap="selectCat('')">{{ $t('categoryCollections.all') }} ›</text>
@@ -90,7 +90,7 @@ import { addItemToOrderInChannel } from '../../api/mutations/cart';
 import { useCartStore } from '../../stores/cart';
 import { useLocaleStore } from '../../stores/locale';
 import {
-    catAggregate, catCategories, catFilter, catGroups,
+    CAT_OTHER, catAggregate, catCategories, catFilter, catGroups,
     type CatEntry, type CatStoreGroup,
 } from '../../utils/category-collections';
 
@@ -111,14 +111,20 @@ const sections = computed(() => catGroups(entries.value, 10));
 const filtered = computed(() => catFilter(entries.value, activeCat.value));
 const filteredStoreCount = computed(() => new Set(filtered.value.map((e) => e.storeToken)).size);
 
+/** 品类数：真实品类 + 未分类兜底组（有未分类商品时算 1 组，避免「0 个品类」却仍有货架） */
+const catCount = computed(() =>
+    cats.value.length + (sections.value.some((s) => s.key === CAT_OTHER) ? 1 : 0));
+
 const heroSub = computed(() =>
     locale.t('categoryCollections.sub')
-        .replace('{c}', String(cats.value.length))
+        .replace('{c}', String(catCount.value))
         .replace('{s}', String(shopCount.value))
         .replace('{m}', String(entries.value.length)));
 
 const itemCount = (n: number) => locale.t('categoryCollections.itemCount').replace('{n}', String(n));
 const storeUnit = (n: number) => locale.t('categoryCollections.storeCount').replace('{n}', String(n));
+/** 分组键 → 展示名（未分类兜底组走 i18n） */
+const catName = (key: string) => (key === CAT_OTHER ? locale.t('categoryCollections.other') : key);
 
 function fmtPrice(fen: number): string {
     const y = (Number(fen) || 0) / 100;

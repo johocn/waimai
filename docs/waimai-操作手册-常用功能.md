@@ -2957,3 +2957,62 @@
 - **性能**：按店铺并发拉取订单与商品目录（`Promise.all`），店铺数较多时请求数随店铺数线性增长。
 
 截图：[241-regulars-all.png](screenshots/common-features-v36/241-regulars-all.png)、[242-regulars-store-chip.png](screenshots/common-features-v36/242-regulars-store-chip.png)、[243-regulars-add-all.png](screenshots/common-features-v36/243-regulars-add-all.png)、[244-regulars-guest.png](screenshots/common-features-v36/244-regulars-guest.png)
+
+## 144 售罄智能替代（行内换同款）（第三十七轮，2026-10-23）
+
+入口：店铺菜单页（`pages/shop/menu`）商品列表中，售罄商品行下方自动出现「本菜售罄 · 换同款（N）」折叠条。
+
+### 144.1 功能说明
+
+- **定位**：菜品售罄时用户往往直接退出或勉强换一家，本功能在**售罄行原地**给出同店、同价位、可立即下单的替代，把「流失」变成「换个点」。
+- **行内入口**：售罄商品行下方一条浅绿提示条「本菜售罄 · 换同款（3）」，右侧 `⌄`；**无可用替代时不显示入口**（避免空点）。
+- **展开面板**：点提示条展开横滑替代卡（最多 3 款）：商品图、菜名、理由标签、价格、`+` 一键加购；再点提示条收起（`⌃`）。
+- **三种理由标签**：`同品类`（与售罄菜同一级品类，优先展示）→ `价位相近`（与售罄菜价差 ≤35%）→ `本店热销`（跨品类但月售 > 0）。
+- **替代排序**：同品类优先 → 好评分降序 → 月售降序 → 与目标价差比例升序 → 商品 id（稳定不抖动）。
+- **候选口径**：同店、有可售规格（`enabled !== false` 且非 `OUT_OF_STOCK`）、可售最低价 > 0、价格带在售罄菜价的 **0.6~1.8 倍**之间；排除售罄菜自身。
+- **加购**：单规格替代卡点卡或点 `+` 直接加 1 份；**多规格**替代卡点击打开原商品详情弹层选规格（与商品行一致），避免误加错规格。
+
+### 144.2 实现细节
+
+| 项 | 说明 |
+|---|---|
+| 纯函数层 | `src/utils/soldout-alternative.ts`：`saCategory`（一级品类，与热销榜/品类合集同口径）、`saAlternatives(products, target, options)`（筛选 + 排序 + 截断，返回 `SaItem`：`priceFen` / `category` / `sameCategory` / `rating` / `sales` / `priceGap`）、`saReason`（`sameCat` / `nearPrice` / `hot` 三档判定）、`saVariantId`（首个可售规格）、`saAvailableVariants`（可售规格数，>1 需选规格） |
+| 依赖复用 | 在售判定/最低价/月售复用 `hot-sale.ts`（`hotHasStock` / `hotMinPriceFen` / `hotSales`），品类复用 `hot-rank.ts`（`rankCategory`），与热销榜、品类合集、常点清单口径一致 |
+| 页面 | `src/pages/shop/menu.vue`：商品 `v-for` 包成 `<template v-for>`，每行后追加 `.alt-bar`（折叠条）与 `.alt-panel`（横滑替代卡）；`altMap` computed 只对售罄商品求候选（每款最多 3），`altOpenId` 控制单行展开，`showAltBar` 仅有候选才渲染 |
+| 布局要点 | 入口放在售罄行**下方独立条**而非行内按钮：售罄行有 `opacity:.5` 与分享/收藏浮动按钮，行内加按钮会变灰且定位冲突 |
+| 横滑容器 | `.alt-panel` 设 `min-width:0 / max-width:100% / overflow:hidden`，`.goods` 补 `min-width:0`：避免 `scroll-x` 内联行撑宽 flex 子项导致整列溢出屏幕 |
+| i18n | `menu.altBar`（含 `{n}` 占位）、`menu.altSameCat`、`menu.altNearPrice`、`menu.altHot` 中英同步 |
+
+纯函数断言（`node .secrets/assert-v37.cjs`，esbuild 打包 `src/utils/soldout-alternative.ts`）：**46 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| 候选筛选 | 排除自身 / 售罄 / 零价、价格带上下限（2.5 倍、0.1 倍排除）、同品类标记、跨品类标记、`priceFen` / `priceGap` / `category` 带入、不改入参 | 通过 |
+| 排序 | 同品类优先、同品类内评分→销量降序、跨品类按评分降序、评分销量相同按价差小者优先、全并列按 id 升序稳定 | 通过 |
+| 截断与参数 | 默认 `max=3`、`max=0` 空、自定义价格带 0.9~1.1 精确筛选 | 通过 |
+| 边界 | 未分类目标（全部 `sameCategory=false`）、空数组 / null 商品 / null 目标、目标零价仍可返回候选 | 通过 |
+| 理由标签 | 同品类→`sameCat`、跨品类价差 0.05→`nearPrice`、价差 0.5 有销量→`hot`、价差 0.5 零销量→`nearPrice`、null 安全 | 通过 |
+| 规格工具 | 首个可售规格、可售规格计数（1 / 2 / 0）、全不可售空串、null 安全 | 通过 |
+| i18n/接线 | 4 键中英齐全、`altBar` 含 `{n}`、全量键集合一致；菜单页引入纯函数、替代条/面板/卡片节点、仅有候选才显示、折叠开关 + 理由标签 + 多规格走选规格、i18n 键引用 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本轮功能未部署时用本地静态服务 `dist/build/h5` + shop-api 全 mock；预置 `auth_token` 模拟登录，店铺/商品目录为脚本注入的模拟数据）：
+
+| 断言项 | 结果 |
+|---|---|
+| 折叠态入口 | 售罄行「宫保鸡丁」下方出现「本菜售罄 · 换同款（3）」+ `⌄`，其余在售行无入口（`barCount = 1`，`panel = 0`） |
+| 展开替代 | 点提示条展开 3 张卡：鱼香肉丝 `同品类` ¥28.00、酸辣粉 `价位相近` ¥26.00、提拉米苏 `本店热销` ¥47.00；提示条箭头变 `⌃` |
+| 一键加购 | 点替代卡 `+` → toast「已加购」，购物车角标与底栏金额同步（合计 ¥31.00） |
+| 无候选降级 | 茶饮小站售罄「冰镇可乐」（唯一在售奶茶 6 倍价，超价格带）→ 售罄行无「换同款」入口（`barCount = 0`） |
+
+线上回归（`node .secrets/regress-v37.cjs`，生产真链路无 mock，见下方结果表）。
+
+### 144.3 边界与已知限制
+
+- **同店范围**：替代只在当前店铺菜单内找，不跨店推荐（跨店价格/配送时效不可比，易误导）。
+- **价格带**：0.6~1.8 倍是当前口径，适配料/主食/升级款场景；客单价特别低（如 2 元小菜）时可选范围会很小，属预期。
+- **售罄判定**：以「所有规格均不可售」为准；部分规格售罄的商品仍走原商品规格弹层，不由替代入口接管。
+- **理由标签优先级**：同品类 > 价位相近 > 本店热销，同一款只显示一个标签；跨品类且价差 >35% 但有月售才算「本店热销」。
+- **多规格替代**：点卡打开规格弹层而非直接加购，因此会多一步操作（避免加错规格）。
+- **只在菜单页**：本轮未接入常点清单页的「已下架」行；该页商品已下架/售罄时仅置灰。
+
+截图：[245-alt-bar-collapsed.png](screenshots/common-features-v37/245-alt-bar-collapsed.png)、[246-alt-panel-open.png](screenshots/common-features-v37/246-alt-panel-open.png)、[247-alt-add-to-cart.png](screenshots/common-features-v37/247-alt-add-to-cart.png)、[248-alt-bar-none.png](screenshots/common-features-v37/248-alt-bar-none.png)

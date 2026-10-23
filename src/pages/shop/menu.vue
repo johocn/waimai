@@ -156,8 +156,9 @@
                         <text class="good-search__txt">{{ $t('menu.searchChip').replace('{q}', productQuery) }}</text>
                         <text class="good-search__x" @tap="clearProductQuery">✕</text>
                     </view>
+                    <template v-for="g in goodsOf(activeCat)" :key="g.id">
                     <view
-                        v-for="g in goodsOf(activeCat)" :key="g.id" :id="'g-' + g.id"
+                        :id="'g-' + g.id"
                         class="good" :class="{ 'good--sold': goodSoldOut(g), 'good--hl': isSharedGood(g), 'good--top1': hotRank(g) === 1 }"
                         @tap="pickSku(g)"
                     >
@@ -193,6 +194,27 @@
                         <view class="good-share" @tap.stop="shareDish(g)">↗</view>
                         <view class="good-fav" :class="{ on: isGoodFav(g) }" @tap.stop="toggleGoodFav(g)">{{ isGoodFav(g) ? '♥' : '♡' }}</view>
                     </view>
+                    <!-- 售罄智能替代（第 37 轮）：行内「换同款」→ 展开同店同价位可售替代 -->
+                    <view v-if="showAltBar(g)" class="alt-bar" :class="{ open: altOpenId === String(g.id) }" @tap="toggleAlt(g)">
+                        <text class="alt-bar__txt">{{ $t('menu.altBar').replace('{n}', String(altCandidates(g).length)) }}</text>
+                        <text class="alt-bar__chev">{{ altOpenId === String(g.id) ? '⌃' : '⌄' }}</text>
+                    </view>
+                    <view v-if="showAltBar(g) && altOpenId === String(g.id)" class="alt-panel">
+                        <scroll-view scroll-x class="alt-panel__scroll">
+                            <view class="alt-panel__row">
+                                <view v-for="it in altCandidates(g)" :key="'alt-' + it.product.id" class="alt-card" @tap="altPick(it)">
+                                    <VImage :src="it.product.featuredAsset?.preview" width="116rpx" height="116rpx" class="alt-card__img" />
+                                    <text class="alt-card__nm">{{ it.product.name }}</text>
+                                    <text class="alt-card__why">{{ altReasonText(it) }}</text>
+                                    <view class="alt-card__foot">
+                                        <PriceTag :price="it.priceFen" />
+                                        <text class="alt-card__plus" @tap.stop="altPick(it)">+</text>
+                                    </view>
+                                </view>
+                            </view>
+                        </scroll-view>
+                    </view>
+                    </template>
                     <view class="scroll-pad"></view>
                     <EmptyState v-if="!goodsOf(activeCat).length" :text="$t('menu.emptyCat')" />
                 </scroll-view>
@@ -377,6 +399,7 @@ import { matchesProduct, readSearchHistory, pushSearchHistory, clearSearchHistor
 import { nextPromoHint, promoTiers, yuan } from '../../utils/promo';
 import { topDishes, hotVisible, hotRankOf, type HotDish } from '../../utils/hot-sale';
 import { naAgeDays, NEW_WINDOW_DAYS } from '../../utils/new-arrivals';
+import { saAlternatives, saReason, saAvailableVariants, type SaItem } from '../../utils/soldout-alternative';
 import { getStoreStatus } from '../../utils/store-status';
 import { theme, initTheme } from '../../utils/theme';
 import { sharePage } from '../../utils/share';
@@ -1112,6 +1135,45 @@ function goodLowStock(g: any): boolean {
     return variants.some(v => variantAvailable(v)) && variants.some(v => variantAvailable(v) && v.stockLevel === 'LOW_STOCK');
 }
 
+// —— 售罄智能替代（第 37 轮）：售罄商品 → 同店同价位可售替代，行内展开 ——
+const altOpenId = ref('');
+/** 售罄商品 id → 替代列表（只算售罄商品，最多 3 款） */
+const altMap = computed(() => {
+    const map = new Map<string, SaItem[]>();
+    products.value.forEach((p: any) => {
+        if (!goodSoldOut(p)) return;
+        const list = saAlternatives(products.value, p, { max: 3 });
+        if (list.length) map.set(String(p.id), list);
+    });
+    return map;
+});
+
+function altCandidates(g: any): SaItem[] {
+    return altMap.value.get(String(g?.id ?? '')) || [];
+}
+
+/** 有替代才显示「换同款」条，避免空入口 */
+function showAltBar(g: any): boolean {
+    return goodSoldOut(g) && altCandidates(g).length > 0;
+}
+
+function toggleAlt(g: any) {
+    const id = String(g?.id ?? '');
+    altOpenId.value = altOpenId.value === id ? '' : id;
+}
+
+function altReasonText(it: SaItem): string {
+    const r = saReason(it);
+    return locale.t(r === 'sameCat' ? 'menu.altSameCat' : r === 'nearPrice' ? 'menu.altNearPrice' : 'menu.altHot');
+}
+
+/** 点替代卡：单规格直接加购，多规格打开详情弹层选规格 */
+async function altPick(it: SaItem) {
+    if (!it?.product) return;
+    if (saAvailableVariants(it.product) > 1) { pickSku(it.product); return; }
+    await addToCart(it.product);
+}
+
 function findVariant(variantId: string): any {
     for (const p of products.value) {
         const hit = (p.variants ?? []).find((v: any) => String(v.id) === String(variantId));
@@ -1422,7 +1484,7 @@ function goCheckout() {
 .cats { width: 176rpx; background: var(--w-surface-muted); height: 100%; flex-shrink: 0; }
 .cat { padding: 28rpx 16rpx; font-size: 26rpx; color: var(--w-text-muted); }
 .cat.on { background: var(--w-surface); color: var(--w-text); font-weight: 600; border-left: 6rpx solid $brand; }
-.goods { flex: 1; background: var(--w-surface); padding: 8rpx 24rpx 0; box-sizing: border-box; height: 100%; }
+.goods { flex: 1; min-width: 0; background: var(--w-surface); padding: 8rpx 24rpx 0; box-sizing: border-box; height: 100%; }
 .good { display: flex; gap: 16rpx; padding: 20rpx 0; border-bottom: 1rpx solid var(--w-border); position: relative; }
 .good-img { flex-shrink: 0; background: var(--w-surface-muted); border-radius: $radius; overflow: hidden; }
 .good-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; padding-right: 120rpx; }
@@ -1456,6 +1518,19 @@ function goCheckout() {
 .add-btn { position: absolute; right: 0; bottom: 20rpx; min-width: 56rpx; height: 56rpx; border-radius: 999rpx; background: $brand; color: #fff; font-size: 36rpx; display: flex; align-items: center; justify-content: center; }
 .add-btn.spec { font-size: 22rpx; padding: 0 20rpx; font-weight: 600; }
 .add-btn.disabled { background: var(--w-surface-muted); color: var(--w-text-muted); }
+/* 售罄智能替代（第 37 轮）：行内换同款条 + 横滑替代卡 */
+.alt-bar { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 0 0 12rpx; padding: 12rpx 20rpx; border-radius: $radius; background: var(--w-brand-soft); }
+.alt-bar__txt { font-size: 22rpx; color: var(--w-brand-text); }
+.alt-bar__chev { font-size: 24rpx; color: var(--w-brand-text); }
+.alt-panel { margin: 0 0 16rpx; min-width: 0; max-width: 100%; overflow: hidden; }
+.alt-panel__scroll { width: 100%; max-width: 100%; white-space: nowrap; }
+.alt-panel__row { display: inline-flex; gap: 16rpx; padding: 4rpx 0; }
+.alt-card { width: 210rpx; flex: 0 0 auto; box-sizing: border-box; background: var(--w-surface-muted); border-radius: $radius; padding: 12rpx; display: flex; flex-direction: column; gap: 6rpx; }
+.alt-card__img { border-radius: 8rpx; }
+.alt-card__nm { font-size: 22rpx; color: var(--w-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alt-card__why { font-size: 20rpx; line-height: 1.4; color: var(--w-brand-text); background: var(--w-surface); border-radius: 999rpx; padding: 2rpx 10rpx; align-self: flex-start; }
+.alt-card__foot { display: flex; align-items: center; justify-content: space-between; margin-top: 2rpx; }
+.alt-card__plus { width: 44rpx; height: 44rpx; border-radius: 999rpx; background: $brand; color: #fff; font-size: 28rpx; display: flex; align-items: center; justify-content: center; }
 /* 商品收藏心标 + 搜索定位 chip（复用 --w-* 主题 token） */
 .good-fav { position: absolute; right: 0; top: 16rpx; width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; font-size: 36rpx; color: var(--w-text-muted); }
 .good-fav.on { color: #ff4d6d; }

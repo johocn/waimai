@@ -229,6 +229,25 @@
       <view class="promo-hint" v-if="promoNotice">{{ promoNotice }}</view>
       <!-- 起送价硬校验提示（提交会被阻断，后端 min-order process 兜底） -->
       <view class="min-order-hint" v-if="belowMinOrder">{{ $t('checkout.minOrderGap').replace('{d}', minOrderGapYuan) }}</view>
+      <!-- 凑单卡（第 33 轮）：差额内商品一键加购，加购后金额/运费减免实时刷新；template v-if（uni-view 的 v-if/v-show/:style patch 在 h5 均不生效） -->
+      <template v-if="upsellCard.open">
+        <view class="upsell-card">
+        <view class="upsell-card__hd">
+          <text class="upsell-card__t">{{ upsellCard.title }}</text>
+          <text class="upsell-card__save" v-if="upsellCard.save">{{ upsellCard.save }}</text>
+        </view>
+        <view class="upsell-card__bar"><view class="upsell-card__fill" :style="{ width: upsellCard.pct + '%' }"></view></view>
+        <text class="upsell-card__sub">{{ $t('checkout.upsellSub') }}</text>
+        <scroll-view scroll-x class="upsell-card__row">
+          <view v-for="it in upsellCard.items" :key="'up-' + it.p.id" class="up-item" @click="addUpsell(it)">
+            <VImage :src="it.p.featuredAsset?.preview" width="96rpx" height="96rpx" class="up-item__img" />
+            <text class="up-item__name">{{ it.p.name }}</text>
+            <text class="up-item__price">¥{{ (it.priceFen / 100).toFixed(2) }}</text>
+            <view class="up-item__add" :class="{ busy: upsellBusy === String(it.v.id) }">+</view>
+          </view>
+        </scroll-view>
+        </view>
+      </template>
       <view class="coupon-tip" v-if="switchSavingFen >= 100" @click="applyBestCoupon">
         {{ $t('checkout.couponBetter').replace('{d}', csYuan(switchSavingFen)) }} 一键换券 ›
       </view>
@@ -438,7 +457,9 @@ import { setDeliveryTarget, fetchZones, fetchBuildings, fetchSlots } from '../..
 import { createCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from '../../api/mutations/address';
 import { handlePayment, type PaymentMethod } from '../../composables/usePayment';
 import { useTenantStore } from '../../stores/tenant';
-import { fetchStoreList } from '../../api/queries/waimai';
+import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
+import { addItemToOrderInChannel } from '../../api/mutations/cart';
+import { upsellGapFen, upsellPick, upsellPct, type UpsellItem } from '../../utils/upsell';
 import { filterCampusRoutes } from '../../utils/errand';
 import { pickDefaultCampusAddress, isValidCampusTarget, parseInvoiceTitles, type InvoiceTitle } from '../../utils/profile-mapping';
 import { useAuthStore } from '../../stores/auth';
@@ -525,6 +546,7 @@ onShow(() => {
   const fresh = readTasteProfile();
   tasteProfile.value = fresh;
   tablewareCount.value = fresh.tableware;
+  void ensureUpsellCatalog(currentChannelToken.value); // 凑单目录幂等拉取（第 33 轮）
 });
 
 function noteHas(t: string): boolean {
@@ -844,6 +866,69 @@ const shipDisplayYuan = computed(() => {
 const shipOriginalYuan = computed(() => selectedZoneFeeFen.value != null ? (selectedZoneFeeFen.value / 100).toFixed(2) : '');
 const freeShipYuan = computed(() => freeShipFen.value != null ? (freeShipFen.value / 100).toFixed(2) : '');
 const freeShipShortYuan = computed(() => freeShipShortFen.value ? (freeShipShortFen.value / 100).toFixed(2) : '');
+
+// ===== 第 33 轮 结算页凑单：差价内商品一键加购，加购后金额/运费减免实时刷新 =====
+const upsellCatalog = ref<any[]>([]);
+const upsellCatalogToken = ref('');
+const upsellBusy = ref('');
+/** 目录按店铺缓存，onShow 幂等拉取（失败后下次 onShow 重试） */
+async function ensureUpsellCatalog(token: string) {
+    if (!token || (upsellCatalogToken.value === token && upsellCatalog.value.length)) return;
+    try {
+        const products = await fetchProductListForChannel(token);
+        upsellCatalog.value = Array.isArray(products) ? products : [];
+        upsellCatalogToken.value = token;
+    } catch { /* 静默失败：凑单卡依赖 items 空数组自动隐藏 */ }
+}
+const upsellGap = computed(() => {
+    if (!cart.order) return null;
+    const sub = Number(goodsFen.value) || 0;
+    const hint = nextPromoHint(promoText.value, sub);
+    return upsellGapFen(sub, {
+        minOrderFen: activeTab.value === 'campus' && minOrderFen.value != null ? minOrderFen.value : null,
+        tierGapFen: hint && !hint.reached ? hint.gapFen : null,
+        tierDiscountFen: hint && !hint.reached ? hint.discountFen : null,
+        freeShipFen: campusRouteSel.value && freeShipFen.value != null ? freeShipFen.value : null,
+    });
+});
+/** 当前运费（分）：校园 R1/R3 提交前用分区运费预估，否则用 order 实价 —— ship 档「省 ¥Y」取该值 */
+const upsellShipCostFen = computed(() => {
+    if (campusRouteSel.value && selectedZoneFeeFen.value != null) return selectedZoneFeeFen.value;
+    return Number(cart.order?.shippingWithTax) || 0;
+});
+/** 凑单卡单一数据源：open=false 时整卡隐藏（差额已达成或无候选）；避免多 computed 组合 v-if 在 h5 下的残留 */
+const upsellCard = computed(() => {
+    const g = upsellGap.value;
+    if (!g) return { open: false, title: '', save: '', pct: 0, items: [] as UpsellItem[] };
+    const d = yuan(g.fen);
+    let title: string; let save = '';
+    if (g.kind === 'min') title = locale.t('checkout.upsellMin').replace('{d}', d);
+    else if (g.kind === 'tier') title = locale.t('checkout.upsellTier').replace('{d}', d).replace('{y}', yuan(g.discountFen ?? 0));
+    else {
+        title = locale.t('checkout.upsellShip').replace('{d}', d);
+        if (upsellShipCostFen.value > 0) save = locale.t('checkout.upsellSave').replace('{d}', yuan(upsellShipCostFen.value));
+    }
+    const inCart = (cart.order?.lines ?? []).map((l: any) => String(l?.productVariant?.id ?? ''));
+    return { open: true, title, save, pct: upsellPct(goodsFen.value, g.thresholdFen), items: upsellPick(upsellCatalog.value, inCart, g.fen, 6) };
+});
+/** 加购推荐规格：返回最新 order 直接 setOrder，差额/进度/运费减免随 goodsFen 自动重算 */
+async function addUpsell(it: UpsellItem) {
+    if (upsellBusy.value) return;
+    const token = currentChannelToken.value;
+    if (!token || !it?.v?.id) return;
+    upsellBusy.value = String(it.v.id);
+    try {
+        const res: any = await addItemToOrderInChannel(token, String(it.v.id), 1);
+        const order = res?.addItemToOrder;
+        if (!order?.id) throw new Error(order?.message || '');
+        cart.setOrder(order);
+        uni.showToast({ title: locale.t('checkout.upsellAdded'), icon: 'none' });
+    } catch (e: any) {
+        uni.showToast({ title: e?.message || locale.t('checkout.upsellAddFail'), icon: 'none' });
+    } finally {
+        upsellBusy.value = '';
+    }
+}
 
 // Tab = 校园配送（恒显置首）+ eligible 启用的自提/邮寄
 const shippingTabs = computed(() => {
@@ -1643,6 +1728,21 @@ onLoad((q: any) => {
 .ship-tag { margin-left: 12rpx; font-size: 20rpx; color: $brand-color; background: $brand-color-light; border-radius: 6rpx; padding: 2rpx 10rpx; }
 .ship-free-hint { padding: 4rpx 0 8rpx; font-size: 22rpx; color: $brand-color; }
 .promo-hint { padding: 4rpx 0 8rpx; font-size: 22rpx; color: $price-color; }
+/* 凑单卡（第 33 轮）：差额内商品一键加购 */
+.upsell-card { margin: 10rpx 0 6rpx; padding: 16rpx; background: #fff8f3; border: 1rpx solid #ffe0c7; border-radius: 16rpx; }
+.upsell-card__hd { display: flex; align-items: baseline; justify-content: space-between; }
+.upsell-card__t { font-size: 24rpx; font-weight: 600; color: #e05f00; }
+.upsell-card__save { font-size: 20rpx; color: #c0763f; }
+.upsell-card__bar { height: 10rpx; margin: 12rpx 0 8rpx; background: #ffe6d2; border-radius: 6rpx; overflow: hidden; }
+.upsell-card__fill { height: 100%; background: #ff6600; border-radius: 6rpx; transition: width .2s ease; }
+.upsell-card__sub { font-size: 20rpx; color: #a06a44; }
+.upsell-card__row { margin-top: 12rpx; white-space: nowrap; }
+.up-item { display: inline-flex; flex-direction: column; width: 132rpx; margin-right: 12rpx; padding: 10rpx; background: #fff; border: 1rpx solid #f3e2d4; border-radius: 12rpx; vertical-align: top; }
+.up-item__img { width: 96rpx; height: 96rpx; border-radius: 10rpx; background: #fff3ea; }
+.up-item__name { max-width: 112rpx; margin-top: 8rpx; font-size: 20rpx; color: #4a4a4a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-item__price { margin-top: 4rpx; font-size: 22rpx; font-weight: 600; color: #ff6600; }
+.up-item__add { width: 36rpx; height: 36rpx; margin-top: 8rpx; border-radius: 50%; background: #ff6600; color: #fff; font-size: 26rpx; line-height: 34rpx; text-align: center; }
+.up-item__add.busy { opacity: .5; }
 .min-order-hint { padding: 8rpx 16rpx; margin: 4rpx 0 8rpx; font-size: 22rpx; color: #d93025; background: #fdecea; border-radius: $radius-sm; }
 .checkout-page__submit { position: fixed; left: 20rpx; right: 20rpx; bottom: calc(20rpx + env(safe-area-inset-bottom)); height: 88rpx; line-height: 88rpx; background: $brand-color; color: #fff; font-size: 30rpx; border-radius: 999rpx; border: none; &[disabled] { opacity: 0.6; } }
 // ===== 校园配送面板 =====

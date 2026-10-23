@@ -2697,3 +2697,55 @@
 - 品类 Tab 内名次为品类内独立名次（重排），与总榜名次不同属正常表现。
 
 截图：[223-hot-rank-full.png](screenshots/common-features-v32/223-hot-rank-full.png)、[224-hot-rank-category-tab.png](screenshots/common-features-v32/224-hot-rank-category-tab.png)、[225-hot-rank-add-cart.png](screenshots/common-features-v32/225-hot-rank-add-cart.png)、[226-hot-rank-empty.png](screenshots/common-features-v32/226-hot-rank-empty.png)、[227-home-entry.png](screenshots/common-features-v32/227-home-entry.png)
+
+## 140 结算页凑单（差价内一键加购）（第三十三轮，2026-10-23）
+
+入口：结算页（确认订单）金额汇总区内，自动出现于「还差 X 元」场景；无新增页面路由。
+
+### 140.1 功能说明
+
+- **定位**：购物车页早有「智能凑单推荐」（第 79-100 行 `recState`，覆盖起送/满减/免运费三档），但结算页的差额提示（`ship-free-hint`/`promo-hint`/`min-order-hint`）此前只是纯文本——用户看到「还差 X 元免配送费」还得跳回菜单页找商品。本轮把结算页差额提示升级为**可加购的凑单卡**（mockup 方案 A 定稿：内嵌展开卡）。
+- **凑单卡结构**：卡头「还差 ¥X 免配送费 / 可减 ¥Y / 起送」+ 右侧「省 ¥Z」（ship 档显示，取当前运费）→ 进度条（已凑 / 门槛，0-100%）→ 副标「差价内商品 · 点卡片直接加购」→ 差价内商品横滑（图 + 名 + 价 + ⊕）。
+- **差额三档优先级**（与购物车页 `recGap` 同口径）：起送差额 > 满减下一档差额 > 免配送费差额；全部已达成或未配置则卡整体隐藏。
+- **差价内推荐**：只推荐**价格 ≤ 差额**的商品（加 1 件即达标），按价格**降序**（优先补齐差价）；差价内无候选时回退全部可售商品价格**升序**（最便宜的先凑）；每商品聚合为一项，取「未加购的最低价可售规格」，最多 6 个。
+- **一键加购**：点商品卡直接 `addItemToOrderInChannel`（独立客户端固定 vendure-token），返回的最新 order 直接 `cart.setOrder` —— 小计、运费减免、凑单卡差额/进度条**全部实时刷新**；跨过门槛后卡自动隐藏，运费行出现「原价划线 → ¥0.00 满¥X免配送费」标签。
+- **数据源**：`fetchProductListForChannel(currentChannelToken)` 商品目录（onShow 幂等拉取、按店铺缓存、失败静默下次重试）；差额取页面既有 `minOrderFen`（URL/店铺配置）、`nextPromoHint(promoText)`（满减）、`freeShipFen`（`waimaiStoreList.freeShippingThreshold`）。
+
+### 140.2 实现细节
+
+| 项 | 说明 |
+|---|---|
+| 纯函数层 | `src/utils/upsell.ts`：`upsellGapFen`（三档差额优先级，负/NaN sub 防御）、`upsellSaleable`（可售口径：上架 + 非售罄 + 价格 > 0，与 cart.vue 一致）、`upsellPick`（差价内过滤降序 → 回退升序、排除已加购规格、limit 截断）、`upsellPct`（进度百分比 0-100） |
+| 页面接线 | `checkout.vue`：`ensureUpsellCatalog`（onShow 幂等拉目录）、`upsellGap`（三档入参适配 campus 条件：minOrder 仅 campus、freeShip 仅 campus R1/R3）、`upsellShipCostFen`（「省 ¥Z」取分区运费或 order 实价）、`upsellCard`（**单一 computed 数据源**：open/title/save/pct/items）、`addUpsell`（加购 + setOrder + toast） |
+| 模板 | 金额区 `min-order-hint` 之后插 `<template v-if="upsellCard.open">` 包裹凑单卡（横滑 scroll-view + up-item 卡片）；样式 `.upsell-card*`（品牌橙 #ff6600 / 浅橙底 #fff8f3） |
+| i18n | `checkout.upsell*` 7 键（upsellShip/upsellTier/upsellMin/upsellSave/upsellSub/upsellAdded/upsellAddFail），zh-Hans / en 同步，zh/en 全量键集合一致 |
+
+纯函数断言（`node .secrets/assert-v33.cjs`，esbuild 打包 `src/utils/upsell.ts` 后执行）：**39 项全部通过**。
+
+| 断言组 | 覆盖项 | 结果 |
+|---|---|---|
+| upsellGapFen | 三档优先级（起送 > 满减 > 免配送费）、已达标/无配置/0/null → null、sub 超 min 跳档、sub==min 不算未达、tier threshold=sub+gap、负 sub/NaN 安全 | 通过 |
+| upsellSaleable | IN_STOCK 可售、OUT_OF_STOCK/enabled:false/价格 0 不可售、stockLevel null（不跟踪库存）可售、null → false | 通过 |
+| upsellPick | 差价内过滤 + 降序、超差价排除、已加购规格排除 → 回退全部升序、limit 截断、gap 0/非数组/全售罄/全已加购 → 空、多规格取未加购最低价、数字 id 转字符串匹配 | 通过 |
+| upsellPct | 50%、上限 100、下限 0、threshold 0/NaN → 0、四舍五入 | 通过 |
+| i18n | zh/en checkout.upsell* 7 键齐全、顶层段数一致、全量键集合一致 | 通过 |
+
+页面验收（Playwright 390×844 dpr=2；本轮功能未部署时用本地静态服务 `dist/build/h5` + shop-api 全 mock；订单 ¥32.50/运费 ¥4.00/满 ¥35 免配送费为脚本注入模拟数据）：
+
+| 断言项 | 结果 |
+|---|---|
+| 凑单卡初始态 | 「还差 ¥2.50 免配送费 / 省 ¥4」+ 进度条 93% + 差价内 4 商品（蛋挞 ¥2.50/紫菜蛋花汤 ¥2.00/卤蛋 ¥1.50/纸巾 ¥1.00，差价外可乐 ¥3/鸡米花 ¥4.5 被过滤）+ 既有 ship-free-hint/promo-hint 正常（通过） |
+| ⊕ 一键加购 | 点蛋挞 → toast「已加入购物车」，小计实时刷为 ¥35.00，凑单卡隐藏（差额达成），运费行出现「¥0.00 满¥35.00免配送费」标签（通过） |
+| 达标态 | 凑单卡保持隐藏，应付 ¥35.00（通过） |
+| 构建 | `npm run build:h5` 通过（通过） |
+
+### 140.3 边界与已知限制
+
+- **差额优先级**：起送差额优先于满减、满减优先于免配送费——三种差额共用同一张卡，卡头文案按档位切换（「还差 ¥X 起送 / 可减 ¥Y / 免配送费」）；`belowMinOrder`/`promoNotice` 等既有文本提示保留（互补：文本说明 + 卡操作）。
+- **多规格语义**：卡面展示价即所加规格（未加购的最低价可售规格），所见即所得；不做规格弹层（结算页轻量化，完整规格选择在购物车页凑单推荐里）。
+- **回退策略**：差价内无候选（如门槛差额极小、无 ≤¥1 商品）时回退「全部可售商品价格升序」前 6 个——用户至少有商品可选；目录拉取失败时卡静默隐藏（items 为空），下次 onShow 重试。
+- **加购即时反馈**：加购直接更新 cart store，提交订单金额/运费随 Vendure 返回的最新 order 走；若加购把订单推过免配送费门槛，运费减免由后端重算返回，前端只做展示。
+- **H5 渲染层经验（重要）**：渲染期任意 computed 抛异常会**中断 Vue patch**——症状是「子内容已更新、外层条件渲染 DOM 残留」，v-if/v-show/:style/template v-if 全部失效，极易误判为框架 bug。本轮排查实为 mock 数据形状错误（`myCoupons` 应为数组，mock 给了 `{items:[]}` 导致 `myUnusedCoupons.value.filter` 崩溃）；修复后 template v-if 正常工作。教训：**Playwright 截图脚本务必监听 pageerror/console error**。
+- 校园 R1/R3 提交前运费未出价时，「省 ¥Z」取分区运费预估；未选分区则省略「省」字样（卡头仅显示差额）。
+
+截图：[228-checkout-upsell-card.png](screenshots/common-features-v33/228-checkout-upsell-card.png)、[229-checkout-upsell-added.png](screenshots/common-features-v33/229-checkout-upsell-added.png)、[230-checkout-upsell-reached.png](screenshots/common-features-v33/230-checkout-upsell-reached.png)

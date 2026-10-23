@@ -2769,12 +2769,13 @@
 |---|---|
 | 纯函数层 | `src/utils/new-arrivals.ts`：`naAgeDays`（上架天数，未来归 0 / 无效返回 null）、`naFreshKey`（today/d3/week/recent 分档）、`naAggregate`（跨店聚合：在售 + createdAt 有效 + ≤30 天，时间降序 + id 稳定）、`naFilterWindow`（7/30 天收窄，0 或非法视为全部）、`naSort` |
 | 页面 | `src/pkg-promotion/pages/new-arrivals.vue`：hero + 时间 Tab + 卡片流 + 空态 + ⊕ 加购 + 进店；`onLoad` 首次加载、`onShow` 回页刷新 |
+| 默认 Tab 回退 | 首次加载后若「近 7 天」为空而「近 30 天」有新品，自动切到「近 30 天」（`userPicked` 标记用户手动选择后不再回退），避免生产落空态 |
 | 菜单页 | `menu.vue` 新增 `isNewGood(g)`（`naAgeDays ≤ 30`）与 `good-tag--new` 角标 |
 | 商品查询 | `src/api/queries/waimai.ts` 的 `MenuProducts` 增加 `createdAt`（加性字段，不影响既有消费方） |
 | 入口 | `pages.json` 注册 `pkg-promotion/pages/new-arrivals`；首页宫格第 8 项（`goNewArrivals` + `act-ico--new` 橙渐变） |
 | i18n | `newArrivals.*` 17 键 + `home.actNew` + `menu.newTag`（zh/en 同步）；`nav.newArrivals` 三份 uni-app 导航文件同步 |
 
-纯函数断言（`node .secrets/assert-v34.cjs`，esbuild 打包 `src/utils/new-arrivals.ts`）：**48 项全部通过**。
+纯函数断言（`node .secrets/assert-v34.cjs`，esbuild 打包 `src/utils/new-arrivals.ts`）：**49 项全部通过**。
 
 | 断言组 | 覆盖项 | 结果 |
 |---|---|---|
@@ -2783,7 +2784,7 @@
 | naAggregate | 过滤售罄、超 30 天、无 createdAt、空 token 组；时间降序 + 同日 id 稳定；店名/月售/最低价/默认规格/ageDays；多规格取可售最低价；空数组与 null 安全；windowDays 收窄 | 通过 |
 | naFilterWindow | 近 7 天 / 近 30 天=全部 / 0 与非法视为全部 / null 安全 / 不改原数组 | 通过 |
 | naSort | 逆序输入还原时间序 | 通过 |
-| i18n/接线 | newArrivals 17 键中英齐全且全量键集合一致；home.actNew、menu.newTag 双语；三份 uni-app 导航含 nav.newArrivals；pages.json 注册；首页入口与菜单角标源码接线 | 通过 |
+| i18n/接线 | newArrivals 17 键中英齐全且全量键集合一致；home.actNew、menu.newTag 双语；三份 uni-app 导航含 nav.newArrivals；pages.json 注册；首页入口与菜单角标源码接线；默认 Tab 空态自动回退接线 | 通过 |
 
 页面验收（Playwright 390×844 dpr=2；本轮功能未部署时用本地静态服务 `dist/build/h5` + shop-api 全 mock；店铺/上架时间为脚本相对当前时间注入的模拟数据）：
 
@@ -2800,8 +2801,19 @@
 
 - **无 createdAt 的商品不参与**：Vendure 商品必有 `createdAt`，但若查询未取或数据异常（无效时间）则跳过，避免把老商品误标新品。
 - **窗口口径统一**：聚合页与菜单角标都用 30 天，避免「页面里有、店里没标」的不一致；页面「近 7 天」只是展示收窄，不改变判定口径。
-- **生产数据现状（2026-10-23 核查）**：生产 2 家店共 2 个商品（可乐鸡排饭、麻辣拌面），均 2026-10-05 上架（约 18 天前），30 天窗口内 → 聚合页正常展示 2 款，菜单页两卡均带「新」角标；后续新上架商品自动进入。
+- **生产数据现状（2026-10-23 线上回归核查）**：生产 2 家店共 5 个商品全部落在 30 天窗口内、近 7 天为 0 → 页面默认自动落「近 30 天」并展示 5 款，菜单页对应商品带「新」角标；后续新上架商品自动进入。
 - **跨店加购**：与热销榜同机制，加购写入对应店铺渠道的订单；若当前购物车已是其他店铺订单，按 Vendure 单渠道订单语义由后端返回错误并 toast 提示。
 - **性能**：各店商品目录并发拉取（`Promise.all`），单店失败仅跳过该店，不影响整页。
 
 截图：[231-home-grid-new-entry.png](screenshots/common-features-v34/231-home-grid-new-entry.png)、[232-new-arrivals-week.png](screenshots/common-features-v34/232-new-arrivals-week.png)、[233-new-arrivals-month.png](screenshots/common-features-v34/233-new-arrivals-month.png)、[234-menu-new-badge.png](screenshots/common-features-v34/234-menu-new-badge.png)、[235-new-arrivals-add-cart.png](screenshots/common-features-v34/235-new-arrivals-add-cart.png)
+
+线上回归（`node .secrets/regress-v34.cjs`，生产 `https://www.yourbao.cn/waimai/`，真链路无 mock）：**PASS**
+
+| 断言项 | 结果 |
+|---|---|
+| 生产接口口径 | 2 家店 5 个商品全部 ≤30 天（近 7 天 0 款）；canteen-b 2 款、canteen-a 3 款 | 通过 |
+| 首页宫格 | 8 个入口，`.act-ico--new` 存在且文案含「新品」 | 通过 |
+| 菜单「新」角标 | canteen-a 菜单页 3 个商品 → 3 个 `.good-tag--new`，与接口口径一致 | 通过 |
+| 新品聚合页 | 标题「新品尝鲜」、副标题「2 家店铺 · 近 30 天 5 款上新」，默认 Tab 自动落「近 30 天」，5 张卡片、无空态 | 通过 |
+| 分包部署 | `pkg-promotion-pages-new-arrivals` chunk 已上线且含 `newArrivals` / `na-card` 标识 | 通过 |
+| 运行时报错 | 页面无 pageerror | 通过 |

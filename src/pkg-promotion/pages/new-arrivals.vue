@@ -14,7 +14,7 @@
         :key="'na-w-' + w.days"
         class="na-tab"
         :class="{ on: activeDays === w.days }"
-        @tap="activeDays = w.days"
+        @tap="pickDays(w.days)"
       >{{ w.label }}</text>
     </view>
 
@@ -67,6 +67,8 @@ const loading = ref(true);
 const entries = ref<NewEntry[]>([]);
 const storeCount = ref(0);
 const activeDays = ref(7);
+/** 用户手动切过 Tab 后不再自动回退（避免刷新时把用户选择改回去） */
+const userPicked = ref(false);
 
 const storesMap = ref(new Map<string, any>());
 
@@ -84,6 +86,11 @@ const heroSub = computed(() =>
 function fmtPrice(fen: number): string {
     const y = (Number(fen) || 0) / 100;
     return '¥' + (Number.isInteger(y) ? String(y) : y.toFixed(2));
+}
+
+function pickDays(days: number) {
+    userPicked.value = true;
+    activeDays.value = days;
 }
 
 /** 新鲜度角标：今日 / X 天前 / 本周上新 / 近期上新 */
@@ -116,6 +123,10 @@ async function load() {
         const list = naAggregate(ok, now);
         storeCount.value = new Set(list.map((e) => e.storeToken)).size;
         entries.value = list;
+        // 生产常见：近 7 天无上新但 30 天内有 → 默认 Tab 不落空态，自动切到近 30 天
+        if (!userPicked.value && activeDays.value === 7 && list.length && !naFilterWindow(list, 7).length) {
+            activeDays.value = 30;
+        }
     } finally {
         loading.value = false;
     }

@@ -107,7 +107,7 @@ const RIDER_TAG_LABELS: Record<string, string> = {
   '骑行平稳': 'riderTagSmooth',
 };
 function riderTagLabel(t: string): string { return locale.t(`reviewCreate.${RIDER_TAG_LABELS[t]}`); }
-const riderRating = ref(5);
+const riderRating = ref(0);
 const riderPicked = ref<string[]>([]);
 /** 用户是否点过骑手星级（点过才提交，未点视为不需要评价骑手） */
 const riderTouched = ref(false);

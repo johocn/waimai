@@ -36,6 +36,7 @@
                     <block v-if="o.customFields?.deliveryStatus === 'assigned'">
                         <button class="act ghost small" @tap="begin(o)">{{ $t('riderDelivering.startPick') }}</button>
                         <button class="act ghost small" @tap="transfer(o, false)">{{ $t('riderDelivering.transfer') }}</button>
+                        <button class="act ghost small" @tap="reject(o)">{{ $t('riderDelivering.reject') }}</button>
                     </block>
                     <block v-else-if="o.customFields?.deliveryStatus === 'in_progress'">
                         <button class="act ghost small" @tap="deliverOne(o)">{{ $t('riderDelivering.deliverOne') }}</button>
@@ -67,6 +68,7 @@
                 <block v-if="o.customFields?.deliveryStatus === 'assigned'">
                     <button class="act" :disabled="busy" @tap="begin(o)">{{ $t('riderDelivering.startSingle') }}</button>
                     <button class="act ghost" :disabled="busy" @tap="transfer(o, false)">{{ $t('riderDelivering.transferNoPick') }}</button>
+                    <button class="act ghost" :disabled="busy" @tap="reject(o)">{{ $t('riderDelivering.reject') }}</button>
                 </block>
                 <block v-else-if="o.customFields?.deliveryStatus === 'in_progress'">
                     <text class="picked">{{ $t('riderDelivering.picked') }}</text>
@@ -127,7 +129,7 @@
 import { ref, computed } from 'vue';
 import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchMyTasks, fetchBuildingMap } from '../../api/queries/hall';
-import { startTask, deliverTask, reportException, transferTask } from '../../api/queries/task-actions';
+import { startTask, deliverTask, reportException, transferTask, rejectAssignment } from '../../api/queries/task-actions';
 import { riderReportLocation } from '../../api/mutations/campus';
 import { fetchRiderNav } from '../../api/queries/support';
 import { uploadCustomerAsset } from '../../api/mutations/upload';
@@ -411,6 +413,27 @@ async function transfer(o: any, picked: boolean) {
         busy.value = false;
         await refresh();
     }
+}
+
+/** 拒单（仅未取货）：订单回大厅 + 扣信用分，需二次确认 */
+function reject(o: any) {
+    uni.showModal({
+        title: locale.t('riderDelivering.rejectTitle'),
+        content: locale.t('riderDelivering.rejectConfirm'),
+        success: async (res: any) => {
+            if (!res.confirm) return;
+            busy.value = true;
+            try {
+                await rejectAssignment(o.id, o.channelToken);
+                uni.showToast({ title: locale.t('riderDelivering.rejected'), icon: 'none' });
+            } catch (e: any) {
+                uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.rejectFail'), icon: 'none' });
+            } finally {
+                busy.value = false;
+                await refresh();
+            }
+        },
+    });
 }
 
 /** 配送导航：拉取本单取货点/收货楼栋坐标（gcj02），有多个目标时先选再调 uni.openLocation */

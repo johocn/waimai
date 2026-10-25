@@ -531,7 +531,21 @@ const canAfterSale = computed(() =>
 const canInvoice = computed(() =>
     ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'].includes(order.value?.state)
     && !order.value?.customFields?.invoiceApplied);
-const canCancel = computed(() => ['Created','AddingItems','ArrangingPayment'].includes(order.value?.state));
+// 已支付未取货也允许自助取消（与后端 cancel-guard.process.ts 一致）：
+// 履约在途（骑手已接单/外部运单已接/商户自配送/已送达）禁止，未取货（open/pending_dispatch 等）放行
+const IN_FLIGHT_HALL = ['grabbed', 'third_party', 'owned_dispatched', 'merchant_delivering'];
+const canCancel = computed(() => {
+  const o = order.value;
+  if (!o) return false;
+  if (['Created', 'AddingItems', 'ArrangingPayment'].includes(o.state)) return true;
+  if (!['PaymentAuthorized', 'PaymentSettled'].includes(o.state)) return false;
+  const cf = o.customFields ?? {};
+  if (cf.deliveredAt || cf.hallStatus === 'delivered') return false;
+  if (['assigned', 'in_progress'].includes(cf.deliveryStatus)) return false;
+  const thirdPartyState = String(o.campusOrderDelivery?.state ?? cf.thirdPartyState ?? '');
+  if (['accepted', 'pickup'].includes(thirdPartyState)) return false;
+  return !IN_FLIGHT_HALL.includes(String(cf.hallStatus ?? ''));
+});
 const canReview = computed(() => ['Delivered', 'Completed'].includes(order.value?.state));
 // 预约单（plan 3.1）：未放量进大厅前不显示骑手等待卡（时间线首节点已表达预约态）
 const isScheduled = computed(() => ((order.value?.customFields?.hallStatus ?? '') + '').toLowerCase() === 'scheduled');

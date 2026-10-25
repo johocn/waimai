@@ -32,6 +32,12 @@ const TRANSFER = gql`
     }
 `;
 
+const REJECT = gql`
+    mutation campusRejectAssignment($orderId: ID!) {
+        campusRejectAssignment(orderId: $orderId) { backToHall }
+    }
+`;
+
 /** 开始取货；接力单（R1/R2 第一段已交接）必须传 4 位交接码 */
 export async function startTask(orderId: string, code?: string, channelToken?: string) {
     return riderClient(channelToken).request(START, { orderId, code }).then((r: any) => r.campusStartTask);
@@ -47,4 +53,9 @@ export async function reportException(orderId: string, type: string, photos: str
 
 export async function transferTask(orderId: string, photos: string[], note?: string, channelToken?: string) {
     return riderClient(channelToken).request(TRANSFER, { orderId, photos, note }).then((r: any) => r.campusTransferTask);
+}
+
+/** 拒单（仅被指派且未取货）：订单回大厅 + 骑手扣信用分（后端 campusRejectAssignment） */
+export async function rejectAssignment(orderId: string, channelToken?: string) {
+    return riderClient(channelToken).request(REJECT, { orderId }).then((r: any) => r.campusRejectAssignment);
 }

@@ -80,6 +80,9 @@
         "nav.circle": "Shopping Circle",
         "nav.circlePublish": "Post Review",
         "nav.deliveryTrack": "Delivery Track",
-        "nav.tasteProfile": "My Taste"
+        "nav.tasteProfile": "My Taste",
+        "nav.supportTickets": "Support Tickets",
+        "nav.riderAppeal": "Courier Appeal",
+        "nav.riderShifts": "My Shifts"
     }
 }

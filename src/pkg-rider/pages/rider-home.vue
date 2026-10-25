@@ -6,6 +6,16 @@
             </view>
             <text class="credit">{{ $t('riderHome.credit').replace('{n}', String(profile?.riderCredit ?? '--')) }}</text>
         </view>
+        <!-- 骑手评分（用户 1-5 星均分）+ 班次/申诉入口 -->
+        <view class="quick">
+            <text class="rating">
+                {{ $t('riderHome.rating').replace('{r}', avgText).replace('{n}', String(rating?.ratingCount ?? 0)) }}
+            </text>
+            <view class="quick-links">
+                <navigator class="qlink" url="/pkg-rider/pages/rider-shifts" hover-class="none">{{ $t('riderHome.myShifts') }}</navigator>
+                <navigator class="qlink" url="/pkg-rider/pages/rider-appeal" hover-class="none">{{ $t('riderHome.appeal') }}</navigator>
+            </view>
+        </view>
         <navigator class="jh-entry" url="/pkg-jianghu/pages/jh-hall" hover-class="none">
             <view class="jh-ic">江</view>
             <view class="jh-b">
@@ -33,10 +43,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchHall, grabOrder, fetchBuildingMap } from '../../api/queries/hall';
 import { myRiderProfile, riderOnline, riderHeartbeat } from '../../api/queries/rider';
+import { fetchMyRiderRating } from '../../api/queries/support';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
 import EmptyState from '../../components/EmptyState.vue';
@@ -45,6 +56,11 @@ const auth = useAuthStore();
 const locale = useLocaleStore();
 const on = ref(false);
 const profile = ref<any>(null);
+const rating = ref<any>(null);
+const avgText = computed(() => {
+    const n = Number(rating.value?.avgRating);
+    return rating.value?.ratingCount ? (Number.isFinite(n) ? n.toFixed(1) : '--') : '--';
+});
 const tasks = ref<any[]>([]);
 const grabbing = ref(false);
 const takenIds = ref(new Set<string>());
@@ -61,6 +77,7 @@ onShow(async () => {
     if (profile.value?.riderStatus !== 'approved') {
         return uni.redirectTo({ url: '/pkg-rider/pages/rider-join' });
     }
+    rating.value = await fetchMyRiderRating().catch(() => null);
     buildingMap.value = await fetchBuildingMap().catch(() => ({}));
     await refresh();
     pollTimer = setInterval(refresh, 10000);      // spec §6.1 大厅轮询 10s
@@ -139,6 +156,11 @@ async function grab(t: any) {
 .online .dot { width: 16rpx; height: 16rpx; border-radius: 999rpx; background: #ccc; }
 .online.on .dot { background: #1dc981; }
 .credit { font-size: 26rpx; color: $text-muted; }
+/* 评分 + 班次/申诉快捷入口 */
+.quick { display: flex; justify-content: space-between; align-items: center; gap: 16rpx; margin-bottom: 24rpx; }
+.rating { font-size: 24rpx; color: #f59e0b; }
+.quick-links { display: flex; gap: 12rpx; }
+.qlink { font-size: 22rpx; color: $text-muted; background: $surface; border-radius: 999rpx; padding: 8rpx 20rpx; }
 /* 江湖入口（拾光传信者）：水墨风卡片，与订单列表区隔 */
 .jh-entry {
     display: flex; align-items: center; margin-bottom: 24rpx; padding: 24rpx; border-radius: $radius-card;

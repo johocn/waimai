@@ -508,12 +508,24 @@ const minOrderFen = computed(() => {
 const belowMinOrder = computed(() => !!cartCount.value && minOrderFen.value != null && cartTotal.value < minOrderFen.value);
 const minGapYuan = computed(() => (minOrderFen.value == null ? '' : yuan(minOrderFen.value - cartTotal.value)));
 
-// —— 营业状态：按 businessHours 判断打烊/即将打烊；打烊仍可浏览加购，仅拦截提交 ——
+// —— 营业状态：以后端 openNow（营业时间内且未暂停）为准，缺失时按 businessHours 兜底；
+//    打烊仍可浏览加购，仅拦截提交 ——
 const storeStatus = computed(() => getStoreStatus(storeInfo.value?.businessHours));
-const storeClosed = computed(() => storeStatus.value.state === 'closed');
+/** 后端营业状态（null=接口未返回，前端按营业时间兜底） */
+const backendOpen = computed<boolean | null>(
+    () => (typeof storeInfo.value?.openNow === 'boolean' ? storeInfo.value.openNow : null),
+);
+/** 营业时间内但后端判打烊 = 商家手动暂停营业 */
+const storePaused = computed(
+    () => backendOpen.value === false && storeStatus.value.state !== 'closed',
+);
+const storeClosed = computed(
+    () => (backendOpen.value === null ? storeStatus.value.state === 'closed' : !backendOpen.value),
+);
 const storeStateText = computed(() => {
+    if (storePaused.value) return locale.t('menu.storePaused');
     const st = storeStatus.value;
-    if (st.state === 'closed') {
+    if (storeClosed.value || st.state === 'closed') {
         const key = st.nextOpenDayOffset === 1 ? 'menu.closedTomorrow' : 'menu.closedToday';
         return locale.t(key).replace('{t}', st.nextOpenHM);
     }
@@ -1167,7 +1179,9 @@ function variantAvailable(v: any): boolean {
     return !!v && v.enabled !== false && v.stockLevel !== 'OUT_OF_STOCK';
 }
 
+/** 售罄 = 商家一键沽清（waimaiSoldOut）或全部规格无可售库存 */
 function goodSoldOut(g: any): boolean {
+    if (g?.customFields?.waimaiSoldOut === true) return true;
     const variants: any[] = g?.variants ?? [];
     return !variants.some(v => variantAvailable(v));
 }
@@ -1267,6 +1281,8 @@ async function doAddItem(variantId: string, quantity: number) {
 }
 
 async function addToCart(g: any) {
+    // 商家一键沽清：即使规格仍有库存也不可加购
+    if (g?.customFields?.waimaiSoldOut === true) { toastSoldOut(); return false; }
     const variant = resolvePreferredVariant(g?.id, g?.variants) || g?.variants?.[0];
     if (!variant || !variantAvailable(variant)) { toastSoldOut(); return false; }
     rememberView(g);

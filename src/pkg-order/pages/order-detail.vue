@@ -923,6 +923,7 @@ function goReview() {
         `variantId=${line.productVariant?.id ?? ''}`,
         `name=${encodeURIComponent(line.productVariant?.name ?? '')}`,
         `thumb=${encodeURIComponent(line.featuredAsset?.preview ?? '')}`,
+        `orderId=${order.value?.id ?? ''}`,
     ].join('&');
     uni.navigateTo({ url: `/pkg-order/pages/review-create?${q}` });
 }

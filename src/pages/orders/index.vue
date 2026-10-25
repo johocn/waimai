@@ -341,6 +341,7 @@ function goReview(order: any) {
         `variantId=${line.productVariant?.id ?? ''}`,
         `name=${encodeURIComponent(line.productVariant?.name ?? '')}`,
         `thumb=${encodeURIComponent(line.featuredAsset?.preview ?? '')}`,
+        `orderId=${order?.id ?? ''}`,
     ].join('&');
     uni.navigateTo({ url: `/pkg-order/pages/review-create?${q}` });
 }

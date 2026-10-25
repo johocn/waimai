@@ -80,6 +80,9 @@
         "nav.mealPlan": "点餐日程",
         "nav.circle": "购物圈",
         "nav.circlePublish": "发布晒单",
-        "nav.deliveryTrack": "配送轨迹"
+        "nav.deliveryTrack": "配送轨迹",
+        "nav.supportTickets": "客服工单",
+        "nav.riderAppeal": "骑手申诉",
+        "nav.riderShifts": "我的班次"
     }
 }

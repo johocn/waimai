@@ -40,7 +40,9 @@
                 { "path": "pages/rider-delivering", "style": { "navigationBarTitleText": "%nav.riderDelivering%" } },
                 { "path": "pages/rider-earning", "style": { "navigationBarTitleText": "%nav.riderEarning%" } },
                 { "path": "pages/rider-wallet", "style": { "navigationBarTitleText": "%nav.riderWallet%" } },
-                { "path": "pages/rider-withdraw", "style": { "navigationBarTitleText": "%nav.riderWithdraw%" } }
+                { "path": "pages/rider-withdraw", "style": { "navigationBarTitleText": "%nav.riderWithdraw%" } },
+                { "path": "pages/rider-appeal", "style": { "navigationBarTitleText": "%nav.riderAppeal%" } },
+                { "path": "pages/rider-shifts", "style": { "navigationBarTitleText": "%nav.riderShifts%" } }
             ]
         },
         {
@@ -68,6 +70,7 @@
                 { "path": "pages/member", "style": { "navigationBarTitleText": "%nav.member%" } },
                 { "path": "pages/points-history", "style": { "navigationBarTitleText": "%nav.pointsHistory%" } },
                 { "path": "pages/feedback", "style": { "navigationBarTitleText": "%nav.feedback%" } },
+                { "path": "pages/support-tickets", "style": { "navigationBarTitleText": "%nav.supportTickets%" } },
                 { "path": "pages/help", "style": { "navigationBarTitleText": "%nav.help%" } },
                 { "path": "pages/student-verify", "style": { "navigationBarTitleText": "%nav.studentVerify%" } },
                 { "path": "pages/delivery-prefs", "style": { "navigationBarTitleText": "%nav.deliveryPrefs%" } },

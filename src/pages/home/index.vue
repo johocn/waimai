@@ -840,8 +840,12 @@ const shown = computed(() => sortStores(
     favorites.ids,
 ));
 const emptyText = computed(() => filterCount.value ? locale.t('home.filteredEmpty') : locale.t('home.emptySearch'));
-/** 店铺营业状态：按 businessHours 实时计算（未配置返回 unknown，不额外标注） */
+/** 店铺营业状态：后端 openNow 为准（营业时间内且未暂停），缺失时按 businessHours 兜底 */
 function storeStatusOf(s: any): StoreOpenState {
+    if (typeof s?.openNow === 'boolean') {
+        if (s.openNow) return getStoreStatus(s?.businessHours).state === 'closing' ? 'closing' : 'open';
+        return 'closed';
+    }
     return getStoreStatus(s?.businessHours).state;
 }
 // ── 开门提醒：本机订阅打烊店铺，营业后首页横幅提示一次 ──

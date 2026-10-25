@@ -79,6 +79,7 @@
       <view class="menu-item" @click="nav('/pkg-user/pages/taste-profile')"><text>{{ $t('profile.tasteProfile') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/delivery-prefs')"><text>{{ $t('profile.deliveryPrefs') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="nav('/pkg-user/pages/help')"><text>{{ $t('profile.help') }}</text><text class="menu-arrow">></text></view>
+      <view class="menu-item" @click="nav('/pkg-user/pages/support-tickets')"><text>{{ $t('profile.supportTickets') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="nav('/pkg-user/pages/feedback')"><text>{{ $t('profile.feedback') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="nav('/pkg-user/pages/about')"><text>{{ $t('profile.about') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" @click="switchLang"><text>{{ $t('profile.language') }}</text><text class="menu-value">{{ langName }}</text><text class="menu-arrow">></text></view>

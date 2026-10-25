@@ -32,6 +32,7 @@
                 </view>
                 <!-- 单子单操作行 -->
                 <view class="rowops" v-if="expanded === String(o.id)">
+                    <button class="act ghost small" @tap="openNav(o)">{{ $t('riderDelivering.nav') }}</button>
                     <block v-if="o.customFields?.deliveryStatus === 'assigned'">
                         <button class="act ghost small" @tap="begin(o)">{{ $t('riderDelivering.startPick') }}</button>
                         <button class="act ghost small" @tap="transfer(o, false)">{{ $t('riderDelivering.transfer') }}</button>
@@ -81,6 +82,7 @@
             </view>
 
             <view class="extra" v-if="['assigned', 'in_progress'].includes(o.customFields?.deliveryStatus)">
+                <button class="act ghost small" @tap="openNav(o)">{{ $t('riderDelivering.nav') }}</button>
                 <button class="act ghost small" @tap="openExcPanel(o)">{{ $t('riderDelivering.excReport') }}</button>
             </view>
         </view>
@@ -127,6 +129,7 @@ import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchMyTasks, fetchBuildingMap } from '../../api/queries/hall';
 import { startTask, deliverTask, reportException, transferTask } from '../../api/queries/task-actions';
 import { riderReportLocation } from '../../api/mutations/campus';
+import { fetchRiderNav } from '../../api/queries/support';
 import { uploadCustomerAsset } from '../../api/mutations/upload';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
@@ -410,6 +413,52 @@ async function transfer(o: any, picked: boolean) {
     }
 }
 
+/** 配送导航：拉取本单取货点/收货楼栋坐标（gcj02），有多个目标时先选再调 uni.openLocation */
+async function openNav(o: any) {
+    try {
+        const nav = await fetchRiderNav(o.id);
+        const targets: { label: string; lat: number; lng: number; name: string; address: string }[] = [];
+        if (nav?.storeLat != null && nav?.storeLng != null) {
+            targets.push({
+                label: locale.t('riderDelivering.navStore'),
+                lat: Number(nav.storeLat),
+                lng: Number(nav.storeLng),
+                name: nav.storeName || locale.t('riderDelivering.navStore'),
+                address: nav.storeAddress || '',
+            });
+        }
+        if (nav?.buildingLat != null && nav?.buildingLng != null) {
+            targets.push({
+                label: locale.t('riderDelivering.navBuilding'),
+                lat: Number(nav.buildingLat),
+                lng: Number(nav.buildingLng),
+                name: nav.buildingName || locale.t('riderDelivering.navBuilding'),
+                address: nav.buildingDetail || '',
+            });
+        }
+        if (!targets.length) {
+            uni.showToast({ title: locale.t('riderDelivering.navNoAddr'), icon: 'none' });
+            return;
+        }
+        const go = (t: any) => uni.openLocation({
+            latitude: t.lat,
+            longitude: t.lng,
+            name: t.name,
+            address: t.address,
+        });
+        if (targets.length === 1) { go(targets[0]); return; }
+        uni.showActionSheet({
+            itemList: targets.map(t => t.label),
+            success: (res: any) => {
+                const t = targets[res.tapIndex];
+                if (t) go(t);
+            },
+        });
+    } catch (e: any) {
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.navFail'), icon: 'none' });
+    }
+}
+
 function openExcPanel(o: any) {
     excTarget.value = o;
     excPanelOpen.value = true;
@@ -504,7 +553,8 @@ async function submitException() {
 .act.ghost { background: transparent; border: 2rpx solid $text-muted; color: $text-muted; }
 .act.small { font-size: 24rpx; padding: 0 24rpx; line-height: 56rpx; min-height: 56rpx; }
 .act[disabled] { opacity: .5; }
-.extra { margin-top: 16rpx; }
+.extra { margin-top: 16rpx; display: flex; gap: 12rpx; }
+.extra .act { flex: 1; }
 
 /* 异常上报面板 */
 .exc-chips { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 16rpx; }

@@ -15,6 +15,23 @@
       <text v-if="!isFollowUp" class="stars__label">{{ ratingLabel }}</text>
     </view>
 
+    <!-- 骑手评分（同单一次，提交后按 orderId 幂等更新） -->
+    <view v-if="!isFollowUp && orderId" class="section">
+      <text class="rider-title">{{ $t('reviewCreate.riderTitle') }}</text>
+      <text class="rider-hint">{{ $t('reviewCreate.riderHint') }}</text>
+      <view class="stars stars--rider" @tap="onRiderStarTap">
+        <text v-for="i in 5" :key="'r' + i" class="star" :class="{ off: i > riderRating }">★</text>
+      </view>
+      <text class="stars__label">{{ riderRatingLabel }}</text>
+      <view class="tags">
+        <text
+          v-for="t in RIDER_TAGS" :key="t"
+          class="tag" :class="{ on: riderPicked.includes(t) }"
+          @tap="toggleRiderTag(t)"
+        >{{ riderTagLabel(t) }}</text>
+      </view>
+    </view>
+
     <view class="section">
       <view v-if="!isFollowUp" class="tags">
         <text
@@ -49,6 +66,7 @@
 import { ref, computed, watch } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { createReview, createFollowUpReview } from '../../api/queries/review';
+import { rateRider } from '../../api/queries/support';
 import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
 import VImageUpload from '../../components/ImageUpload.vue';
@@ -66,6 +84,7 @@ const orderLineId = ref('');
 const variantId = ref('');
 const name = ref('');
 const thumb = ref('');
+const orderId = ref('');
 const followUpReviewId = ref('');
 
 const isFollowUp = computed(() => !!followUpReviewId.value);
@@ -79,10 +98,28 @@ const submitting = ref(false);
 
 const ratingLabel = computed(() => LABELS[rating.value] ? locale.t(`reviewCreate.${LABELS[rating.value]}`) : '');
 
+// ── 骑手评分（可选）：用户不点星则不提交，避免无骑手订单报错 ──
+const RIDER_TAGS = ['准时送达', '态度友好', '沟通顺畅', '骑行平稳'];
+const RIDER_TAG_LABELS: Record<string, string> = {
+  '准时送达': 'riderTagOnTime',
+  '态度友好': 'riderTagFriendly',
+  '沟通顺畅': 'riderTagComm',
+  '骑行平稳': 'riderTagSmooth',
+};
+function riderTagLabel(t: string): string { return locale.t(`reviewCreate.${RIDER_TAG_LABELS[t]}`); }
+const riderRating = ref(5);
+const riderPicked = ref<string[]>([]);
+/** 用户是否点过骑手星级（点过才提交，未点视为不需要评价骑手） */
+const riderTouched = ref(false);
+const riderRatingLabel = computed(() =>
+  riderTouched.value ? (LABELS[riderRating.value] ? locale.t(`reviewCreate.${LABELS[riderRating.value]}`) : '') : '',
+);
+
 onLoad((q: any) => {
   productId.value = q.productId || '';
   orderLineId.value = q.lineId || '';
   variantId.value = q.variantId || '';
+  orderId.value = q.orderId || '';
   name.value = decodeURIComponent(q.name || '');
   thumb.value = decodeURIComponent(q.thumb || '');
   // 追评模式：query 带 followUp=1&reviewId= → 隐藏星级/标签/匿名，提交走 createFollowUpReview
@@ -174,6 +211,42 @@ function toggleTag(t: string) {
   else picked.value.push(t);
 }
 
+function onRiderStarTap(e: any) {
+  const x = e.changedTouches?.[0]?.clientX ?? e.detail?.x;
+  const query = uni.createSelectorQuery();
+  query.select('.stars--rider').boundingClientRect((rect: any) => {
+    if (!rect?.width || x == null) return;
+    riderRating.value = Math.max(1, Math.min(5, Math.ceil((x - rect.left) / (rect.width / 5))));
+    riderTouched.value = true;
+  }).exec();
+}
+
+function toggleRiderTag(t: string) {
+  riderTouched.value = true;
+  const i = riderPicked.value.indexOf(t);
+  if (i >= 0) riderPicked.value.splice(i, 1);
+  else riderPicked.value.push(t);
+}
+
+/** 骑手评分失败不阻断商品评价（无骑手/已评分均静默降级为提示） */
+async function submitRiderRating() {
+  if (!riderTouched.value || !orderId.value) return true;
+  try {
+    await rateRider({
+      orderId: orderId.value,
+      rating: riderRating.value,
+      tags: riderPicked.value.length ? riderPicked.value : undefined,
+    });
+    return true;
+  } catch (e: any) {
+    uni.showToast({
+      title: e?.response?.errors?.[0]?.message || locale.t('reviewCreate.riderRateFail'),
+      icon: 'none',
+    });
+    return false;
+  }
+}
+
 async function submit() {
   if (!content.value.trim()) {
     uni.showToast({ title: locale.t('reviewCreate.contentRequired'), icon: 'none' });
@@ -188,6 +261,7 @@ async function submit() {
       });
       uni.showToast({ title: locale.t('reviewCreate.followUpDone'), icon: 'none' });
     } else {
+      await submitRiderRating();
       await createReview({
         productId: productId.value,
         orderLineId: orderLineId.value,
@@ -230,7 +304,10 @@ async function submit() {
   display: flex; justify-content: center; gap: 10rpx; padding: 28rpx 0 8rpx;
   .star { font-size: 56rpx; color: #f59e0b; &.off { color: #e3e6ea; } }
 }
-.stars__label { display: block; text-align: center; font-size: 24rpx; color: #f59e0b; }
+.stars__label { display: block; text-align: center; font-size: 24rpx; color: #f59e0b; min-height: 30rpx; }
+.rider-title { display: block; font-size: 28rpx; font-weight: 600; color: #1f2329; }
+.rider-hint { display: block; font-size: 22rpx; color: #8a919c; margin-top: 6rpx; }
+.stars--rider { padding-top: 20rpx; }
 .tags { display: flex; flex-wrap: wrap; gap: 16rpx; margin-bottom: 20rpx; }
 .tag {
   font-size: 24rpx; color: #4e5560; background: #f5f6f8; border: 1rpx solid #e3e6ea;

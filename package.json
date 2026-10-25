@@ -6,7 +6,8 @@
     "type": "module",
     "scripts": {
         "dev:h5": "uni",
-        "build:h5": "uni build"
+        "build:h5": "uni build",
+        "test": "vitest run"
     },
     "dependencies": {
         "@dcloudio/uni-app": "3.0.0-4060620250520001",

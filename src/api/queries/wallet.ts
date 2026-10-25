@@ -22,7 +22,7 @@ const RIDER_BALANCE_HISTORY = gql`
 const RIDER_WITHDRAW_REQUESTS = gql`
     query riderWithdrawRequests($skip: Int, $take: Int) {
         riderWithdrawRequests(skip: $skip, take: $take) {
-            id amount channel account status remark reviewedAt createdAt
+            id amount channel account status remark reviewedAt createdAt payoutRef
         }
     }
 `;

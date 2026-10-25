@@ -20,6 +20,7 @@
     "grabSelf": "不能抢自己的订单",
     "grabFail": "抢单失败",
     "rating": "评分 {r} · {n} 条评价",
+    "reviewsTitle": "我的评价",
     "myShifts": "我的班次",
     "appeal": "申诉"
   },
@@ -105,6 +106,7 @@
     "withdrawTo": "提现到 {c}",
     "balance": "余额 ¥{n}",
     "reviewed": "审核",
+    "payoutRef": "流水号 {ref}",
     "stPaid": "已打款",
     "stRejected": "已驳回",
     "stPending": "审核中"

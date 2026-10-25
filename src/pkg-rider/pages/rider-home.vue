@@ -16,6 +16,18 @@
                 <navigator class="qlink" url="/pkg-rider/pages/rider-appeal" hover-class="none">{{ $t('riderHome.appeal') }}</navigator>
             </view>
         </view>
+        <!-- 我的评价（P3-3）：均分之外展示逐条评分/标签/留言 -->
+        <view class="reviews" v-if="reviews.length">
+            <text class="rv-title">{{ $t('riderHome.reviewsTitle') }}</text>
+            <view v-for="rv in reviews" :key="rv.id" class="rv">
+                <view class="rv-head">
+                    <text class="rv-stars">{{ '★'.repeat(rv.rating) }}<text class="rv-stars-off">{{ '★'.repeat(5 - rv.rating) }}</text></text>
+                    <text class="rv-time">{{ shortDate(rv.createdAt) }}</text>
+                </view>
+                <text v-if="rv.tags && rv.tags.length" class="rv-tags">{{ rv.tags.join(' · ') }}</text>
+                <text v-if="rv.comment" class="rv-comment">{{ rv.comment }}</text>
+            </view>
+        </view>
         <navigator class="jh-entry" url="/pkg-jianghu/pages/jh-hall" hover-class="none">
             <view class="jh-ic">江</view>
             <view class="jh-b">
@@ -47,7 +59,7 @@ import { computed, ref } from 'vue';
 import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchHall, grabOrder, fetchBuildingMap } from '../../api/queries/hall';
 import { myRiderProfile, riderOnline, riderHeartbeat } from '../../api/queries/rider';
-import { fetchMyRiderRating } from '../../api/queries/support';
+import { fetchMyRiderRating, fetchMyRiderReviews } from '../../api/queries/support';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
 import EmptyState from '../../components/EmptyState.vue';
@@ -57,10 +69,20 @@ const locale = useLocaleStore();
 const on = ref(false);
 const profile = ref<any>(null);
 const rating = ref<any>(null);
+const reviews = ref<any[]>([]);
 const avgText = computed(() => {
     const n = Number(rating.value?.avgRating);
     return rating.value?.ratingCount ? (Number.isFinite(n) ? n.toFixed(1) : '--') : '--';
 });
+
+/** 评价时间显示为 MM-DD HH:mm（列表只展示最近 5 条，无需完整年份） */
+function shortDate(v?: string): string {
+    if (!v) return '';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '';
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 const tasks = ref<any[]>([]);
 const grabbing = ref(false);
 const takenIds = ref(new Set<string>());
@@ -78,6 +100,7 @@ onShow(async () => {
         return uni.redirectTo({ url: '/pkg-rider/pages/rider-join' });
     }
     rating.value = await fetchMyRiderRating().catch(() => null);
+    reviews.value = await fetchMyRiderReviews(0, 5).catch(() => []);
     buildingMap.value = await fetchBuildingMap().catch(() => ({}));
     await refresh();
     pollTimer = setInterval(refresh, 10000);      // spec §6.1 大厅轮询 10s
@@ -161,6 +184,17 @@ async function grab(t: any) {
 .rating { font-size: 24rpx; color: #f59e0b; }
 .quick-links { display: flex; gap: 12rpx; }
 .qlink { font-size: 22rpx; color: $text-muted; background: $surface; border-radius: 999rpx; padding: 8rpx 20rpx; }
+/* 我的评价（P3-3）：逐条评分/标签/留言 */
+.reviews { background: $surface; border-radius: $radius-card; padding: 20rpx 24rpx; margin-bottom: 24rpx; }
+.rv-title { display: block; font-size: 26rpx; font-weight: 600; color: $text; margin-bottom: 12rpx; }
+.rv { padding-top: 16rpx; border-top: 1rpx solid rgba(0, 0, 0, .06); }
+.rv:first-of-type { border-top: none; padding-top: 0; }
+.rv-head { display: flex; justify-content: space-between; align-items: center; }
+.rv-stars { font-size: 24rpx; color: #f59e0b; letter-spacing: 2rpx; }
+.rv-stars-off { color: rgba(0, 0, 0, .12); }
+.rv-time { font-size: 22rpx; color: $text-muted; }
+.rv-tags { display: block; font-size: 22rpx; color: #0a8f4d; margin-top: 8rpx; }
+.rv-comment { display: block; font-size: 24rpx; color: $text; margin-top: 6rpx; line-height: 1.6; }
 /* 江湖入口（拾光传信者）：水墨风卡片，与订单列表区隔 */
 .jh-entry {
     display: flex; align-items: center; margin-bottom: 24rpx; padding: 24rpx; border-radius: $radius-card;

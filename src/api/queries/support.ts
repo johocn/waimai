@@ -44,6 +44,14 @@ const MY_RIDER_RATING = gql`
     }
 `;
 
+const MY_RIDER_REVIEWS = gql`
+    query campusMyRiderReviews($skip: Int, $take: Int) {
+        campusMyRiderReviews(skip: $skip, take: $take) {
+            id orderId rating tags comment createdAt
+        }
+    }
+`;
+
 const MY_SHIFTS = gql`
     query campusMyShifts($from: String, $to: String) {
         campusMyShifts(from: $from, to: $to) { id shiftDate startTime endTime note }
@@ -98,6 +106,13 @@ export function fetchMyRiderRating(): Promise<any> {
     return getGraphQLClient()
         .request(MY_RIDER_RATING)
         .then((r: any) => r?.campusMyRiderRating ?? null);
+}
+
+/** 骑手自己的评价明细（P3-3）：评分/标签/留言，按时间倒序 */
+export function fetchMyRiderReviews(skip = 0, take = 5): Promise<any[]> {
+    return getGraphQLClient()
+        .request(MY_RIDER_REVIEWS, { skip, take })
+        .then((r: any) => r?.campusMyRiderReviews ?? []);
 }
 
 export function fetchMyShifts(from?: string, to?: string): Promise<any[]> {

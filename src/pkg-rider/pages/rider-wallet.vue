@@ -50,6 +50,7 @@
                         <text class="row-amount neg">-¥{{ fmt(r.amount) }}</text>
                         <text class="row-status" :class="'st-' + r.status?.toLowerCase()">{{ statusLabel(r.status) }}</text>
                         <text class="row-remark" v-if="r.status === 'REJECTED' && r.remark">{{ r.remark }}</text>
+                        <text class="row-remark" v-if="r.status === 'PAID' && r.payoutRef">{{ $t('riderWallet.payoutRef').replace('{ref}', r.payoutRef) }}</text>
                     </view>
                 </view>
             </view>

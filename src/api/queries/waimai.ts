@@ -10,6 +10,7 @@ export const WAIMAI_STORE_LIST = gql`
             channelId channelToken name logo tags monthlySales promoText paused openNow routesEnabled businessHours
             deliveryMinutes minOrderAmount deliveryFee storeAddress storePhone storeNotice errandBaseFee freeShippingThreshold
             foodLicenseNo foodLicenseImage foodLicenseExpiry foodSafetyGrade foodSafetyCommitmentImage kitchenLiveUrl kitchenLiveEnabled
+            packingFeeEnabled packingFeeMode packingFeeAmount packingFeeCap packingFeeLabel
         }
     }
 `;
@@ -24,7 +25,7 @@ const PRODUCT_LIST_QUERY = `
                 variants { id name priceWithTax stockLevel enabled options { id name code } }
                 optionGroups { id name code options { id name code } }
                 collections { id name slug parent { name } }
-                customFields { reviewRating reviewCount waimaiMonthlySales waimaiSoldOut }
+                customFields { reviewRating reviewCount waimaiMonthlySales waimaiSoldOut waimaiPackingFee }
             }
         }
     }

@@ -42,7 +42,7 @@ export const ORDER_FRAGMENT = `
         lines {
             id quantity linePriceWithTax unitPriceWithTax proratedLinePrice
             featuredAsset { preview }
-            productVariant { id productId name enabled stockLevel options { name } customFields { shippingProfileId paymentProfileId } }
+            productVariant { id productId name enabled stockLevel options { name } product { id customFields { waimaiPackingFee } } customFields { shippingProfileId paymentProfileId } }
         }
         shippingAddress { fullName streetLine1 streetLine2 city province postalCode country phoneNumber }
         billingAddress { fullName streetLine1 streetLine2 city province postalCode country phoneNumber }
@@ -50,6 +50,7 @@ export const ORDER_FRAGMENT = `
         payments { id method amount state transactionId metadata }
         couponCodes
         discounts { description amountWithTax }
+        surcharges { id description sku priceWithTax }
         customFields { couponCode couponId hallStatus fulfillmentRoute deliveryStatus hallEnteredAt deliverySlotText campusZone orderKind errandKind errandFrom errandTo errandNote tip buildingId deliveryDetail thirdPartyState leg1Status handoverAt handoverCode urged exceptionType exceptionAction exceptionCompensation exceptionHandledNote deliveredAt invoiceApplied invoiceInfo promisedAt timeoutCompensatedAt timeoutLateMinutes }
         campusOrderDelivery {
             deliveryPlan

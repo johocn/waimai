@@ -3226,3 +3226,59 @@
 - C 端：`node .secrets/deploy-waimai.mjs`（本地 `build:h5` → 产物校验 3.6 MB → tar/scp → 服务器解压到 `/www/sites/e.joho.cn/yourbao/waimai`），`https://www.yourbao.cn/waimai/` 返回 200。
 - 后端：两插件编译产物入 git 后 `git pull` + `pm2 restart vendure`，线上 `shop-api` 已可见 `campusMyChatConversations` / `campusChatMessages` / `campusStartChat` / `campusSendChatMessage` / `campusMarkChatRead` / `campusCloseChat` / `appealReview`（未带 token 返回 `FORBIDDEN`，权限生效）；新表与新列已随幂等迁移建好。
 - 后台：`node scripts/deploy.mjs` 部署 H5 工作台并 reload nginx，`https://www.yourbao.cn/guanli/` 返回 200。
+
+## 148 打包费 / 餐盒费（P1-1，2026-10-26）
+
+### 148.1 功能说明
+
+| 能力 | 顾客侧表现 |
+|---|---|
+| 结算页汇总行 | 「商品总额 / 配送费 / 起送价」之后新增一行打包费，金额由店铺配置计算；展示名取后台「C 端展示名称」（如「餐盒费」），留空则「打包费」 |
+| 应付合计 | 打包费计入应付金额，与后端落账同源，页面金额与实付一致 |
+| 两种计费方式 | 按件累加（单件价 × 件数，支持单笔封顶）；每单固定（每单一个固定金额） |
+| 商品级覆盖 | 商家可为单个商品单独设单件打包费；留空沿用店铺金额，填 0 表示该商品不收打包费 |
+
+### 148.2 交互与口径
+
+- **仅在开启时显示**：店铺未开启打包费，或计算结果为 0 时，结算页不渲染该行（不显示「¥0.00」占位）。
+- **预估 vs 落账**：进入结算页时按「店铺配置 + 商品级覆盖」在前端预估展示；订单进入支付前由后端 `campusPackingFeeProcess` 写入 `sku=campus-packing-fee` 的 surcharge，若订单已带该 surcharge 则以落账值为准，避免重复计数。
+- **应付金额计算**：`应付 = order.totalWithTax + max(0, 展示打包费 − 已落账打包费)`，保证支付前页面金额不低于实付。
+- **跑腿单不收**：`orderKind=errand` 的跑腿订单不参与打包费计算。
+- **封顶**：店铺配置了单笔封顶时，按件累加结果取 `min(计算值, 封顶值)`。
+
+### 148.3 接口
+
+| 端 | 接口 / 字段 | 说明 |
+|---|---|---|
+| 顾客 | `waimaiStoreList` 新增 `packingFeeEnabled / packingFeeMode / packingFeeAmount / packingFeeCap / packingFeeLabel` | 结算页取店铺配置 |
+| 顾客 | `Order` fragment 新增 `surcharges { id description sku priceWithTax }`；`productVariant.product.customFields.waimaiPackingFee` | 展示已落账打包费 + 商品级覆盖单价 |
+| 后台 | `CampusStoreConfigInput` 新增 5 个 `packingFee*` 字段 | 店铺级配置 |
+| 后台 | `campusMerchantSetProductPackingFee(productId, packingFee)` | 商品级覆盖（`null` = 沿用店铺） |
+
+> 后台侧配置与商品 sheet 详见 `vshop/docs/waimai-操作手册.md` §46。
+
+### 148.4 验证记录
+
+构建：`pnpm build:h5` 通过（仅 Sass legacy API 弃用告警）。
+
+手机视口截图（390×844 dpr=2，`docs/screenshots/common-features-v41/`；本轮未部署，采用本地 dist 静态服务 + shop-api 全 mock）：
+
+| 截图 | 断言结果 |
+|---|---|
+| [263-checkout-packing-fee-per-item.png](screenshots/common-features-v41/263-checkout-packing-fee-per-item.png) | 按件累加：商品总额 ¥32.50、打包费 **¥1.50**（宫保鸡丁覆盖 1.00/件 + 凉拌黄瓜沿用 0.50/件）、应付 **¥36.00**（32.50 + 2.00 运费 + 1.50 打包费） |
+| [264-checkout-packing-fee-per-order.png](screenshots/common-features-v41/264-checkout-packing-fee-per-order.png) | 每单固定 + 自定义展示名：汇总行显示 **「餐盒费 ¥2.00」**、应付 ¥30.00（26.00 + 2.00 运费 + 2.00 餐盒费） |
+
+截图脚本：`node .secrets/packing-fee-shots.cjs`。
+
+### 148.5 顺带修复：结算页 ETA 行未翻译
+
+- 现象：截图时发现结算页「预计送达」行直接渲染原始 key（`checkout.etaRow` / `checkout.etaAsap`），第 38 轮 ETA 功能漏加词条。
+- 修复：`locale/zh-Hans.json` 与 `locale/en.json` 的 `checkout` 组补齐 `etaRow / etaAsap / etaNextDay / etaSlot` 四组词条（中英各 4 条）。
+- 复测：重建后结算页显示「预计送达 / 尽快送达（约 25 分钟，预计 22:25–22:35）」。
+
+### 148.6 边界与已知限制
+
+- **不参与优惠**：打包费为 surcharge，不进入满减/券的可优惠金额计算（与运费同口径）。
+- **仅影响新单**：已创建/已支付订单不补收，修改配置只对后续进支付流程的订单生效。
+- **按件件数口径**：取订单行 `quantity` 累加，暂不含套餐/加料子项（P1-2 套餐落地后统一）。
+- **仅两级定价**：店铺默认 + 商品级覆盖，未做按分类/按时段差异计费。

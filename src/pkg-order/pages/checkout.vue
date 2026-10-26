@@ -225,6 +225,8 @@
       <view class="summary-row"><text>{{ $t('checkout.goodsTotal') }}</text><text>¥{{ originalSubTotalYuan }}</text></view>
       <view class="summary-row" v-if="activeTab === 'campus' && deliveryFeeFen != null"><text>{{ $t('checkout.deliveryFee') }}</text><text>¥{{ (deliveryFeeFen / 100).toFixed(2) }}</text></view>
       <view class="summary-row" v-if="activeTab === 'campus' && minOrderFen != null"><text>{{ $t('checkout.minOrder') }}</text><text>{{ $t('checkout.minOrderText').replace('{c}', (minOrderFen / 100).toFixed(2)) }}</text></view>
+      <!-- 打包费/餐盒费（P1）：店铺级配置 + 商品级覆盖，结算时由后端落一条 surcharge -->
+      <view class="summary-row" v-if="showPackingFee"><text>{{ packingFeeLabel }}</text><text>¥{{ (packingFeeFen / 100).toFixed(2) }}</text></view>
       <view class="summary-row"><text>{{ $t('checkout.shipping') }}</text>
         <text v-if="freeShipOn"><text class="ship-orig">¥{{ shipOriginalYuan }}</text>¥0.00<text class="ship-tag">{{ $t('checkout.freeShipTag').replace('{c}', freeShipYuan) }}</text></text>
         <text v-else>¥{{ shipDisplayYuan }}</text>
@@ -276,7 +278,7 @@
           <text class="fee-detail__amt">-¥{{ d.yuan }}</text>
         </view>
       </view>
-      <view class="summary-row summary-row--total"><text>{{ $t('checkout.payable') }}</text><text class="checkout-page__total">¥{{ cart.formatPrice(cart.order.totalWithTax) }}</text></view>
+      <view class="summary-row summary-row--total"><text>{{ $t('checkout.payable') }}</text><text class="checkout-page__total">¥{{ cart.formatPrice(payableFen) }}</text></view>
     </view>
 
     <!-- 整单备注（P1）：给商家留言，随单写入 Order customFields.note；常用模板一键填充 -->
@@ -671,6 +673,9 @@ const zonesLoading = ref(false);
 const minOrderFen = ref<number | null>(null);   // 起送价（分，URL 透传；null=未配置）
 const deliveryFeeFen = ref<number | null>(null); // 配送费（分，仅展示）
 const freeShipFen = ref<number | null>(null);    // 满X元免配送费门槛（分；null/0=不启用，plan 3.2）
+// 打包费/餐盒费（P1）：店铺配置 + 商品级覆盖，结算时由后端落一条 surcharge，这里只做预估展示
+const packingCfg = ref<{ enabled: boolean; mode: string; amount: number; cap: number | null; label: string | null }>
+    ({ enabled: false, mode: 'perItem', amount: 0, cap: null, label: null });
 const promoText = ref('');                       // 店铺满减活动文案（promoText，解析「满X减Y」）
 const defaultAddressSummary = ref('');           // 默认校园地址摘要（Task 10，可点击改选）
 // 店铺标识（menu 透传 cid/shop）：下单成功后写「常买商品」，并按渠道隔离记录
@@ -746,6 +751,13 @@ async function loadStoreRoutes() {
         const store = stores.find((s: any) => s.channelToken === storeToken);
         freeShipFen.value = store?.freeShippingThreshold ?? null;
         promoText.value = store?.promoText ?? '';
+        packingCfg.value = {
+            enabled: !!store?.packingFeeEnabled,
+            mode: store?.packingFeeMode === 'perOrder' ? 'perOrder' : 'perItem',
+            amount: Number(store?.packingFeeAmount ?? 0),
+            cap: store?.packingFeeCap == null ? null : Number(store.packingFeeCap),
+            label: store?.packingFeeLabel ?? null,
+        };
         // URL 未透传起送价时回填店铺配置（单位：分）
         if (store?.minOrderAmount != null && minOrderFen.value == null) {
             minOrderFen.value = Number(store.minOrderAmount);
@@ -884,6 +896,43 @@ const selectedZoneAddFeeFen = computed(() => {
     return add > 0 ? add : 0;
 });
 const goodsFen = computed(() => cart.order?.subTotalWithTax || 0);
+// ===== 打包费/餐盒费（P1）：与后端 campusPackingFeeProcess 同口径（先清旧值再按最终件数落一条 surcharge）=====
+const PACKING_FEE_SKU = 'campus-packing-fee';
+/** 已落账的打包费（分）：transition 后 activeOrder 会带上本条 surcharge，优先用后端口径 */
+const packedFeeFromOrder = computed(() => {
+    const list = (cart.order as any)?.surcharges ?? [];
+    const hit = list.find((s: any) => s?.sku === PACKING_FEE_SKU);
+    return hit ? Number(hit.priceWithTax) || 0 : 0;
+});
+/** 打包费预估（分）：按店铺配置 + 商品级覆盖（waimaiPackingFee）逐行累加，perOrder 取每单固定值 */
+const packingFeeEstimateFen = computed(() => {
+    const c = packingCfg.value;
+    if (!c.enabled) return 0;
+    const amount = Math.max(0, Math.round(c.amount || 0));
+    let fee = 0;
+    if (c.mode === 'perOrder') {
+        fee = amount;
+    } else {
+        for (const line of (cart.order?.lines ?? []) as any[]) {
+            const qty = Number(line?.quantity || 0);
+            if (qty <= 0) continue;
+            const raw = line?.productVariant?.product?.customFields?.waimaiPackingFee;
+            const unit = raw == null ? amount : Math.max(0, Math.round(Number(raw) || 0));
+            fee += unit * qty;
+        }
+    }
+    if (c.cap != null && c.cap > 0) fee = Math.min(fee, Math.round(c.cap));
+    return fee;
+});
+/** 展示用打包费（分）：后端已落账则用落账值，否则用预估值 */
+const packingFeeFen = computed(() => Math.max(packedFeeFromOrder.value, packingFeeEstimateFen.value));
+const showPackingFee = computed(() => packingCfg.value.enabled && packingFeeFen.value > 0);
+const packingFeeLabel = computed(() => (packingCfg.value.label || '').trim() || locale.t('checkout.packingFee'));
+/** 应付合计（分）：order.totalWithTax 未含尚未落账的打包费时补上预估值，避免页面金额低于实付 */
+const payableFen = computed(() => {
+    const total = Number((cart.order as any)?.totalWithTax || 0);
+    return total + Math.max(0, packingFeeFen.value - packedFeeFromOrder.value);
+});
 // 起送价硬拦截：未达标禁止提交（后端 campusMinOrderProcess 兜底同口径）
 const belowMinOrder = computed(() => activeTab.value === 'campus' && minOrderFen.value != null && goodsFen.value < minOrderFen.value);
 const minOrderGapYuan = computed(() => (minOrderFen.value == null ? '0' : yuan(minOrderFen.value - goodsFen.value)));

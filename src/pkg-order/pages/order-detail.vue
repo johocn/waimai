@@ -269,6 +269,7 @@
       <button v-if="canInvoice" class="action-btn" @click="openInvoice">{{ $t('orderDetail.invoice') }}</button>
       <button v-if="canCancel" class="action-btn action-btn--ghost" @click="cancelOrder">{{ $t('orderDetail.cancelBtn') }}</button>
       <button v-if="canReview" class="action-btn" @click="goReview">{{ $t('orderDetail.reviewBtn') }}</button>
+      <button class="action-btn" @click="goSupportChat">{{ $t('orderDetail.supportChatBtn') }}</button>
       <button class="action-btn action-btn--primary" @click="reorder">{{ $t('orderDetail.reorderBtn') }}</button>
       <button class="action-btn action-btn--ghost" @click="shareOrder">{{ $t('orderDetail.shareOrderBtn') }}</button>
       <button class="action-btn action-btn--ghost" @click="goPoster">{{ $t('orderDetail.posterBtn') }}</button>
@@ -1017,6 +1018,11 @@ function goAfterSale() {
 function goAfterSaleDetail() {
     if (!afterSale.value?.id) return;
     uni.navigateTo({ url: `/pkg-order/pages/after-sale-detail?id=${afterSale.value.id}` });
+}
+/** 在线客服：带本单号发起（后端按「顾客 + 订单号 + open」复用同一条会话） */
+function goSupportChat() {
+    const code = order.value?.code;
+    uni.navigateTo({ url: '/pkg-user/pages/support-chat' + (code ? `?orderCode=${code}` : '') });
 }
 /** 是否有支付计划（尾款/分期）：仅登录后查询，失败视为无 */
 async function loadScheduleFlag() {

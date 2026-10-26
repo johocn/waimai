@@ -18,6 +18,18 @@
       </view>
     </view>
 
+    <!-- 在线客服：发起/继续会话（同订单复用同一条会话） -->
+    <view class="help-chat" @click="openChat">
+      <view class="help-chat__left">
+        <text class="help-chat__ico">💬</text>
+        <view class="help-chat__texts">
+          <text class="help-chat__title">{{ $t('chat.title') }}</text>
+          <text class="help-chat__sub">{{ $t('chat.replyHint') }}</text>
+        </view>
+      </view>
+      <text class="help-chat__arrow">›</text>
+    </view>
+
     <!-- 常见问题：后台 FAQ 优先，无数据/失败回落内置静态分组 -->
     <view class="faq">
       <text class="faq__title">{{ $t('help.faqTitle') }}</text>
@@ -158,6 +170,10 @@ function nav(url: string) {
   }
   uni.navigateTo({ url });
 }
+/** 在线客服：不带订单号发起通用咨询（后端复用已有 open 会话） */
+function openChat() {
+  uni.navigateTo({ url: '/pkg-user/pages/support-chat' });
+}
 </script>
 
 <style lang="scss" scoped>
@@ -179,6 +195,16 @@ function nav(url: string) {
   &__item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10rpx; }
   &__ico { font-size: 40rpx; }
   &__lbl { font-size: 24rpx; color: $text-color-secondary; }
+}
+.help-chat {
+  display: flex; align-items: center; justify-content: space-between;
+  background: $surface; border-radius: $radius-md; padding: 24rpx; margin-bottom: 20rpx;
+  &__left { display: flex; align-items: center; gap: 16rpx; flex: 1; min-width: 0; }
+  &__ico { font-size: 40rpx; }
+  &__texts { display: flex; flex-direction: column; gap: 6rpx; flex: 1; min-width: 0; }
+  &__title { font-size: 28rpx; font-weight: bold; color: #1f2329; }
+  &__sub { font-size: 22rpx; color: $text-color-placeholder; }
+  &__arrow { font-size: 32rpx; color: $text-color-placeholder; }
 }
 .faq {
   background: $surface; border-radius: $radius-md; padding: 24rpx;

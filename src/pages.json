@@ -72,6 +72,7 @@
                 { "path": "pages/feedback", "style": { "navigationBarTitleText": "%nav.feedback%" } },
                 { "path": "pages/support-tickets", "style": { "navigationBarTitleText": "%nav.supportTickets%" } },
                 { "path": "pages/help", "style": { "navigationBarTitleText": "%nav.help%" } },
+                { "path": "pages/support-chat", "style": { "navigationBarTitleText": "%nav.supportChat%" } },
                 { "path": "pages/student-verify", "style": { "navigationBarTitleText": "%nav.studentVerify%" } },
                 { "path": "pages/delivery-prefs", "style": { "navigationBarTitleText": "%nav.deliveryPrefs%" } },
                 { "path": "pages/taste-profile", "style": { "navigationBarTitleText": "%nav.tasteProfile%" } },
@@ -99,9 +100,7 @@
                 { "path": "pages/jh-event", "style": { "navigationBarTitleText": "江湖事件簿" } },
                 { "path": "pages/jh-story", "style": { "navigationBarTitleText": "江湖志" } },
                 { "path": "pages/jh-admin", "style": { "navigationBarTitleText": "江湖运营后台" } },
-                { "path": "pages/jh-deaddrop", "style": { "navigationBarTitleText": "北山老树·死信箱" } },
-                { "path": "pages/jh-teahouse", "style": { "navigationBarTitleText": "听雨茶馆·暗号茶阵" } },
-                { "path": "pages/jh-chamber", "style": { "navigationBarTitleText": "总舵密室·机关锁" } }
+                { "path": "pages/jh-deaddrop", "style": { "navigationBarTitleText": "北山老树·死信箱" } }
             ]
         },
         {

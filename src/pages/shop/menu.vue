@@ -31,6 +31,13 @@
                     <text v-if="t.next && t.gapFen > 0" class="promo-tier__gap">{{ $t('menu.tierGap').replace('{d}', yuan(t.gapFen)) }}</text>
                 </view>
             </view>
+            <!-- 食安公示条：证照 / 等级 / 明厨亮灶入口 -->
+            <view v-if="hasFoodSafety" class="fs-bar" @tap.stop="openFoodSafety">
+                <text class="fs-bar__ico">🛡</text>
+                <text class="fs-bar__txt">{{ foodSafetyBrief }}</text>
+                <text v-if="storeInfo?.kitchenLiveEnabled && storeInfo?.kitchenLiveUrl" class="fs-bar__live">● {{ $t('menu.kitchenLiveOn') }}</text>
+                <text class="fs-bar__more">{{ $t('menu.noticeMore') }} ›</text>
+            </view>
         </view>
         <!-- 预计送达条（第 38 轮）：营业中展示 ETA 区间；打烊时由下方营业状态条接管 -->
         <view v-if="etaBarText" class="eta-bar">
@@ -294,6 +301,9 @@
                 <view class="mrow"><text class="mico">📍</text><text class="mlab">{{ $t('menu.deliveryArea') }}</text><text class="mval">{{ $t('menu.deliveryAreaVal') }}</text></view>
                 <view class="mrow" v-if="storeInfo?.storeAddress"><text class="mico">🏠</text><text class="mlab">{{ $t('menu.storeAddress') }}</text><text class="mval">{{ storeInfo.storeAddress }}</text></view>
                 <view class="mrow" v-if="storeInfo?.storePhone"><text class="mico">📞</text><text class="mlab" @tap="callStore">{{ $t('menu.storePhone') }}</text><text class="mval" @tap="callStore">{{ storeInfo.storePhone }}</text></view>
+                <view class="mrow" v-if="storeInfo?.foodLicenseNo"><text class="mico">🛡</text><text class="mlab">{{ $t('menu.foodLicenseNo') }}</text><text class="mval">{{ storeInfo.foodLicenseNo }}</text></view>
+                <view class="mrow" v-if="foodGradeText"><text class="mico">⭐</text><text class="mlab">{{ $t('menu.foodSafetyGrade') }}</text><text class="mval">{{ foodGradeText }}</text></view>
+                <view class="mrow" v-if="storeInfo?.kitchenLiveUrl"><text class="mico">📹</text><text class="mlab" @tap="openKitchenLive">{{ $t('menu.kitchenLive') }}</text><text class="mval" @tap="openKitchenLive">{{ $t('menu.noticeMore') }} ›</text></view>
             </view>
             <view class="mcard" v-if="promoText || storeInfo?.storeNotice">
                 <view class="mrow" v-if="storeInfo?.storeNotice"><text class="mico">📣</text><text class="mlab">{{ $t('menu.storeNotice') }}</text><text class="mval">{{ storeInfo.storeNotice }}</text></view>
@@ -389,6 +399,38 @@
                 <button class="notice-sheet__btn" @tap="noticeOpen = false">{{ $t('menu.noticeOk') }}</button>
             </view>
         </view>
+
+        <!-- 食安公示弹层：证照信息 + 明厨亮灶 -->
+        <view v-if="foodSafetyOpen" class="notice-mask" @tap="foodSafetyOpen = false">
+            <view class="notice-sheet fs-sheet" @tap.stop>
+                <view class="notice-sheet__head">
+                    <text class="notice-sheet__ico">🛡</text>
+                    <text class="notice-sheet__title">{{ $t('menu.foodSafetyTitle') }}</text>
+                </view>
+                <scroll-view scroll-y class="notice-sheet__body">
+                    <view class="fs-row" v-if="storeInfo?.foodSafetyGrade">
+                        <text class="fs-lab">{{ $t('menu.foodSafetyGrade') }}</text>
+                        <text class="fs-val fs-grade" :class="'g-' + foodGradeKey">{{ foodGradeText }}</text>
+                    </view>
+                    <view class="fs-row" v-if="storeInfo?.foodLicenseNo">
+                        <text class="fs-lab">{{ $t('menu.foodLicenseNo') }}</text>
+                        <text class="fs-val">{{ storeInfo.foodLicenseNo }}</text>
+                    </view>
+                    <view class="fs-row" v-if="storeInfo?.foodLicenseExpiry">
+                        <text class="fs-lab">{{ $t('menu.foodLicenseExpiry') }}</text>
+                        <text class="fs-val">{{ storeInfo.foodLicenseExpiry }}</text>
+                    </view>
+                    <view class="fs-actions">
+                        <button v-if="storeInfo?.foodLicenseImage" class="fs-btn" @tap="previewFoodImage(storeInfo.foodLicenseImage)">{{ $t('menu.foodLicenseImage') }}</button>
+                        <button v-if="storeInfo?.foodSafetyCommitmentImage" class="fs-btn" @tap="previewFoodImage(storeInfo.foodSafetyCommitmentImage)">{{ $t('menu.foodSafetyCommitmentImage') }}</button>
+                        <button v-if="storeInfo?.kitchenLiveUrl" class="fs-btn fs-btn--live" @tap="openKitchenLive">{{ $t('menu.kitchenLive') }}</button>
+                    </view>
+                    <text v-if="storeInfo?.kitchenLiveEnabled && storeInfo?.kitchenLiveUrl" class="fs-tip">{{ $t('menu.kitchenLiveTip') }}</text>
+                    <text class="fs-tip">{{ $t('menu.foodSafetyTip') }}</text>
+                </scroll-view>
+                <button class="notice-sheet__btn" @tap="foodSafetyOpen = false">{{ $t('menu.noticeOk') }}</button>
+            </view>
+        </view>
     </view>
 </template>
 
@@ -440,6 +482,19 @@ const storeInfo = ref<any>(null);
 /** 店铺公告（storeInfo 的 storeNotice，空则整块不显示） */
 const storeNotice = computed(() => String(storeInfo.value?.storeNotice || '').trim());
 const noticeOpen = ref(false);
+// 食安公示：证照 / 等级 / 明厨亮灶（店铺级配置，随 waimaiStoreList 下发）
+const foodSafetyOpen = ref(false);
+const foodGradeKey = computed(() => {
+    const g = String(storeInfo.value?.foodSafetyGrade || '').trim().toUpperCase();
+    return ['A', 'B', 'C'].includes(g) ? g : 'none';
+});
+const foodGradeText = computed(() => (storeInfo.value?.foodSafetyGrade ? locale.t(`menu.foodGrade${foodGradeKey.value}`) : ''));
+const hasFoodSafety = computed(() =>
+    !!(storeInfo.value?.foodLicenseNo || storeInfo.value?.foodSafetyGrade || storeInfo.value?.foodLicenseImage || storeInfo.value?.foodSafetyCommitmentImage || storeInfo.value?.kitchenLiveUrl)
+);
+const foodSafetyBrief = computed(() =>
+    foodGradeText.value ? locale.t('menu.foodSafetyBriefGrade').replace('{g}', foodGradeText.value) : locale.t('menu.foodSafetyBrief')
+);
 // 附近有货：商品卡入口 → 弹层按定位查跨仓库存
 const nearbyOpen = ref(false);
 const nearbyLoading = ref(false);
@@ -484,6 +539,34 @@ const isFav = computed(() => favorites.isFavorite(favChannelId.value));
 /** 打开公告弹层（点公告条） */
 function openNotice() {
     if (storeNotice.value) noticeOpen.value = true;
+}
+
+/** 打开食安公示弹层 */
+function openFoodSafety() {
+    foodSafetyOpen.value = true;
+}
+
+/** 证照/承诺书大图预览 */
+function previewFoodImage(url: string) {
+    const u = String(url || '');
+    if (!u) return;
+    uni.previewImage({ urls: [u], current: u });
+}
+
+/** 明厨亮灶：H5 新窗口打开，其余端复制直播链接 */
+function openKitchenLive() {
+    const url = String(storeInfo.value?.kitchenLiveUrl || '');
+    if (!url) return;
+    // #ifdef H5
+    window.open(url, '_blank');
+    return;
+    // #endif
+    // #ifndef H5
+    uni.setClipboardData({
+        data: url,
+        success: () => uni.showToast({ title: locale.t('menu.kitchenLiveCopied'), icon: 'none' }),
+    });
+    // #endif
 }
 
 /** 首次进店每日自动弹一次公告：同店同一天只弹一次 */
@@ -1464,6 +1547,29 @@ function goCheckout() {
   &.hit { border-color: var(--w-brand); background: var(--w-brand-soft); color: var(--w-brand-text); }
   &.next { border-style: dashed; border-color: #ffb27a; color: #b45309; }
 }
+/* 食安公示条 + 弹层（证照、等级、明厨亮灶） */
+.fs-bar { display: flex; align-items: center; gap: 10rpx; margin-top: 14rpx; padding-top: 14rpx; border-top: 1rpx dashed var(--w-border); }
+.fs-bar__ico { font-size: 24rpx; flex-shrink: 0; }
+.fs-bar__txt { flex: 1; min-width: 0; font-size: 22rpx; color: var(--w-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-bar__live { flex-shrink: 0; font-size: 20rpx; color: #16a34a; }
+.fs-bar__more { flex-shrink: 0; font-size: 22rpx; color: var(--w-brand-text); }
+.fs-sheet { max-height: 76vh; }
+.fs-row { display: flex; align-items: center; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid var(--w-border); font-size: 26rpx; }
+.fs-row:last-child { border-bottom: 0; }
+.fs-lab { width: 160rpx; flex-shrink: 0; font-size: 24rpx; color: var(--w-text-muted); }
+.fs-val { flex: 1; min-width: 0; color: var(--w-text); word-break: break-all; }
+.fs-grade { font-weight: 600; }
+.fs-grade.g-A { color: #16a34a; }
+.fs-grade.g-B { color: #d97706; }
+.fs-grade.g-C { color: #dc2626; }
+.fs-grade.g-none { color: var(--w-text-muted); font-weight: 400; }
+.fs-actions { display: flex; flex-wrap: wrap; gap: 16rpx; margin-top: 20rpx; }
+.fs-btn { margin: 0; padding: 0 26rpx; height: 64rpx; line-height: 64rpx; font-size: 24rpx; border-radius: 32rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border: 1rpx solid var(--w-border); }
+.fs-btn::after { border: none; }
+.fs-btn--live { color: #fff; background: #16a34a; border-color: #16a34a; }
+.fs-tip { display: block; margin-top: 16rpx; font-size: 22rpx; line-height: 1.6; color: var(--w-text-muted); }
+.menu-page.dark .fs-sheet { background: var(--w-surface); }
+.menu-page.dark .fs-sheet .notice-sheet__title { color: var(--w-text); }
 /* 营业状态条：打烊红、即将打烊橙，均贴在店铺卡下方 */
 .shop-state { display: flex; align-items: center; gap: 10rpx; margin: 16rpx 24rpx 0; padding: 14rpx 20rpx; border-radius: 12rpx; flex-shrink: 0; }
 .shop-state--closed { background: #fff2f0; border: 1rpx solid #f3b6b0; }

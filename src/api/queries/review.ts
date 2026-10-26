@@ -4,7 +4,7 @@ import { getGraphQLClient } from '../client';
 const REVIEW_FIELDS = `
     id customerId customerName productId variantId orderLineId parentId
     rating content images tags isAnonymous status reply repliedAt helpfulCount
-    createdAt reviewedAt
+    createdAt reviewedAt appealStatus appealReason appealResult
 `;
 
 /** 追评嵌套字段（主评下挂的 approved 追评，正序） */
@@ -100,6 +100,17 @@ export async function createFollowUpReview(reviewId: string, input: {
         }
     `;
     return client.request(query, { reviewId, input });
+}
+
+/** 差评申诉（P0-4）：本人 1-3 星主评，审核通过后评价隐藏；同一评价仅一条待审核申诉 */
+export async function appealReview(reviewId: string, reason: string, images?: string[]) {
+    const client = getGraphQLClient();
+    const query = `
+        mutation AppealReview($reviewId: ID!, $reason: String!, $images: [String!]) {
+            appealReview(reviewId: $reviewId, reason: $reason, images: $images) { ${REVIEW_FIELDS} }
+        }
+    `;
+    return client.request(query, { reviewId, reason, images });
 }
 
 /** 店铺级评论流：当前渠道全部 approved 主评（menu 评论 tab）；ratingMin/ratingMax/hasImages 分档筛选 */

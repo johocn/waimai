@@ -3161,3 +3161,62 @@
 - **追评图片容错**：`images` 缺失/空数组时不渲染图片块，仅展示文字；单图也可预览（单张时无左右切换）。
 
 截图：[252-orders-filter-bar.png](screenshots/common-features-v39/252-orders-filter-bar.png)、[253-orders-filter-sheet.png](screenshots/common-features-v39/253-orders-filter-sheet.png)、[254-orders-filter-applied.png](screenshots/common-features-v39/254-orders-filter-applied.png)、[255-menu-review-images.png](screenshots/common-features-v39/255-menu-review-images.png)、[255b-menu-review-followup-images.png](screenshots/common-features-v39/255b-menu-review-followup-images.png)、[256-sku-image-preview.png](screenshots/common-features-v39/256-sku-image-preview.png)
+
+## 147 常用功能 P0 收尾：在线客服 + 差评申诉 + 食安公示（2026-10-26）
+
+### 147.1 功能说明
+
+| # | 能力 | 顾客侧（waimai-v39） | 后端 / 后台 |
+|---|---|---|---|
+| P0-3 | 在线客服 IM | ① 帮助中心顶部「💬 在线客服」卡片（客服在线时间 9:00-21:00，3 分钟内回复）；② 订单详情新增「联系客服」按钮（带本单号发起）；③ 新增会话页 `pkg-user/pages/support-chat`：标题带订单号、气泡流（顾客/客服）、图片预览、输入框 + 发送、结束会话 | 见后台手册 §45（`campus_chat_conversation` / `campus_chat_message` + 顾客 6 方法 / 后台 5 方法 + 后台「在线客服」工作台） |
+| P0-4 | 差评申诉 | 「我的评价」列表：差评（≤3 星）显示「申诉」按钮；申诉留痕块（审核中 / 已驳回 / 已通过 + 申诉理由 + 平台说明）；底部弹层「差评申诉」（理由必填 + 最多 3 张凭证） | `review-plugin` 扩展申诉列 + `reviewAppeals` / `approveReviewAppeal` / `rejectReviewAppeal`，后台「差评申诉」页签审核 |
+| P0-2 | 食安公示 | 店铺页头部新增食安公示条（🛡 食安等级 / 明厨亮灶入口），点击打开「食品安全公示」弹层：等级、许可证号、有效期、查看许可证 / 承诺书 / 明厨亮灶 + 平台提示 | 后台「校园配置」新增食安字段（许可证号/照片/到期日、量化分级、承诺书、明厨亮灶地址与展示开关），随 `waimaiStoreList` 下发 |
+
+### 147.2 交互与口径
+
+- **会话复用**：从订单详情进入时带 `orderCode`，后端按「顾客 + 订单号 + open」复用同一条会话；从帮助中心进入不带单号，可发起通用咨询。会话结束后再次发起会新建一条。
+- **已读与轮询**：会话页每 5s 以 `afterId` 增量拉新消息，进入页面即 `campusMarkChatRead` 清零顾客侧未读；`onHide` / `onUnload` 清理定时器。
+- **发送内容**：文本必填（最多 500 字）；图片经 `uploadCustomerAsset` 上传后以 URL 数组随消息发送。
+- **申诉门槛**：仅主评（非追评）、星级 ≤ 3、评价未隐藏/未删除，且当前无「审核中 / 已通过」申诉时显示入口；申诉中与已驳回可查看留痕，已驳回可再次发起。
+- **申诉状态文案**：`pending` → 审核中；`approved` → 已通过（评价已隐藏）；`rejected` → 已驳回（附平台说明）。
+- **食安公示渲染**：任一字段缺失即不渲染对应行；`kitchenLiveEnabled=false` 时即使填了地址也不展示入口（后台提示避免死链）；明厨亮灶在 H5 新窗口打开，小程序端复制链接。
+
+### 147.3 接口
+
+| 端 | 接口 | 说明 |
+|---|---|---|
+| 顾客 | `campusMyChatConversations(skip, take)` | 我的会话列表 |
+| 顾客 | `campusStartChat(orderCode?, subject?)` | 发起 / 复用会话 |
+| 顾客 | `campusChatMessages(conversationId, afterId?, take?)` | 增量拉消息 |
+| 顾客 | `campusSendChatMessage(conversationId, content?, images?)` | 发送消息 |
+| 顾客 | `campusMarkChatRead(conversationId)` | 清顾客侧未读 |
+| 顾客 | `campusCloseChat(conversationId)` | 结束会话 |
+| 顾客 | `appealReview(reviewId, reason, images?)` | 提交差评申诉（理由必填） |
+
+> 后台侧接口（`campusChatConversations` / `campusChatUnread` / `campusAdminChatMessages` / `campusReplyChat` / `campusCloseChatConversation`、`reviewAppeals` / `approveReviewAppeal` / `rejectReviewAppeal`）见 `vshop/docs/waimai-操作手册.md` §45。
+
+### 147.4 验证记录
+
+构建：`pnpm build:h5` 通过（仅 Sass legacy API 弃用告警）。
+
+手机视口截图（390×844 dpr=2，`docs/screenshots/common-features-v40/`；本轮未部署，采用本地 dist 静态服务 + shop-api 全 mock）：
+
+| 截图 | 断言结果 |
+|---|---|
+| [257-help-chat-entry.png](screenshots/common-features-v40/257-help-chat-entry.png) | 帮助中心顶部渲染客服卡片，文案「💬 在线客服 / 客服在线时间 9:00-21:00，一般 3 分钟内回复 ›」 |
+| [258-support-chat.png](screenshots/common-features-v40/258-support-chat.png) | 会话页标题「订单 A2400001」、4 条消息（含 1 张图片）、输入区与「结束会话」按钮齐备 |
+| [259-my-reviews-appeal.png](screenshots/common-features-v40/259-my-reviews-appeal.png) | 3 张评价卡；2 条申诉留痕（审核中 / 已驳回 + 平台说明）；1 个「申诉」入口（5 星与已申诉项不显示） |
+| [260-my-reviews-appeal-sheet.png](screenshots/common-features-v40/260-my-reviews-appeal-sheet.png) | 弹层标题「差评申诉」、提示「平台审核通过后将隐藏该评价」、理由输入、凭证图位、提交按钮 |
+| [261-shop-food-safety-bar.png](screenshots/common-features-v40/261-shop-food-safety-bar.png) | 店铺头部「🛡 食安等级 A 级」+「● 明厨亮灶 查看 ›」，配送路线文案正常（无「暂未开通配送」误显） |
+| [262-shop-food-safety-sheet.png](screenshots/common-features-v40/262-shop-food-safety-sheet.png) | 「食品安全公示」弹层：等级 A 级、许可证号、有效期至 2027-12-31，查看许可证/承诺书/明厨亮灶三个按钮 + 平台提示 + 知道了 |
+
+截图脚本：`node .secrets/common-features-v40-shots.cjs`。
+
+### 147.5 边界与已知限制
+
+- **轮询粒度 5s**：非长连接，后台回复到顾客可见最多延迟一轮；如需秒级需改 SSE/WebSocket。
+- **客服在线时间仅为文案**：当前无「离线自动回复」与排队机制，非工作时段消息照常落库，由后台值班回复。
+- **申诉仅针对差评**：星级 > 3 不显示入口；申诉通过后评价直接隐藏，不可在 C 端撤销。
+- **食安信息由商家填报**：平台仅透传并展示「如有不符请联系平台客服」提示，未做证照 OCR 校验。
+- **明厨亮灶为外链**：H5 新窗口打开，若商家填写的是内网/失效地址会打不开（后台已用开关避免误展示）。
+- **号码保护**：后端已提供 `campusMerchantCustomerContact` / `campusRiderCustomerContact`（仅本店/本单骑手可查，开启后返回脱敏号或虚拟号）与后台配置（provider: mask/mock/aliyun/tencent、TTL、号池前缀）；C 端骑手页目前不展示顾客真实手机号，故本轮无额外 UI 改动，骑手侧「联系顾客」入口留待 P1。

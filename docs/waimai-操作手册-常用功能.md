@@ -3282,3 +3282,10 @@
 - **仅影响新单**：已创建/已支付订单不补收，修改配置只对后续进支付流程的订单生效。
 - **按件件数口径**：取订单行 `quantity` 累加，暂不含套餐/加料子项（P1-2 套餐落地后统一）。
 - **仅两级定价**：店铺默认 + 商品级覆盖，未做按分类/按时段差异计费。
+
+### 148.7 部署记录（2026-10-26 已上线）
+
+- C 端：`node .secrets/deploy-waimai.mjs`（本地 `build:h5` → 产物校验 3639 KB → tar/scp → 解压），`https://www.yourbao.cn/waimai/` 返回 200。
+- 后端：`2dc29eed7` 推送 → 服务器 `git fetch + reset --hard origin/master` + `pm2 restart vendure --update-env`，`Nest application successfully started`、pm2 online；`admin-api` 内省可见 `packingFee*` 五字段与 `campusMerchantSetProductPackingFee`，`product.customFieldsWaimaipackingfee` 列已建。
+- 后台：`node scripts/deploy.mjs` 部署工作台并 reload nginx，`https://www.yourbao.cn/guanli/` 返回 200。
+- 首次后端部署曾因 mutation 误落在 `extend type Query` 导致 schema 校验失败 crash-loop，修正提交后恢复正常（详见 `vshop/docs/waimai-操作手册.md` §46.7）。

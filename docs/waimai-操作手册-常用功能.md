@@ -3220,3 +3220,9 @@
 - **食安信息由商家填报**：平台仅透传并展示「如有不符请联系平台客服」提示，未做证照 OCR 校验。
 - **明厨亮灶为外链**：H5 新窗口打开，若商家填写的是内网/失效地址会打不开（后台已用开关避免误展示）。
 - **号码保护**：后端已提供 `campusMerchantCustomerContact` / `campusRiderCustomerContact`（仅本店/本单骑手可查，开启后返回脱敏号或虚拟号）与后台配置（provider: mask/mock/aliyun/tencent、TTL、号池前缀）；C 端骑手页目前不展示顾客真实手机号，故本轮无额外 UI 改动，骑手侧「联系顾客」入口留待 P1。
+
+### 147.6 部署记录（2026-10-26 已上线）
+
+- C 端：`node .secrets/deploy-waimai.mjs`（本地 `build:h5` → 产物校验 3.6 MB → tar/scp → 服务器解压到 `/www/sites/e.joho.cn/yourbao/waimai`），`https://www.yourbao.cn/waimai/` 返回 200。
+- 后端：两插件编译产物入 git 后 `git pull` + `pm2 restart vendure`，线上 `shop-api` 已可见 `campusMyChatConversations` / `campusChatMessages` / `campusStartChat` / `campusSendChatMessage` / `campusMarkChatRead` / `campusCloseChat` / `appealReview`（未带 token 返回 `FORBIDDEN`，权限生效）；新表与新列已随幂等迁移建好。
+- 后台：`node scripts/deploy.mjs` 部署 H5 工作台并 reload nginx，`https://www.yourbao.cn/guanli/` 返回 200。

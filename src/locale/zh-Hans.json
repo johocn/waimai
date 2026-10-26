@@ -698,7 +698,13 @@
     "noStock": "暂无库存",
     "stock": "库存 {n}",
     "lowStock": "仅剩少量",
-    "pickSpec": "请选择规格"
+    "pickSpec": "请选择规格",
+    "addonTitle": "加料",
+    "addonMaxHint": "最多选 {n} 项",
+    "addonRequiredHint": "必选 {n} 项",
+    "addonRangeHint": "选 {a}-{b} 项",
+    "comboTitle": "套餐内容",
+    "comboSave": "立省 ¥{v}"
   },
   "checkout": {
     "shippingTitle": "配送方式",
@@ -766,6 +772,7 @@
     "goodsTotal": "商品总额",
     "deliveryFee": "配送费",
     "packingFee": "打包费",
+    "addonFee": "加料费",
     "minOrder": "起送价",
     "minOrderText": "满 ¥{c} 起送",
     "shipping": "运费",
@@ -1014,6 +1021,7 @@
     "trackingNoLabel": "运单号: {t}",
     "logisticsEmpty": "暂无物流信息",
     "goodsTitle": "商品信息",
+    "addonLabel": "加料：",
     "goodsTotal": "商品总额",
     "shipping": "运费",
     "discount": "优惠",
@@ -1806,6 +1814,7 @@
     "holdEmpty": "稍后再买已空",
     "holdHint": "暂存不动服务端订单，只把商品移到本机清单",
     "lineNoteAdd": "备注",
+    "lineAddon": "加料：",
     "lineNoteLabel": "备注：",
     "lineNoteTitle": "单品备注",
     "lineNotePlaceholder": "如：少辣、不要葱、酱料分装",

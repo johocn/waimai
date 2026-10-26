@@ -227,6 +227,8 @@
       <view class="summary-row" v-if="activeTab === 'campus' && minOrderFen != null"><text>{{ $t('checkout.minOrder') }}</text><text>{{ $t('checkout.minOrderText').replace('{c}', (minOrderFen / 100).toFixed(2)) }}</text></view>
       <!-- 打包费/餐盒费（P1）：店铺级配置 + 商品级覆盖，结算时由后端落一条 surcharge -->
       <view class="summary-row" v-if="showPackingFee"><text>{{ packingFeeLabel }}</text><text>¥{{ (packingFeeFen / 100).toFixed(2) }}</text></view>
+      <!-- 加料费（P1-2）：行内只存加料引用，按商品配置预估；提交后由后端落 surcharge -->
+      <view class="summary-row" v-if="showAddonFee"><text>{{ addonFeeLabel }}</text><text>¥{{ (addonFeeFen / 100).toFixed(2) }}</text></view>
       <view class="summary-row"><text>{{ $t('checkout.shipping') }}</text>
         <text v-if="freeShipOn"><text class="ship-orig">¥{{ shipOriginalYuan }}</text>¥0.00<text class="ship-tag">{{ $t('checkout.freeShipTag').replace('{c}', freeShipYuan) }}</text></text>
         <text v-else>¥{{ shipDisplayYuan }}</text>
@@ -483,6 +485,7 @@ import { applyCouponToOrder, clearCouponFromOrder } from '../../api/mutations/co
 import { estimateDiscountFen, pickBestCoupon, couponUnavailableReason, type CouponTemplateLike } from '../../utils/coupon-estimate';
 import { lineNoteViews, lineNoteSegments, composeNote, clearStoreNotes, type LineNoteView } from '../../utils/line-notes';
 import { etaRange, etaClockText } from '../../utils/delivery-eta';
+import { ADDON_FEE_SKU, quoteAddonFeePerLine } from '../../utils/addon-fee';
 
 type ShippingCategory = 'shipping' | 'store-pickup';
 type TabKey = 'campus' | ShippingCategory;
@@ -928,10 +931,35 @@ const packingFeeEstimateFen = computed(() => {
 const packingFeeFen = computed(() => Math.max(packedFeeFromOrder.value, packingFeeEstimateFen.value));
 const showPackingFee = computed(() => packingCfg.value.enabled && packingFeeFen.value > 0);
 const packingFeeLabel = computed(() => (packingCfg.value.label || '').trim() || locale.t('checkout.packingFee'));
-/** 应付合计（分）：order.totalWithTax 未含尚未落账的打包费时补上预估值，避免页面金额低于实付 */
+// ===== 加料费（P1-2）：与后端 campusAddonFeeProcess 同口径（行内只存引用，金额按商品当前配置解析）=====
+/** 已落账的加料费（分） */
+const packedAddonFeeFromOrder = computed(() => {
+    const list = (cart.order as any)?.surcharges ?? [];
+    const hit = list.find((s: any) => s?.sku === ADDON_FEE_SKU);
+    return hit ? Number(hit.priceWithTax) || 0 : 0;
+});
+/** 加料费预估（分）：逐行按商品 waimaiAddonGroups 解析行内 waimaiAddons 引用 */
+const addonFeeEstimateFen = computed(() => {
+    let fee = 0;
+    for (const line of (cart.order?.lines ?? []) as any[]) {
+        fee += quoteAddonFeePerLine(
+            line?.customFields?.waimaiAddons,
+            line?.productVariant?.product?.customFields?.waimaiAddonGroups,
+            Number(line?.quantity || 0),
+        );
+    }
+    return fee;
+});
+/** 展示用加料费（分）：后端已落账则用落账值，否则用预估值 */
+const addonFeeFen = computed(() => Math.max(packedAddonFeeFromOrder.value, addonFeeEstimateFen.value));
+const showAddonFee = computed(() => addonFeeFen.value > 0);
+const addonFeeLabel = computed(() => locale.t('checkout.addonFee'));
+/** 应付合计（分）：order.totalWithTax 未含尚未落账的打包费/加料费时补上预估值，避免页面金额低于实付 */
 const payableFen = computed(() => {
     const total = Number((cart.order as any)?.totalWithTax || 0);
-    return total + Math.max(0, packingFeeFen.value - packedFeeFromOrder.value);
+    return total
+        + Math.max(0, packingFeeFen.value - packedFeeFromOrder.value)
+        + Math.max(0, addonFeeFen.value - packedAddonFeeFromOrder.value);
 });
 // 起送价硬拦截：未达标禁止提交（后端 campusMinOrderProcess 兜底同口径）
 const belowMinOrder = computed(() => activeTab.value === 'campus' && minOrderFen.value != null && goodsFen.value < minOrderFen.value);

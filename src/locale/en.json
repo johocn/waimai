@@ -698,7 +698,13 @@
     "noStock": "Out of stock",
     "stock": "Stock {n}",
     "lowStock": "Low stock",
-    "pickSpec": "Select options"
+    "pickSpec": "Select options",
+    "addonTitle": "Add-ons",
+    "addonMaxHint": "Choose up to {n}",
+    "addonRequiredHint": "Choose {n} required",
+    "addonRangeHint": "Choose {a}-{b}",
+    "comboTitle": "Combo includes",
+    "comboSave": "Save ¥{v}"
   },
   "checkout": {
     "shippingTitle": "Delivery Method",
@@ -766,6 +772,7 @@
     "goodsTotal": "Subtotal",
     "deliveryFee": "Delivery Fee",
     "packingFee": "Packing fee",
+    "addonFee": "Add-on fee",
     "minOrder": "Minimum Order",
     "minOrderText": "Min ¥{c}",
     "shipping": "Shipping",
@@ -1014,6 +1021,7 @@
     "trackingNoLabel": "Tracking no.: {t}",
     "logisticsEmpty": "No logistics info yet",
     "goodsTitle": "Items",
+    "addonLabel": "Add-ons: ",
     "goodsTotal": "Subtotal",
     "shipping": "Shipping",
     "discount": "Discount",
@@ -1806,6 +1814,7 @@
     "holdEmpty": "Save for later is empty",
     "holdHint": "Items are kept on this device; the server order is untouched",
     "lineNoteAdd": "Note",
+    "lineAddon": "Add-ons: ",
     "lineNoteLabel": "Note: ",
     "lineNoteTitle": "Item note",
     "lineNotePlaceholder": "e.g. less spicy, no onion, sauce on the side",

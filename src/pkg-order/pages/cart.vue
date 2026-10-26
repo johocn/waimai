@@ -39,6 +39,7 @@
               <text v-if="lineIssueText(l, g)" class="cart-line__badge">{{ lineIssueText(l, g) }}</text>
             </view>
             <text v-if="optionsText(l)" class="cart-line__opt">{{ optionsText(l) }}</text>
+            <text v-if="lineAddonsText(l)" class="cart-line__opt cart-line__opt--addon">{{ $t('cart.lineAddon') + lineAddonsText(l) }}</text>
             <text class="cart-line__note" :class="{ 'cart-line__note--empty': !noteOf(g, l) }" @click.stop="openNote(g, l)">
               {{ noteOf(g, l) ? $t('cart.lineNoteLabel') + noteOf(g, l) : '＋ ' + $t('cart.lineNoteAdd') }}
             </text>
@@ -270,6 +271,7 @@ import { pruneLineNotes, setLineNote, clearStoreNotes } from '../../utils/line-n
 import { readAllBuckets, holdLines, bumpHeld, removeHeld, clearHold, holdTotalQty, type HoldBucket, type HoldItem } from '../../utils/cart-hold';
 import { findOpenSession, createSession, itemsFromLines, upsertSession, participantsOf, encodeInvite, invitePath } from '../../utils/group-order';
 import VImage from '../../components/VImage.vue';
+import { addonDisplayText } from '../../utils/addon-fee';
 
 const tenant = useTenantStore();
 const cart = useCartStore();
@@ -849,6 +851,10 @@ function optionsText(l: any): string {
   const opts = (l?.productVariant?.options ?? []).map((o: any) => o?.name).filter(Boolean);
   return opts.join(' / ');
 }
+/** 加料展示（P1-2）：行内只存组名/选项名引用，如「加蛋 / 加辣」 */
+function lineAddonsText(l: any): string {
+  return addonDisplayText(l?.customFields?.waimaiAddons);
+}
 
 /** 单行失效状态：下架/售罄/变价 */
 function lineIssue(l: any, g: CartGroup): CartLineIssue {
@@ -1119,7 +1125,8 @@ function goHome() {
   &__title { display: flex; align-items: center; gap: 10rpx; min-width: 0; }
   &__name { font-size: 26rpx; color: $text-color; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &__badge { font-size: 18rpx; color: #b42318; background: #fff2f0; border: 1rpx solid #f3b6b0; border-radius: 6rpx; padding: 2rpx 8rpx; flex-shrink: 0; }
-  &__opt { font-size: 22rpx; color: $text-color-secondary; }
+  &__opt { font-size: 22rpx; color: $text-color-secondary;
+    &--addon { color: $price-color; } }
   &__note { align-self: flex-start; font-size: 20rpx; color: #b45309; background: #fff8eb; border: 1rpx dashed #ffb27a;
     border-radius: 6rpx; padding: 2rpx 10rpx; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     &--empty { color: $text-color-placeholder; background: transparent; border-color: $border-color; } }

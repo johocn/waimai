@@ -1351,10 +1351,10 @@ function rememberView(g: any) {
     });
 }
 
-async function doAddItem(variantId: string, quantity: number) {
+async function doAddItem(variantId: string, quantity: number, addons?: { g: string; n: string }[]) {
     const target = findVariant(variantId);
     if (target && !variantAvailable(target)) { toastSoldOut(); return false; }
-    const res: any = await addItemToOrder(variantId, quantity);
+    const res: any = await addItemToOrder(variantId, quantity, addons);
     if (res?.addItemToOrder?.errorCode) {
         uni.showToast({ title: res.addItemToOrder.message || locale.t('menu.addFail'), icon: 'none' });
         return false;
@@ -1377,8 +1377,8 @@ async function addToCart(g: any) {
     return ok;
 }
 
-async function onSkuAction(v: { action: 'cart' | 'buy'; variantId: string; quantity: number }) {
-    const ok = await doAddItem(v.variantId, v.quantity);
+async function onSkuAction(v: { action: 'cart' | 'buy'; variantId: string; quantity: number; addons?: { g: string; n: string }[] }) {
+    const ok = await doAddItem(v.variantId, v.quantity, v.addons);
     if (ok) {
         rememberVariant(skuProduct.value?.id, v.variantId);
         skuOpen.value = false;

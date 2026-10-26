@@ -3,11 +3,27 @@ import { getGraphQLClient, getShopApiUrl, getSessionToken } from '../client';
 import { useAuthStore } from '../../stores/auth';
 import { CART_FRAGMENT } from '../fragments';
 
-export async function addItemToOrder(productVariantId: string, quantity: number) {
+/** 加料选择引用（与 utils/addon-fee.ts AddonSelection 对齐） */
+export interface AddonSelectionInput {
+    g: string;
+    n: string;
+}
+
+/**
+ * 加购。addons 非空时写进 OrderLine.customFields.waimaiAddons（仅存组名/选项名引用，金额由服务端解析）。
+ * 注意：Vendure 合并同行的判定包含 customFields，因此加料必须在加购当次一并写入。
+ */
+export async function addItemToOrder(productVariantId: string, quantity: number, addons?: AddonSelectionInput[]) {
     const client = getGraphQLClient();
-    const mutation = `${CART_FRAGMENT}
+    const hasAddons = !!(addons && addons.length);
+    const mutation = hasAddons
+        ? `${CART_FRAGMENT}
+        mutation AddToCart($productVariantId: ID!, $quantity: Int!, $customFields: OrderLineCustomFieldsInput) { addItemToOrder(productVariantId: $productVariantId, quantity: $quantity, customFields: $customFields) { ... on Order { ...CartInfo } ... on ErrorResult { errorCode message } } }`
+        : `${CART_FRAGMENT}
         mutation AddToCart($productVariantId: ID!, $quantity: Int!) { addItemToOrder(productVariantId: $productVariantId, quantity: $quantity) { ... on Order { ...CartInfo } ... on ErrorResult { errorCode message } } }`;
-    return client.request(mutation, { productVariantId, quantity });
+    const variables: Record<string, any> = { productVariantId, quantity };
+    if (hasAddons) variables.customFields = { waimaiAddons: JSON.stringify(addons) };
+    return client.request(mutation, variables);
 }
 
 /** 跨店加购：收藏商品一键加购用，独立客户端固定 vendure-token 指向商品所属店铺渠道 */

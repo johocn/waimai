@@ -8,7 +8,7 @@
           <view class="sku-sheet__meta" v-if="metaText">
             <text v-for="(m, i) in metaText.split(' · ')" :key="i" class="sku-sheet__meta-item">{{ m }}</text>
           </view>
-          <PriceTag :price="currentVariant?.priceWithTax || 0" :large="true" />
+          <PriceTag :price="totalPriceFen" :large="true" />
           <text class="sku-sheet__stock">{{ stockText }}</text>
           <text class="sku-sheet__picked">{{ $t('comp.selected').replace('{s}', pickedText).replace('{n}', String(quantity)) }}</text>
         </view>
@@ -37,6 +37,33 @@
           </view>
         </view>
 
+        <!-- 套餐内容（P1-2）：配置驱动，仅展示与备餐参考，售价仍由商品价格决定 -->
+        <view class="sku-combo" v-if="combo">
+          <view class="sku-combo__head">
+            <text class="sku-combo__title">{{ combo.title || $t('comp.comboTitle') }}</text>
+            <text class="sku-combo__save" v-if="comboSaveFen > 0">{{ $t('comp.comboSave').replace('{v}', (comboSaveFen / 100).toFixed(2)) }}</text>
+          </view>
+          <text class="sku-combo__items">{{ comboText }}</text>
+          <text class="sku-combo__note" v-if="combo.note">{{ combo.note }}</text>
+        </view>
+
+        <!-- 加料/小料（P1-2）：多选；仅提交组名+选项名引用，金额由服务端按配置解析 -->
+        <view v-for="g in addonGroups" :key="'ag-' + g.name" class="sku-group">
+          <view class="sku-group__hd">
+            <text class="sku-group__label">{{ g.name }}</text>
+            <text class="sku-group__hint" v-if="addonHint(g)">{{ addonHint(g) }}</text>
+          </view>
+          <view class="sku-group__options">
+            <text
+              v-for="o in g.options"
+              :key="'ao-' + o.name"
+              class="sku-option"
+              :class="{ active: isAddonPicked(g, o) }"
+              @click="toggleAddon(g, o)"
+            >{{ o.name }}<text v-if="o.price > 0" class="sku-option__fee">+¥{{ (o.price / 100).toFixed(2) }}</text></text>
+          </view>
+        </view>
+
         <view class="sku-qty">
           <text class="sku-qty__label">{{ $t('comp.quantity') }}</text>
           <view class="qty-control">
@@ -61,6 +88,10 @@ import VImage from './VImage.vue';
 import PriceTag from './PriceTag.vue';
 import { useLocaleStore } from '../stores/locale';
 import { plainDescription } from '../utils/store-display';
+import {
+  parseAddonGroups, parseCombo, addonUnitFee, comboOriginalPrice, comboItemsText,
+  type AddonGroupConfig, type AddonSelection, type ComboConfig,
+} from '../utils/addon-fee';
 
 const locale = useLocaleStore();
 
@@ -74,7 +105,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
     (e: 'update:visible', v: boolean): void;
-    (e: 'action', payload: { action: 'cart' | 'buy'; variantId: string; quantity: number }): void;
+    (e: 'action', payload: { action: 'cart' | 'buy'; variantId: string; quantity: number; addons: AddonSelection[] }): void;
     (e: 'share', product: any): void;
 }>();
 
@@ -99,6 +130,72 @@ const selected = ref<Record<string, string>>({});
 const quantity = ref(1);
 
 const optionGroups = computed(() => props.product?.optionGroups || []);
+
+// ===== 套餐内容（P1-2）=====
+const combo = computed<ComboConfig | null>(() => parseCombo(props.product?.customFields?.waimaiCombo));
+const comboText = computed(() => comboItemsText(combo.value));
+const comboOriginalFen = computed(() => comboOriginalPrice(combo.value));
+/** 立省（分）：套餐内含项原价合计 - 当前售价（无原价或售价更低则不展示） */
+const comboSaveFen = computed(() => {
+    const orig = comboOriginalFen.value;
+    const price = Number(currentVariant.value?.priceWithTax || 0);
+    return orig != null && orig > price ? orig - price : 0;
+});
+
+// ===== 加料/小料（P1-2）=====
+const addonGroups = computed<AddonGroupConfig[]>(() => parseAddonGroups(props.product?.customFields?.waimaiAddonGroups));
+/** 组名 → 已选选项名列表（保持点击顺序） */
+const addonPicked = ref<Record<string, string[]>>({});
+
+function isAddonPicked(g: AddonGroupConfig, o: { name: string }): boolean {
+    return (addonPicked.value[g.name] ?? []).includes(o.name);
+}
+
+/** 点选加料：再点取消；达到该组 max 时忽略并提示 */
+function toggleAddon(g: AddonGroupConfig, o: { name: string }) {
+    const cur = [...(addonPicked.value[g.name] ?? [])];
+    const idx = cur.indexOf(o.name);
+    if (idx >= 0) {
+        cur.splice(idx, 1);
+    } else {
+        const max = Number(g.max ?? 0);
+        if (max > 0 && cur.length >= max) {
+            uni.showToast({ title: locale.t('comp.addonMaxHint').replace('{n}', String(max)), icon: 'none' });
+            return;
+        }
+        cur.push(o.name);
+    }
+    addonPicked.value = { ...addonPicked.value, [g.name]: cur };
+}
+
+/** 加料组提示：必选/最多/区间 */
+function addonHint(g: AddonGroupConfig): string {
+    const min = Number(g.min ?? 0);
+    const max = Number(g.max ?? 0);
+    if (min > 0 && max > 0) return locale.t('comp.addonRangeHint').replace('{a}', String(min)).replace('{b}', String(max));
+    if (min > 0) return locale.t('comp.addonRequiredHint').replace('{n}', String(min));
+    if (max > 0) return locale.t('comp.addonMaxHint').replace('{n}', String(max));
+    return '';
+}
+
+/** 提交给后端的加料引用（仅组名 + 选项名） */
+const addonSelection = computed<AddonSelection[]>(() => {
+    const out: AddonSelection[] = [];
+    for (const g of addonGroups.value) {
+        for (const n of addonPicked.value[g.name] ?? []) out.push({ g: g.name, n });
+    }
+    return out;
+});
+
+/** 单份加料加价（分）：与后端同口径解析 */
+const addonUnitFen = computed(() => addonUnitFee(addonSelection.value, addonGroups.value));
+/** 头部展示价格（分）：商品售价 + 单份加料加价 */
+const totalPriceFen = computed(() => Number(currentVariant.value?.priceWithTax || 0) + addonUnitFen.value);
+/** 必选组未满足时禁止加购（后端已按引用解析，前端拦一道体验） */
+const addonValid = computed(() => addonGroups.value.every(g => {
+    const min = Number(g.min ?? 0);
+    return min <= 0 || (addonPicked.value[g.name] ?? []).length >= min;
+}));
 
 const currentVariant = computed(() => {
     const variants = props.product?.variants || [];
@@ -146,7 +243,7 @@ const stockText = computed(() => {
 
 const canBuy = computed(() => {
     const v = currentVariant.value;
-    return !!v && v.enabled !== false && stockOf(v) !== 'out';
+    return !!v && v.enabled !== false && stockOf(v) !== 'out' && addonValid.value;
 });
 
 const pickedText = computed(() => {
@@ -156,6 +253,8 @@ const pickedText = computed(() => {
         const opt = (g.options || []).find((o: any) => o.id === id);
         if (opt) names.push(opt.name);
     }
+    // 已选加料与规格一起展示，避免只看到规格而忽略加价
+    for (const n of addonSelection.value.map(s => s.n)) names.push(n);
     if (names.length) return names.join(' / ');
     // 单规格商品（无规格组）没有「未选」状态：直接显示当前变体名，不出现「请选择规格」
     if (!optionGroups.value.length) return currentVariant.value?.name || locale.t('comp.pickSpec');
@@ -197,7 +296,12 @@ function close() {
 
 function emitAction(action: 'cart' | 'buy') {
     if (!canBuy.value || !currentVariant.value) return;
-    emit('action', { action, variantId: currentVariant.value.id, quantity: quantity.value });
+    emit('action', {
+        action,
+        variantId: currentVariant.value.id,
+        quantity: quantity.value,
+        addons: addonSelection.value,
+    });
 }
 
 /** 打开时优先恢复上次选择，否则自动选第一个可用的规格组合 */
@@ -223,6 +327,7 @@ watch(
             }
         }
         selected.value = init;
+        addonPicked.value = {};
         quantity.value = 1;
     },
 );
@@ -253,12 +358,22 @@ watch(
     &__text { font-size: 24rpx; line-height: 1.6; color: var(--w-text, #666); display: block; }
 }
 .sku-group { padding: 20rpx 0;
+    &__hd { display: flex; align-items: center; gap: 12rpx; }
     &__label { font-size: 26rpx; color: var(--w-text, #333); }
+    &__hint { font-size: 22rpx; color: var(--w-text-muted, #999); }
     &__options { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 12rpx; }
 }
 .sku-option { padding: 10rpx 28rpx; font-size: 24rpx; border: 1rpx solid var(--w-border, #eee); border-radius: $radius-sm; color: var(--w-text, #333);
     &.active { border-color: $brand-color; color: var(--w-brand-text, #ff6600); background: $brand-color-light; }
     &.disabled { color: var(--w-text-muted, #ccc); background: var(--w-surface-muted, #f7f7f7); border-color: var(--w-border, #eee); }
+    &__fee { font-size: 22rpx; margin-left: 6rpx; color: $price-color; }
+}
+.sku-combo { margin-top: 20rpx; padding: 20rpx; background: var(--w-surface-muted, #f7f7f7); border-radius: $radius-sm;
+    &__head { display: flex; align-items: center; gap: 12rpx; margin-bottom: 10rpx; }
+    &__title { font-size: 26rpx; font-weight: 600; color: var(--w-text, #333); }
+    &__save { font-size: 22rpx; color: #fff; background: $brand-color; border-radius: 6rpx; padding: 2rpx 10rpx; }
+    &__items { font-size: 24rpx; line-height: 1.6; color: var(--w-text, #666); display: block; }
+    &__note { font-size: 22rpx; color: var(--w-text-muted, #999); display: block; margin-top: 8rpx; }
 }
 .sku-qty { display: flex; align-items: center; justify-content: space-between; padding: 20rpx 8rpx 30rpx 0; box-sizing: border-box;
     &__label { font-size: 26rpx; color: var(--w-text, #333); }

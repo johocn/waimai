@@ -3289,3 +3289,60 @@
 - 后端：`2dc29eed7` 推送 → 服务器 `git fetch + reset --hard origin/master` + `pm2 restart vendure --update-env`，`Nest application successfully started`、pm2 online；`admin-api` 内省可见 `packingFee*` 五字段与 `campusMerchantSetProductPackingFee`，`product.customFieldsWaimaipackingfee` 列已建。
 - 后台：`node scripts/deploy.mjs` 部署工作台并 reload nginx，`https://www.yourbao.cn/guanli/` 返回 200。
 - 首次后端部署曾因 mutation 误落在 `extend type Query` 导致 schema 校验失败 crash-loop，修正提交后恢复正常（详见 `vshop/docs/waimai-操作手册.md` §46.7）。
+
+## 149 加料 / 小料 + 套餐 / 组合商品（P1-2，2026-10-26）
+
+### 149.1 功能说明
+
+| 能力 | 顾客侧表现 |
+|---|---|
+| 套餐内容 | 商品规格弹层展示「套餐内容」卡片：套餐名、内含单品 `名称×份数`、可选备注；内含项参考价合计高于售价时显示「立省 ¥X」标签 |
+| 加料 / 小料 | 规格弹层按组多选，选项直接标「+¥2.00」；组标题右侧提示「必选 N 项 / 最多选 N 项 / 选 A-B 项」 |
+| 价格叠加 | 头部大价格 = 商品售价 + 当前已选加料加价（单份口径），随点选实时刷新 |
+| 已选文案 | 「已选」行同步显示规格与加料（如「已选：加蛋 / 加芝士 / 米饭 · 1 件」），避免只看到规格漏掉加价 |
+| 必选校验 | 未满足 `min` 的加料组会禁用「加入购物车 / 立即购买」，后端按引用解析兜底 |
+| 购物车 / 订单 | 商品行下方展示「加料：加蛋 / 加芝士」（橙色，与规格区分） |
+| 结算页 | 汇总新增「加料费」行，并计入应付合计；提交进入支付前由后端落 surcharge |
+
+### 149.2 交互与口径
+
+- **只提交引用**：`addItemToOrder` 通过 `customFields: { waimaiAddons: [{g,n}...] }` 传组名 + 选项名，**不传金额**；金额由后端按商品 `waimaiAddonGroups` 解析，前端无法改价。
+- **同行合并**：加料在加购当次一并写入，保证「同商品 + 同加料」合并为一行；不同加料生成独立行。
+- **预估 vs 落账**：结算页按商品当前配置逐行预估加料费；订单进入支付前由 `campusAddonFeeProcess` 写 `sku=campus-addon-fee` 的 surcharge，页面若已有该 surcharge 则以落账值为准。
+- **应付金额**：`应付 = order.totalWithTax + max(0, 展示加料费 − 已落账加料费)`（与打包费并列，各自补差）。
+- **跑腿单不收**：`orderKind=errand` 不参与加料费计算。
+
+### 149.3 接口变更
+
+| 类型 | 变更 | 说明 |
+|---|---|---|
+| GraphQL | `Product.customFields` 新增 `waimaiAddonGroups`（JSON 字符串）、`waimaiCombo`（JSON 字符串） | 菜单 / 商品详情拉取配置 |
+| GraphQL | `OrderLine.customFields` 新增 `waimaiAddons`（JSON 字符串） | 购物车 / 结算 / 订单详情展示 |
+| Mutation | `addItemToOrder(productVariantId, quantity, customFields: OrderLineCustomFieldsInput)` | 加料随加购写入（Vendure 自动为 OrderLine 自定义字段生成该入参） |
+| Order | `surcharges` 识别 `sku=campus-addon-fee` | 加料费落账行 |
+
+> 后台配置与后端口径详见 `vshop/docs/waimai-操作手册.md` §47。
+
+### 149.4 验证记录
+
+构建：`npm run build:h5` 通过（仅 Sass legacy API 弃用告警）。
+
+手机视口截图（390×844 dpr=2，`docs/screenshots/common-features-v42/`；本轮未部署，采用本地 dist 静态服务 + shop-api 全 mock）：
+
+| 截图 | 断言结果 |
+|---|---|
+| [265-product-sku-addon-combo.png](screenshots/common-features-v42/265-product-sku-addon-combo.png) | 套餐卡片显示「单人套餐 / 内含 宫保鸡丁×1 / 米饭×1 / 冰粉×1」；两个加料组与提示齐全 |
+| [266-product-sku-addon-selected.png](screenshots/common-features-v42/266-product-sku-addon-selected.png) | 选中「加蛋 +2.00」「加芝士 +3.00」「米饭」后头部价格 **¥33.00**（28.00 + 5.00），「已选」同步为「加蛋 / 加芝士 / 米饭 · 1 件」，套餐显示「立省 ¥8.00」 |
+| [267-cart-line-addons.png](screenshots/common-features-v42/267-cart-line-addons.png) | 购物车商品行显示「加料：加蛋 / 米饭」 |
+| [268-checkout-addon-fee.png](screenshots/common-features-v42/268-checkout-addon-fee.png) | 结算页「加料费 ¥2.00」，应付 **¥36.50**（商品 32.50 + 运费 2.00 + 加料费 2.00） |
+
+截图脚本：`node .secrets/addon-combo-shots.cjs`。
+
+上线核验（2026-10-26）：`node .secrets/deploy-waimai.mjs` 部署完成（产物 3648 KB），`https://www.yourbao.cn/waimai/` 200，线上 `assets/index-jUVfrupl.js` 已含「加料费」文案；后端同批次上线（commit `6273fa967`），shop-api `OrderLineCustomFieldsInput` 已含 `waimaiAddons`。
+
+### 149.5 边界与已知限制
+
+- **加料无独立库存**：不扣减库存、不单独沽清，随主商品售罄统一屏蔽。
+- **套餐不拆行**：套餐内容仅展示，不生成子订单行，库存只按主商品扣减。
+- **不参与优惠**：加料费为 surcharge，不进入满减 / 券可优惠金额。
+- **仅影响新单**：配置调整只对后续进支付流程的订单生效。

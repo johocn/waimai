@@ -207,6 +207,7 @@
         <view class="order-line__info">
           <text class="order-line__name">{{ line.productVariant?.name }}</text>
           <text class="order-line__spec">{{ line.productVariant?.options?.map((o: any) => o.name).join(' ') }}</text>
+          <text class="order-line__spec" v-if="lineAddonsText(line)">{{ $t('orderDetail.addonLabel') + lineAddonsText(line) }}</text>
           <view class="order-line__bottom">
             <text class="order-line__price">¥{{ (line.unitPriceWithTax / 100).toFixed(2) }}</text>
             <text class="order-line__qty">x{{ line.quantity }}</text>
@@ -400,6 +401,12 @@ import { buildTimeline, isNoRiderFinal, isExceptionFinal } from '../../utils/tim
 import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
 import LoadingSkeleton from '../../components/LoadingSkeleton.vue';
+import { addonDisplayText } from '../../utils/addon-fee';
+
+/** 加料展示（P1-2）：行内只存组名/选项名引用，如「加蛋 / 加辣」 */
+function lineAddonsText(line: any): string {
+  return addonDisplayText(line?.customFields?.waimaiAddons);
+}
 const locale = useLocaleStore();
 const tenant = useTenantStore();
 const cart = useCartStore();

@@ -25,7 +25,7 @@ const PRODUCT_LIST_QUERY = `
                 variants { id name priceWithTax stockLevel enabled options { id name code } }
                 optionGroups { id name code options { id name code } }
                 collections { id name slug parent { name } }
-                customFields { reviewRating reviewCount waimaiMonthlySales waimaiSoldOut waimaiPackingFee }
+                customFields { reviewRating reviewCount waimaiMonthlySales waimaiSoldOut waimaiPackingFee waimaiAddonGroups waimaiCombo }
             }
         }
     }

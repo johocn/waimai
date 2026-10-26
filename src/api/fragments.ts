@@ -42,7 +42,8 @@ export const ORDER_FRAGMENT = `
         lines {
             id quantity linePriceWithTax unitPriceWithTax proratedLinePrice
             featuredAsset { preview }
-            productVariant { id productId name enabled stockLevel options { name } product { id customFields { waimaiPackingFee } } customFields { shippingProfileId paymentProfileId } }
+            customFields { waimaiAddons }
+            productVariant { id productId name enabled stockLevel options { name } product { id customFields { waimaiPackingFee waimaiAddonGroups waimaiCombo } } customFields { shippingProfileId paymentProfileId } }
         }
         shippingAddress { fullName streetLine1 streetLine2 city province postalCode country phoneNumber }
         billingAddress { fullName streetLine1 streetLine2 city province postalCode country phoneNumber }
@@ -74,7 +75,8 @@ export const CART_FRAGMENT = `
         lines {
             id quantity linePriceWithTax unitPriceWithTax
             featuredAsset { preview }
-            productVariant { id name enabled stockLevel options { name } }
+            customFields { waimaiAddons }
+            productVariant { id name enabled stockLevel options { name } product { id customFields { waimaiAddonGroups waimaiCombo } } }
         }
         couponCodes
         discounts { description amountWithTax }

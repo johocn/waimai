@@ -47,6 +47,20 @@
                     </view>
                 </view>
             </scroll-view>
+            <!-- 商家投放：首页横幅（P2-3 广告位，平台审核通过且在投放窗口内才展示，按费用降序最多 3 条） -->
+            <scroll-view v-if="homeAds.length" scroll-x class="ad-banner" :show-scrollbar="false">
+                <view
+                    v-for="a in homeAds" :key="'ad-' + a.id" class="ad-banner__item"
+                    :class="{ 'no-img': !a.imageUrl }" @tap="openCmsLink(a.linkUrl || '')"
+                >
+                    <image v-if="a.imageUrl" class="ad-banner__img" :src="a.imageUrl" mode="aspectFill" />
+                    <view class="ad-banner__body">
+                        <text class="ad-banner__tag">{{ $t('ad.sponsored') }}</text>
+                        <text class="ad-banner__title">{{ a.title }}</text>
+                        <text class="ad-banner__end">{{ $t('ad.ends').replace('{d}', a.endDate) }}</text>
+                    </view>
+                </view>
+            </scroll-view>
             <!-- 开门提醒：关注过的打烊店铺现已营业（本机订阅，一次性提示） -->
             <view v-if="!loading && openedList.length" class="open-banner">
                 <text class="open-banner__ico">🔔</text>
@@ -484,6 +498,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
 import { assistSearch as requestSearchAssist } from '../../api/queries/search-assist';
+import { fetchActiveAds, type ShopAd } from '../../api/queries/ads';
 import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
 import { getMyCoupons } from '../../api/queries/coupon';
 import { getPublishedContent, type ContentItemPublic } from '../../api/queries/operations';
@@ -1050,6 +1065,8 @@ function goRandom() { uni.navigateTo({ url: '/pkg-order/pages/random-pick' }); }
 // ─── 运营位（operations-plugin publishedContent）──────────────────
 // Banner / Notice / IconGrid 均为后台发布内容；未配置或接口异常时静默回落到内置入口。
 const cmsBanners = ref<ContentItemPublic[]>([]);
+// ─── 商家投放广告（P2-3）：首页横幅广告位 ─────────────────────────
+const homeAds = ref<ShopAd[]>([]);
 const cmsNotices = ref<ContentItemPublic[]>([]);
 const cmsGrids = ref<ContentItemPublic[]>([]);
 const cmsIcons = computed<Array<{ icon?: string; label?: string; link?: string }>>(() => {
@@ -1069,6 +1086,13 @@ async function loadCms() {
         cmsNotices.value = notices.filter(n => !!n.data?.content);
         cmsGrids.value = grids;
     } catch { /* 运营位异常不影响首页主体 */ }
+}
+
+/** 首页横幅广告：商家自助投放 + 平台审核通过，失败静默（不占位、不阻塞） */
+async function loadHomeAds() {
+    try {
+        homeAds.value = await fetchActiveAds('homeBanner');
+    } catch { homeAds.value = []; }
 }
 
 function isIconImage(icon?: string) {
@@ -1141,6 +1165,7 @@ onMounted(() => {
     initTheme();
     void favorites.loadRemote();
     void loadCms();
+    void loadHomeAds();
     load();
     mealTimer = setInterval(() => { nowTick.value = Date.now(); }, 60000);
 });
@@ -1235,6 +1260,31 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 }
 .cms-banner__title { font-size: 28rpx; font-weight: 700; color: #fff; }
 .cms-banner__sub { font-size: 22rpx; color: rgba(255, 255, 255, 0.85); }
+/* 商家投放广告：首页横幅（无图时用文字卡，颜色跟随主题） */
+.ad-banner { white-space: nowrap; margin-top: 20rpx; }
+.ad-banner__item {
+    position: relative; display: inline-block; width: 640rpx; height: 200rpx; margin-right: 16rpx;
+    border-radius: $radius-card; overflow: hidden; background: var(--w-surface); vertical-align: top;
+}
+.ad-banner__img { width: 100%; height: 100%; }
+.ad-banner__body {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 14rpx 22rpx;
+    display: flex; flex-direction: column; gap: 4rpx; white-space: normal;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+.ad-banner__tag {
+    align-self: flex-start; font-size: 18rpx; line-height: 1; padding: 4rpx 10rpx;
+    border-radius: 6rpx; color: #fff; background: rgba(0, 0, 0, 0.35);
+}
+.ad-banner__title { font-size: 28rpx; font-weight: 700; color: #fff; }
+.ad-banner__end { font-size: 20rpx; color: rgba(255, 255, 255, 0.85); }
+.ad-banner__item.no-img .ad-banner__body {
+    position: static; height: 100%; box-sizing: border-box; justify-content: center;
+    padding: 20rpx 24rpx; background: var(--w-brand-soft);
+}
+.ad-banner__item.no-img .ad-banner__tag { color: var(--w-brand-text); background: var(--w-surface); }
+.ad-banner__item.no-img .ad-banner__title { color: var(--w-text); }
+.ad-banner__item.no-img .ad-banner__end { color: var(--w-text-muted); }
 .cms-grid {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 16rpx 8rpx;
     margin-top: 16rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx 12rpx;

@@ -2810,6 +2810,10 @@
   "cms": {
     "more": "Details"
   },
+  "ad": {
+    "sponsored": "Sponsored",
+    "ends": "Until {d}"
+  },
   "circle": {
     "title": "Food Circle",
     "sub": "Share your food moments and discover nearby favorites",

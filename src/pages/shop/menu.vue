@@ -39,6 +39,20 @@
                 <text class="fs-bar__more">{{ $t('menu.noticeMore') }} ›</text>
             </view>
         </view>
+        <!-- 商家投放：店铺页顶部广告（P2-3 广告位，审核通过且在投放窗口内才展示） -->
+        <view v-if="shopAds.length" class="shop-ad">
+            <view
+                v-for="a in shopAds" :key="'sad-' + a.id" class="shop-ad__item"
+                :class="{ 'no-img': !a.imageUrl }" @tap="openAdLink(a)"
+            >
+                <image v-if="a.imageUrl" class="shop-ad__img" :src="a.imageUrl" mode="aspectFill" />
+                <view class="shop-ad__body">
+                    <text class="shop-ad__tag">{{ $t('ad.sponsored') }}</text>
+                    <text class="shop-ad__title">{{ a.title }}</text>
+                    <text class="shop-ad__end">{{ $t('ad.ends').replace('{d}', a.endDate) }}</text>
+                </view>
+            </view>
+        </view>
         <!-- 预计送达条（第 38 轮）：营业中展示 ETA 区间；打烊时由下方营业状态条接管 -->
         <view v-if="etaBarText" class="eta-bar">
             <text class="eta-bar__ico">⚡</text>
@@ -459,6 +473,7 @@ import { addItemToOrder } from '../../api/mutations/cart';
 import { claimProductCoupon } from '../../api/mutations/coupon';
 import { getActiveOrder, getOrdersForChannel } from '../../api/queries/order';
 import { fetchNearbyStock, isDistanceKnown } from '../../api/queries/nearby-stock';
+import { fetchActiveAds, type ShopAd } from '../../api/queries/ads';
 import VImage from '../../components/VImage.vue';
 import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
@@ -479,6 +494,8 @@ const shopName = ref(locale.t('menu.defaultShop'));
 const routesText = ref(locale.t('menu.defaultDelivery'));
 const promoText = ref('');
 const storeInfo = ref<any>(null);
+// 店铺页顶部广告（P2-3）：切渠道后按本店 token 拉取在投广告
+const shopAds = ref<ShopAd[]>([]);
 /** 店铺公告（storeInfo 的 storeNotice，空则整块不显示） */
 const storeNotice = computed(() => String(storeInfo.value?.storeNotice || '').trim());
 const noticeOpen = ref(false);
@@ -541,9 +558,27 @@ function openNotice() {
     if (storeNotice.value) noticeOpen.value = true;
 }
 
+/** 店铺页顶部广告：失败静默（不占位、不阻塞商品加载） */
+async function loadShopAds() {
+    try { shopAds.value = await fetchActiveAds('shopTop'); } catch { shopAds.value = []; }
+}
+
 /** 打开食安公示弹层 */
 function openFoodSafety() {
     foodSafetyOpen.value = true;
+}
+
+/** 店铺页顶部广告跳转：http(s) 走站内 webview，站内路径直接跳转（失败回退 switchTab） */
+function openAdLink(a: ShopAd) {
+    const raw = String(a?.linkUrl || '').trim();
+    if (!raw) return;
+    if (/^https?:\/\//.test(raw)) {
+        uni.navigateTo({ url: '/pages/webview/index?url=' + encodeURIComponent(raw) });
+        return;
+    }
+    let path = raw.replace(/^#/, '');
+    if (!path.startsWith('/')) path = '/' + path;
+    uni.navigateTo({ url: path, fail: () => uni.switchTab({ url: path }) });
 }
 
 /** 证照/承诺书大图预览 */
@@ -1034,6 +1069,7 @@ onLoad(async (q: any) => {
     uni.setNavigationBarTitle({ title: shopName.value });
     // 关键：切到店铺渠道（activeOrder 随 session+渠道隔离 = 每店独立购物车）
     await tenant.switchTenant(shopToken.value);
+    void loadShopAds();
     try {
         // 恢复本店已加购的 activeOrder（切渠道后 session 内该渠道购物车）
         const active: any = await getActiveOrder().catch(() => null);
@@ -1583,6 +1619,32 @@ function goCheckout() {
 .eta-bar__ico { font-size: 26rpx; color: var(--w-brand-text); }
 .eta-bar__txt { font-size: 24rpx; line-height: 1.4; font-weight: 600; color: var(--w-brand-text); flex: 1; }
 .eta-bar__hint { font-size: 20rpx; color: var(--w-brand-text); opacity: 0.75; flex-shrink: 0; }
+/* 商家投放：店铺页顶部广告（P2-3 广告位，无图时文字卡跟随主题色） */
+.shop-ad { display: flex; gap: 16rpx; margin: 12rpx 24rpx 0; flex-shrink: 0; overflow-x: auto; }
+.shop-ad__item {
+    position: relative; flex: 0 0 640rpx; height: 180rpx; border-radius: 14rpx; overflow: hidden;
+    background: var(--w-surface); border: 1rpx solid var(--w-border);
+}
+.shop-ad__img { width: 100%; height: 100%; }
+.shop-ad__body {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 12rpx 18rpx;
+    display: flex; flex-direction: column; gap: 4rpx;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+.shop-ad__tag {
+    align-self: flex-start; font-size: 18rpx; line-height: 1; padding: 4rpx 10rpx;
+    border-radius: 6rpx; color: #fff; background: rgba(0, 0, 0, 0.35);
+}
+.shop-ad__title { font-size: 26rpx; font-weight: 700; color: #fff; }
+.shop-ad__end { font-size: 20rpx; color: rgba(255, 255, 255, 0.85); }
+.shop-ad__item.no-img { background: var(--w-brand-soft); }
+.shop-ad__item.no-img .shop-ad__body {
+    position: static; height: 100%; box-sizing: border-box; justify-content: center;
+    padding: 20rpx 22rpx; background: none;
+}
+.shop-ad__item.no-img .shop-ad__tag { color: var(--w-brand-text); background: var(--w-surface); }
+.shop-ad__item.no-img .shop-ad__title { color: var(--w-text); }
+.shop-ad__item.no-img .shop-ad__end { color: var(--w-text-muted); }
 /* 店铺公告条 + 公告弹层 */
 .notice-bar { display: flex; align-items: center; gap: 10rpx; margin: 12rpx 24rpx 0; padding: 14rpx 20rpx; border-radius: 12rpx; background: #fff8ef; border: 1rpx solid #ffe2c2; flex-shrink: 0; }
 .notice-bar__ico { font-size: 24rpx; flex-shrink: 0; }

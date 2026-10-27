@@ -33,6 +33,7 @@
                 <!-- 单子单操作行 -->
                 <view class="rowops" v-if="expanded === String(o.id)">
                     <button class="act ghost small" @tap="openNav(o)">{{ $t('riderDelivering.nav') }}</button>
+                    <button class="act ghost small" @tap="contactCustomer(o)">{{ $t('riderDelivering.contactCustomer') }}</button>
                     <block v-if="o.customFields?.deliveryStatus === 'assigned'">
                         <button class="act ghost small" @tap="begin(o)">{{ $t('riderDelivering.startPick') }}</button>
                         <button class="act ghost small" @tap="transfer(o, false)">{{ $t('riderDelivering.transfer') }}</button>
@@ -85,6 +86,7 @@
 
             <view class="extra" v-if="['assigned', 'in_progress'].includes(o.customFields?.deliveryStatus)">
                 <button class="act ghost small" @tap="openNav(o)">{{ $t('riderDelivering.nav') }}</button>
+                <button class="act ghost small" @tap="contactCustomer(o)">{{ $t('riderDelivering.contactCustomer') }}</button>
                 <button class="act ghost small" @tap="openExcPanel(o)">{{ $t('riderDelivering.excReport') }}</button>
             </view>
         </view>
@@ -129,6 +131,7 @@
 import { ref, computed } from 'vue';
 import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchMyTasks, fetchBuildingMap } from '../../api/queries/hall';
+import { riderCustomerContact } from '../../api/queries/rider';
 import { startTask, deliverTask, reportException, transferTask, rejectAssignment } from '../../api/queries/task-actions';
 import { riderReportLocation } from '../../api/mutations/campus';
 import { fetchRiderNav } from '../../api/queries/support';
@@ -479,6 +482,39 @@ async function openNav(o: any) {
         });
     } catch (e: any) {
         uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.navFail'), icon: 'none' });
+    }
+}
+
+/** P2-6 联系顾客（号码保护）：走 campusRiderCustomerContact，展示 display/callable，
+ *  开启号码保护时拿到的是脱敏号或虚拟号；callable 为空表示不可拨（脱敏降级） */
+async function contactCustomer(o: any) {
+    try {
+        const c = await riderCustomerContact(o.id, o.channelToken);
+        if (!c?.display) {
+            uni.showToast({ title: locale.t('riderDelivering.contactNoPhone'), icon: 'none' });
+            return;
+        }
+        const tip = c.protected ? locale.t('riderDelivering.contactProtectedTip') : '';
+        const modalContent = [c.display, tip, c.note || ''].filter(Boolean).join('\n');
+        if (c.callable) {
+            uni.showModal({
+                title: locale.t('riderDelivering.contactTitle'),
+                content: modalContent,
+                confirmText: locale.t('riderDelivering.contactCall'),
+                success: (res: any) => {
+                    if (res.confirm) uni.makePhoneCall({ phoneNumber: String(c.callable), fail: () => {} });
+                },
+            });
+        } else {
+            uni.showModal({
+                title: locale.t('riderDelivering.contactTitle'),
+                content: modalContent,
+                showCancel: false,
+                confirmText: locale.t('riderDelivering.contactKnown'),
+            });
+        }
+    } catch (e: any) {
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.contactFail'), icon: 'none' });
     }
 }
 

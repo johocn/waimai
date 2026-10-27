@@ -96,7 +96,14 @@
     "navStore": "导航到店铺",
     "navBuilding": "导航到收货楼栋",
     "navNoAddr": "该订单暂无可用坐标，请联系用户确认位置",
-    "navFail": "导航加载失败"
+    "navFail": "导航加载失败",
+    "contactCustomer": "📞 联系顾客",
+    "contactTitle": "联系顾客",
+    "contactProtectedTip": "号码保护中，请勿向他人透露该号码",
+    "contactCall": "拨打",
+    "contactKnown": "知道了",
+    "contactNoPhone": "顾客未留手机号，请通过在线客服联系",
+    "contactFail": "获取联系方式失败"
   },
   "riderWallet": {
     "availableLabel": "可提现余额（元）",

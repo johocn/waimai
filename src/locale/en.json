@@ -96,7 +96,14 @@
     "navStore": "Navigate to store",
     "navBuilding": "Navigate to building",
     "navNoAddr": "No coordinates for this order, please contact the customer",
-    "navFail": "Failed to load navigation"
+    "navFail": "Failed to load navigation",
+    "contactCustomer": "📞 Contact customer",
+    "contactTitle": "Contact customer",
+    "contactProtectedTip": "Number is protected — do not share it with others",
+    "contactCall": "Call",
+    "contactKnown": "Got it",
+    "contactNoPhone": "Customer has no phone number, please use online support",
+    "contactFail": "Failed to get contact"
   },
   "riderWallet": {
     "availableLabel": "Available balance (¥)",

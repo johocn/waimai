@@ -51,6 +51,15 @@ const RIDER_HEARTBEAT = gql`
     mutation campusRiderHeartbeat { campusRiderHeartbeat { online } }
 `;
 
+// P2-6 骑手侧顾客联系方式（号码保护）：仅本单骑手可查，真实号不出服务端
+const RIDER_CUSTOMER_CONTACT = gql`
+    query campusRiderCustomerContact($orderId: ID!) {
+        campusRiderCustomerContact(orderId: $orderId) {
+            protected display callable provider expiresAt note
+        }
+    }
+`;
+
 /** 提交骑手入驻申请，后端返回 { status: 'pending' }；healthCertImg 为健康证照片（选填） */
 export async function applyRider(v: { realName: string; studentNo: string; campus: string; idImg?: string; healthCertImg?: string }) {
     return riderClient().request(APPLY_RIDER, v).then((r: any) => r.applyRider);
@@ -68,4 +77,10 @@ export async function riderOnline(online: boolean) {
 /** 心跳（30s 定时）：返回 { online: true }；未登录/非骑手抛 Forbidden */
 export async function riderHeartbeat() {
     return riderClient().request(RIDER_HEARTBEAT).then((r: any) => r.campusRiderHeartbeat);
+}
+
+/** 骑手侧顾客联系方式：返回 { protected, display, callable, provider, expiresAt, note }；
+ *  未开启号码保护时 display 即真实号；开启后只有脱敏/虚拟号（callable 为 null 表示不可拨）。 */
+export async function riderCustomerContact(orderId: string, channelToken?: string) {
+    return riderClient(channelToken).request(RIDER_CUSTOMER_CONTACT, { orderId }).then((r: any) => r.campusRiderCustomerContact);
 }

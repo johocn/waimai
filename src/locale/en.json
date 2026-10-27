@@ -916,7 +916,7 @@
     "saved": "Taste saved",
     "clear": "Clear preferences",
     "cleared": "Taste cleared",
-    "tip": "Stored on this device only; merged into the order note at checkout for the merchant.",
+    "tip": "Synced to your account when signed in and restored on any device; merged into the order note at checkout.",
     "noTableware": "No cutlery",
     "tablewareN": "{n} set(s) of cutlery",
     "segAvoid": "No {n}",

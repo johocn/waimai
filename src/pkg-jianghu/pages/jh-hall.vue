@@ -70,10 +70,22 @@
                 <text class="entry-p">设计目的 · 玩法 · 心声</text>
                 <text class="entry-lock">随段位解锁</text>
             </view>
-            <view class="entry" @tap="go('/pkg-jianghu/pages/jh-deaddrop')">
+            <view class="entry" @tap="go('/pkg-jianghu/pages/jh-library')">
                 <view class="ico cin">箱</view>
-                <text class="entry-h">北山老树 · 死信箱</text>
+                <text class="entry-h">学校图书馆 · 密页传递</text>
                 <text class="entry-p">暗点投递 · 错时取件 · 不可回看</text>
+                <text class="entry-lock">情景演绎 · 单人可测</text>
+            </view>
+            <view class="entry" @tap="go('/pkg-jianghu/pages/jh-teahouse')">
+                <view class="ico cin">茶</view>
+                <text class="entry-h">听雨茶馆 · 暗号茶阵</text>
+                <text class="entry-p">布暗号 · 错时接头 · 错两次即暴露</text>
+                <text class="entry-lock">情景演绎 · 单人可测</text>
+            </view>
+            <view class="entry" @tap="go('/pkg-jianghu/pages/jh-chamber')">
+                <view class="ico cin">舵</view>
+                <text class="entry-h">总舵密室 · 机关锁</text>
+                <text class="entry-p">拨暗数 · 点壁炬 · 错三次即封室</text>
                 <text class="entry-lock">情景演绎 · 单人可测</text>
             </view>
         </view>

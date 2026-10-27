@@ -13,14 +13,19 @@ import {
     jianghuStory,
     jianghuTaskDetail,
     jianghuMyRecords,
-    jianghuVoices
+    jianghuVoices,
+    jianghuCustomSkillList,
+    jianghuInventory
 } from '../api/queries/jianghu';
-import { jianghuAdoptVoice, jianghuCollectClue, jianghuDeadDropDeliver, jianghuDeadDropFastForward, jianghuDeadDropInspect, jianghuDeadDropPickup, jianghuDeadDropPlace, jianghuDeadDropReset, jianghuReleaseTask, jianghuResetDemo, jianghuSubmitRumor, jianghuSubmitVoice, jianghuTakeTask, jianghuUnlockIntel, jianghuVerify } from '../api/mutations/jianghu';
+import { jianghuAdoptVoice, jianghuCollectClue, jianghuCustomSkillSubmit, jianghuDeadDropClue, jianghuDeadDropDeliver, jianghuDeadDropExtend, jianghuDeadDropFail, jianghuDeadDropFastForward, jianghuDeadDropInspect, jianghuDeadDropPickup, jianghuDeadDropPlace, jianghuDeadDropReset, jianghuReleaseTask, jianghuResetDemo, jianghuSaveInventory, jianghuSubmitRumor, jianghuSubmitVoice, jianghuTakeTask, jianghuUnlockIntel, jianghuVerify } from '../api/mutations/jianghu';
+import type { ClueFragment, ClueSource } from '../pkg-jianghu/scene/clues';
 import type {
     ClueInput,
+    CustomSkillInput,
     DeadDropMarker,
     JianghuChapter,
     JianghuClue,
+    JianghuCustomSkill,
     JianghuDeadDrop,
     JianghuDemand,
     JianghuEvent,
@@ -37,7 +42,7 @@ import type {
     VoiceInput,
     JianghuVoice
 } from '../types/jianghu';
-import { jianghuListClues } from '../api/admin/jianghu';
+import { jianghuAuditCustomSkill, jianghuListClues, jianghuListCustomSkills } from '../api/admin/jianghu';
 
 // 江湖域状态。风格与 auth/tenant 一致（setup store）；
 // 工程未引入持久化插件，这里手写 uni.setStorageSync 缓存档案，用于秒开首屏。
@@ -66,9 +71,17 @@ export const useJianghuStore = defineStore('jianghu', () => {
     const voices = ref<JianghuVoice[]>([]);
     /** 沉淀的客户需求 */
     const demands = ref<JianghuDemand[]>([]);
+    /** 自定义技能（玩家侧）：已入库 approved（多人共享）+ 本人提交（任意状态） */
+    const customSkills = ref<JianghuCustomSkill[]>([]);
+    /** 运营后台：自定义技能审核队列（含 pending 待审） */
+    const adminSkills = ref<JianghuCustomSkill[]>([]);
+    /** 持有道具（PROPS.id）：持久化事实源，页面镜像到 world.inventory 供场景门控/效果读取 */
+    const inventory = ref<string[]>([]);
     /** 死信箱（虚拟暗点投递）当前暗点 + 当前（快进后）时钟 */
     const deadDrop = ref<JianghuDeadDrop | null>(null);
     const ddNowIso = ref<string>(new Date().toISOString());
+    /** 识别系统：本局已收集的线索碎片（来源去重，重复取只刷新文案） */
+    const clues = ref<ClueFragment[]>([]);
     const loading = ref(false);
     /** 骑手最近一次定位（用于大厅 distanceKm）；拿不到则留空，距离态隐藏 */
     const location = ref<{ lat: number; lng: number } | null>(null);
@@ -215,6 +228,56 @@ export const useJianghuStore = defineStore('jianghu', () => {
         }
     }
 
+    /* ── 自定义技能（UGC） ── */
+    /** 玩家侧：已入库 approved（多人共享）+ 本人提交；失败静默回退空数组 */
+    async function loadCustomSkills() {
+        try {
+            customSkills.value = await jianghuCustomSkillList();
+        } catch {
+            customSkills.value = [];
+        }
+    }
+    /** 提交自定义技能 → 进入 pending，待运营审核 */
+    async function submitCustomSkill(input: CustomSkillInput) {
+        const sk = await jianghuCustomSkillSubmit(input);
+        await loadCustomSkills();
+        return sk;
+    }
+    /** 运营后台：拉取自定义技能审核队列（含 pending） */
+    async function loadAdminCustomSkills() {
+        try {
+            adminSkills.value = await jianghuListCustomSkills();
+        } catch {
+            adminSkills.value = [];
+        }
+    }
+    /** 运营后台：审核自定义技能（通过入库 / 驳回） */
+    async function auditCustomSkill(id: string, approve: boolean) {
+        await jianghuAuditCustomSkill(id, approve);
+        await loadAdminCustomSkills();
+    }
+
+    /* ── 持有道具（背包） ── */
+    async function loadInventory() {
+        try {
+            inventory.value = await jianghuInventory();
+        } catch {
+            inventory.value = [];
+        }
+        return inventory.value;
+    }
+    async function saveInventory(ids?: string[]) {
+        inventory.value = await jianghuSaveInventory(ids ?? inventory.value);
+        return inventory.value;
+    }
+    /** 领取道具：入包并持久化（重复返回 false） */
+    function grantProp(id: string): boolean {
+        if (inventory.value.indexOf(id) >= 0) return false;
+        inventory.value = [...inventory.value, id];
+        void saveInventory();
+        return true;
+    }
+
     async function collectClue(input: ClueInput) {
         const d = await jianghuCollectClue(input);
         eventDetail.value = d;
@@ -294,25 +357,25 @@ export const useJianghuStore = defineStore('jianghu', () => {
         ddNowIso.value = r.nowIso;
     }
 
-    /** 投放情报（自动加密，明文不回传前端） */
-    async function placeDeadDrop(input: { topic: string; plainText: string; marker: DeadDropMarker }) {
+    /** 投放情报（自动加密，明文不回传前端；暗号留服务端校验；携带藏匿手法/传递通道 id） */
+    async function placeDeadDrop(input: { topic: string; plainText: string; marker: DeadDropMarker; code: string; methodId?: string; channelId?: string }) {
         const d = await jianghuDeadDropPlace(input);
         deadDrop.value = d;
         await loadProfile();
         return d;
     }
 
-    /** 上线错时取件，取走后明文下发并结算声望 */
-    async function pickupDeadDrop() {
-        const r = await jianghuDeadDropPickup();
+    /** 上线错时取件（须报对暗号），取走后明文下发并结算声望（opts 影响奖励：隐蔽度/暴露度） */
+    async function pickupDeadDrop(code: string, opts?: { conceal?: number; exposure?: number }) {
+        const r = await jianghuDeadDropPickup(code, opts);
         deadDrop.value = r.drop;
         await loadProfile();
         return r;
     }
 
-    /** 取件后情报流转至交通站 → 总舵核验 */
-    async function deliverDeadDrop() {
-        const r = await jianghuDeadDropDeliver();
+    /** 取件后情报流转至交通站 → 总舵核验（bonus=取证加成，如录音笔录音） */
+    async function deliverDeadDrop(bonus = 0) {
+        const r = await jianghuDeadDropDeliver({ bonus });
         await loadProfile();
         return r;
     }
@@ -332,6 +395,43 @@ export const useJianghuStore = defineStore('jianghu', () => {
         ddNowIso.value = new Date().toISOString();
     }
 
+    /** 识别系统：点场景物体取线索碎片（同来源去重，后取刷新文案） */
+    async function collectClueFragment(source: ClueSource, seed: string) {
+        const f = await jianghuDeadDropClue(source, seed);
+        const idx = clues.value.findIndex((c) => c.source === source);
+        if (idx >= 0) clues.value[idx] = f;
+        else clues.value.push(f);
+        return f;
+    }
+    function clearClues() {
+        clues.value = [];
+    }
+
+    /** 主动失败（取件过慢 / 被目击）：进入截获终态 */
+    async function failDeadDrop(reason: string, penalty?: number) {
+        const d = await jianghuDeadDropFail(reason, penalty);
+        deadDrop.value = d;
+        await loadProfile();
+        return d;
+    }
+
+    /** 时间沙漏：延长可取窗 */
+    async function extendDeadDrop(min = 5) {
+        const d = await jianghuDeadDropExtend(min);
+        deadDrop.value = d;
+        return d;
+    }
+
+    /** 移除道具（一次性道具用后离包） */
+    async function removeProp(id: string) {
+        const idx = inventory.value.indexOf(id);
+        if (idx < 0) return false;
+        const next = inventory.value.slice();
+        next.splice(idx, 1);
+        await saveInventory(next);
+        return true;
+    }
+
     async function unlockIntel(intelId: string) {
         const it = await jianghuUnlockIntel(intelId);
         await loadMarket();
@@ -347,6 +447,9 @@ export const useJianghuStore = defineStore('jianghu', () => {
         market.value = [];
         records.value = [];
         rankRows.value = [];
+        customSkills.value = [];
+        adminSkills.value = [];
+        inventory.value = [];
         event.value = null;
         currentTask.value = null;
         location.value = null;
@@ -365,9 +468,11 @@ export const useJianghuStore = defineStore('jianghu', () => {
     }
 
     return {
-        profile, ladder, tasks, bounties, market, records, rankRows, event, eventDetail, eventContent, eventClues, currentTask, chapters, voices, demands, deadDrop, ddNowIso, loading, location,
+        profile, ladder, tasks, bounties, market, records, rankRows, event, eventDetail, eventContent, eventClues, currentTask, chapters, voices, demands, customSkills, adminSkills, inventory, deadDrop, ddNowIso, loading, location,
         currentTier, nextTier, prevTier, progressPct, gapRep, etaDays, frozen, frozenReason,
         ensureLocation, restoreCache, loadProfile, loadLadder, loadHall, loadBounties, loadMarket, loadEvent, loadEventDetail, loadEventClues, collectClue, loadRecords, loadRankRows, loadAll, loadStory, loadDeadDrop,
-        openTask, takeTask, releaseTask, verify, submitRumor, submitVoice, adoptVoice, unlockIntel, reset, resetDemo, placeDeadDrop, pickupDeadDrop, deliverDeadDrop, fastForwardDeadDrop, resetDeadDrop
+        loadCustomSkills, submitCustomSkill, loadAdminCustomSkills, auditCustomSkill, loadInventory, saveInventory, grantProp,
+        openTask, takeTask, releaseTask, verify, submitRumor, submitVoice, adoptVoice, unlockIntel, reset, resetDemo,         placeDeadDrop, pickupDeadDrop, deliverDeadDrop, fastForwardDeadDrop, resetDeadDrop,
+    clues, collectClueFragment, clearClues, failDeadDrop, extendDeadDrop, removeProp
     };
 });

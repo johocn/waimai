@@ -2,7 +2,7 @@ import gql from 'graphql-tag';
 import { riderClient } from '../queries/rider';
 import { JIANGHU_MOCK } from '../jianghu-env';
 import * as mock from '../mock/jianghu';
-import type { ClueInput, DeadDropPlaceInput, JianghuDeadDrop, JianghuDemand, JianghuEventDetail, JianghuIntel, JianghuTask, JianghuVerifyResult, RumorInput, VoiceInput } from '../../types/jianghu';
+import type { ClueInput, CustomSkillInput, DeadDropPlaceInput, JianghuCustomSkill, JianghuDeadDrop, JianghuDemand, JianghuEventDetail, JianghuIntel, JianghuTask, JianghuVerifyResult, RumorInput, VoiceInput } from '../../types/jianghu';
 
 // 江湖模块写操作。核销与声望变更在服务端走事务 + 幂等键（taskId + customerId），
 // 见 docs/specs/jianghu-courier-design.md §7.3 / §9.4。
@@ -137,15 +137,15 @@ export async function jianghuDeadDropPlace(input: DeadDropPlaceInput): Promise<J
     throw new Error('死信箱接口待接入');
 }
 
-/** 上线错时取件 */
-export async function jianghuDeadDropPickup(): Promise<{ drop: JianghuDeadDrop; plainText: string; rewardRep: number }> {
-    if (JIANGHU_MOCK) return mock.jianghuDeadDropPickup();
+/** 上线错时取件（须报对暗号，报错超限即被巡线截获） */
+export async function jianghuDeadDropPickup(code: string, opts?: { conceal?: number; exposure?: number }): Promise<{ drop: JianghuDeadDrop; plainText: string; rewardRep: number }> {
+    if (JIANGHU_MOCK) return mock.jianghuDeadDropPickup(code, opts);
     throw new Error('死信箱接口待接入');
 }
 
-/** 取件后流转至总舵核验 */
-export async function jianghuDeadDropDeliver(): Promise<{ rewardRep: number }> {
-    if (JIANGHU_MOCK) return mock.jianghuDeadDropDeliver();
+/** 取件后流转至总舵核验（bonus=取证加成，如录音笔录音） */
+export async function jianghuDeadDropDeliver(opts?: { bonus?: number }): Promise<{ rewardRep: number; bonus?: number }> {
+    if (JIANGHU_MOCK) return mock.jianghuDeadDropDeliver(opts);
     throw new Error('死信箱接口待接入');
 }
 
@@ -159,4 +159,35 @@ export async function jianghuDeadDropFastForward(min: number): Promise<{ drop: J
 export async function jianghuDeadDropReset(): Promise<void> {
     if (JIANGHU_MOCK) return mock.jianghuDeadDropReset();
     throw new Error('死信箱接口待接入');
+}
+
+/** 点场景物体取一枚线索碎片（识别系统；服务端须同源生成，防前端拼凑暗号） */export async function jianghuDeadDropClue(source: import('../../pkg-jianghu/scene/clues').ClueSource, seed: string): Promise<import('../../pkg-jianghu/scene/clues').ClueFragment> {
+    if (JIANGHU_MOCK) return mock.jianghuDeadDropClue(source, seed);
+    throw new Error('线索接口待接入');
+}
+
+/** 主动失败（取件过慢 / 被目击）：进入截获终态 */
+export async function jianghuDeadDropFail(reason: string, penalty?: number): Promise<JianghuDeadDrop> {
+    if (JIANGHU_MOCK) return mock.jianghuDeadDropFail(reason, penalty);
+    throw new Error('死信箱接口待接入');
+}
+
+/** 时间沙漏：延长可取窗（分钟） */
+export async function jianghuDeadDropExtend(min: number): Promise<JianghuDeadDrop> {
+    if (JIANGHU_MOCK) return mock.jianghuDeadDropExtend(min);
+    throw new Error('死信箱接口待接入');
+}
+
+/** 提交自定义技能（UGC）：进入 pending，待运营审核，approved 后才进藏匿/通道选择器 */
+export async function jianghuCustomSkillSubmit(input: CustomSkillInput): Promise<JianghuCustomSkill> {
+    if (JIANGHU_MOCK) return mock.jianghuCustomSkillSubmit(input);
+    // TODO(backend): 后端 campus-jianghu-plugin 提供 jianghuCustomSkillSubmit 后替换
+    throw new Error('自定义技能提交接口待接入');
+}
+
+/** 保存持有道具（领取/使用后整体回写） */
+export async function jianghuSaveInventory(ids: string[]): Promise<string[]> {
+    if (JIANGHU_MOCK) return mock.jianghuSaveInventory(ids);
+    // TODO(backend): 后端 campus-jianghu-plugin 提供 jianghuSaveInventory 后替换
+    throw new Error('持有道具保存接口待接入');
 }

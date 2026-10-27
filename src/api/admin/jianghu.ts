@@ -2,7 +2,7 @@ import gql from 'graphql-tag';
 import { GraphQLClient } from 'graphql-request';
 import { JIANGHU_MOCK } from '../jianghu-env';
 import * as mock from '../mock/jianghu';
-import type { JianghuClue, JianghuEvent, JianghuEventInput } from '../../types/jianghu';
+import type { JianghuClue, JianghuCustomSkill, JianghuEvent, JianghuEventInput } from '../../types/jianghu';
 
 /**
  * 江湖运营后台接口（admin-api）。
@@ -56,6 +56,22 @@ const JH_LIST_CLUES = gql`
     }
 `;
 
+const JH_LIST_CUSTOM_SKILLS = gql`
+    query jianghuListCustomSkills($status: String, $limit: Int) {
+        jianghuListCustomSkills(status: $status, limit: $limit) {
+            id name category desc status customerId nickname createdAt
+        }
+    }
+`;
+
+const JH_AUDIT_CUSTOM_SKILL = gql`
+    mutation jianghuAuditCustomSkill($id: ID!, $approve: Boolean!) {
+        jianghuAuditCustomSkill(id: $id, approve: $approve) {
+            id name category desc status customerId nickname createdAt
+        }
+    }
+`;
+
 /** 发布江湖事件：name/desc 必填，其余有默认值 */
 export async function jianghuCreateEvent(input: JianghuEventInput): Promise<JianghuEvent> {
     if (JIANGHU_MOCK) return mock.jianghuCreateEvent(input);
@@ -84,4 +100,26 @@ export async function jianghuListClues(status?: string, limit = 50): Promise<Jia
     return adminClient()
         .request(JH_LIST_CLUES, { status, limit })
         .then((r: any) => r.jianghuListClues);
+}
+
+/**
+ * 列出自定义技能（含 pending 待审），供运营审核。玩家侧不可见他人 pending，故走 admin 专属查询。
+ * status 不传返回全部；传 'pending' 仅取待审。
+ */
+export async function jianghuListCustomSkills(status?: string, limit = 50): Promise<JianghuCustomSkill[]> {
+    if (JIANGHU_MOCK) return mock.jianghuListCustomSkills(status, limit);
+    return adminClient()
+        .request(JH_LIST_CUSTOM_SKILLS, { status, limit })
+        .then((r: any) => r.jianghuListCustomSkills);
+}
+
+/**
+ * 审核自定义技能：approve=true 入库(approved，进入多人共享选择器)；approve=false 驳回(rejected)。
+ * 运营后台对每条技能的「通过 / 驳回」均走此接口。
+ */
+export async function jianghuAuditCustomSkill(id: string, approve: boolean): Promise<JianghuCustomSkill> {
+    if (JIANGHU_MOCK) return mock.jianghuAuditCustomSkill(id, approve);
+    return adminClient()
+        .request(JH_AUDIT_CUSTOM_SKILL, { id, approve })
+        .then((r: any) => r.jianghuAuditCustomSkill);
 }

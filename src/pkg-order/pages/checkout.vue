@@ -217,11 +217,6 @@
     </view>
 
     <view class="checkout-page__summary" v-if="cart.order">
-      <!-- 预计送达（第 38 轮）：尽快送按店铺配送时长推算；已选预约时段则显示预约时间 -->
-      <view class="summary-row summary-row--eta" v-if="etaLabel">
-        <text>{{ $t('checkout.etaRow') }}</text>
-        <text class="eta-val">{{ etaLabel }}</text>
-      </view>
       <view class="summary-row"><text>{{ $t('checkout.goodsTotal') }}</text><text>¥{{ originalSubTotalYuan }}</text></view>
       <view class="summary-row" v-if="activeTab === 'campus' && deliveryFeeFen != null"><text>{{ $t('checkout.deliveryFee') }}</text><text>¥{{ (deliveryFeeFen / 100).toFixed(2) }}</text></view>
       <view class="summary-row" v-if="activeTab === 'campus' && minOrderFen != null"><text>{{ $t('checkout.minOrder') }}</text><text>{{ $t('checkout.minOrderText').replace('{c}', (minOrderFen / 100).toFixed(2)) }}</text></view>
@@ -454,7 +449,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import PickupLocationSheet from '../../components/PickupLocationSheet.vue';
 import RegionPicker from '../../components/RegionPicker.vue';
 import type { PickupLocation } from '../../types/pickup';
@@ -682,7 +677,7 @@ const packingCfg = ref<{ enabled: boolean; mode: string; amount: number; cap: nu
 const promoText = ref('');                       // 店铺满减活动文案（promoText，解析「满X减Y」）
 const defaultAddressSummary = ref('');           // 默认校园地址摘要（Task 10，可点击改选）
 // 店铺标识（menu 透传 cid/shop）：下单成功后写「常买商品」，并按渠道隔离记录
-const storeMeta = ref<{ channelId?: string; storeName?: string; channelToken?: string; routes?: string; deliveryMinutes?: number | null; businessHours?: string | null }>({});
+const storeMeta = ref<{ channelId?: string; storeName?: string; channelToken?: string; routes?: string }>({});
 
 // checkout 可选路线（R1/R2/R3 保序）；R2 二期加入轮换
 const campusRouteOptions = computed(() => filterCampusRoutes(campusRoutes.value));
@@ -713,31 +708,6 @@ function dateLabel(d: string): string {
 }
 function pickDate(d: string) { slotDate.value = d; slotId.value = ''; }
 function clearSlotPick() { slotDate.value = ''; slotId.value = ''; }
-
-// ===== 预计送达（第 38 轮）：尽快送按配送时长推算；选了预约时段则显示预约时间 =====
-const etaNowTick = ref(Date.now());
-let etaTimer: ReturnType<typeof setInterval> | null = null;
-onLoad(() => {
-    etaTimer = setInterval(() => { etaNowTick.value = Date.now(); }, 30000);
-});
-onUnload(() => {
-    if (etaTimer) { clearInterval(etaTimer); etaTimer = null; }
-});
-const etaResult = computed(() => etaRange({
-    now: new Date(etaNowTick.value),
-    deliveryMinutes: storeMeta.value.deliveryMinutes,
-    businessHours: storeMeta.value.businessHours,
-}));
-const etaLabel = computed(() => {
-    // 预约时段优先：显示「今天/明天/日期 + 时段」，与 campus 时段 chips 口径一致
-    if (slotDate.value && slotId.value) {
-        const s = slots.value.find(x => x.id === slotId.value);
-        if (s) return locale.t('checkout.etaSlot').replace('{d}', dateLabel(s.slotDate)).replace('{t}', `${s.startTime}–${s.endTime}`);
-    }
-    const r = etaResult.value;
-    const key = r.nextDay ? 'checkout.etaNextDay' : 'checkout.etaAsap';
-    return locale.t(key).replace('{t}', etaClockText(r)).replace('{n}', String(r.minutes));
-});
 
 function toggleRoute() {
     const opts = campusRouteOptions.value;
@@ -1759,8 +1729,6 @@ onLoad((q: any) => {
         storeName: q?.shop ? decodeURIComponent(String(q.shop)) : undefined,
         channelToken: q?.token ? decodeURIComponent(String(q.token)) : (tenantStore.token || ''),
         routes: routes.join(','),
-        deliveryMinutes: q?.dmin != null && q.dmin !== '' ? Number(q.dmin) : null,
-        businessHours: q?.hours ? decodeURIComponent(String(q.hours)) : null,
     };
     // 「去使用」预挂券（my-coupons 写入）：购物车就绪后消费（onMounted consumePrefillCoupon）
     prefillCouponCode.value = String(uni.getStorageSync('checkout_prefill_coupon') || '');
@@ -1880,8 +1848,6 @@ onLoad((q: any) => {
 .campus-default { display: flex; align-items: center; justify-content: space-between; background: $brand-soft; border-radius: $radius-md; padding: 16rpx 20rpx; margin-bottom: 16rpx; &__txt { font-size: 24rpx; color: #8a4b00; flex: 1; } &__chg { font-size: 24rpx; color: $brand-color; margin-left: 12rpx; } }
 // ===== 优惠券行 + 选券弹层（spec §3.3） =====
 .summary-row--coupon { cursor: pointer; }
-/* 预计送达行（第 38 轮）：首行高亮，与费用行区分 */
-.summary-row--eta { color: $text-color; font-weight: 600; .eta-val { color: $brand-color; } }
 .coupon-val { color: #ff6600; }
 // ===== 优惠明细（v14）：逐项展开 + 已省合计 =====
 .summary-row--saved { cursor: pointer; }

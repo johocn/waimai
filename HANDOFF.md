@@ -90,3 +90,67 @@ cd d:\zhao\vendure\packages\campus-delivery-plugin && npx vitest --config vitest
 - 大厅单滞留 >5 分钟自动加急置顶；T2 强派/T4 自动退款定时调度**默认开启**（2026-10-08 生产核验：全渠道 paused=false，阈值 10/30/45）
 - ~~0 分成单（shipping=0 且 tip=0）送达写库成功但 addBalance 抛错~~ → 已修复（vendure `5fa63c726`，跳过入账 + 单测覆盖）
 - nginx `www.yourbao.cn.conf` 改前备份 `.bak_waimai_20261006`（root 补齐前主站一直显示 openresty 欢迎页的历史问题已修复）
+
+## 10. 江湖域 `pkg-jianghu` · 学校图书馆「密页传递」（2026-10-23 进度）
+
+独立于外卖主流程的玩法模块（`src/pkg-jianghu/`），uniapp + Phaser 等距 2.5D 场景 + Pinia store；后端走 `JIANGHU_MOCK` 门控（mock 在 `src/api/mock/jianghu.ts`，真实 GraphQL/admin-api 分支按惯例抛「待接入」+ TODO）。
+
+**已落地**
+- 图书馆场景（`pages/jh-library.vue` + `scene/*`）：书架/背景画/故事角/阅览桌/管理台/巡逻员 + 可挪动书堆 + 书签标记；暴露度条 + 可取时间窗；藏/传/道具/技能操作面板。
+- 张力模型：证据链 `world.evidence` → 暴露度 → 巡逻员自适应加速/红环 → 可取窗高暴露自动截获。
+- UGC 自定义技能审核闭环：玩家提交 → mock PENDING → **运营后台** `pages/jh-admin.vue`「自定义技能审核」队列（通过入库/驳回）→ approved 进入「藏匿/传递通道」选择器实玩；rejected 演练触发伪造证据反噬。数据源在 store（`customSkills/adminSkills`），非本地 world。
+- `methodId/channelId` 持久化：投放时写入 `DeadDropPlaceInput` → mock `state.deadDrop`（随 `hydrate/persist` 往返）→ PLACED 态回显。
+- 相机缩放/平移：滚轮 + 双指捏合缩放、`pan` 工具/双指拖拽平移；命中前统一 `cameras.main.getWorldPoint` 转世界坐标，保证等距命中不错位；「环境谜面」HUD `setScrollFactor(0)` 固定。
+- P3 环境暗号 contextual：`scene/codebook.ts` 的 `contextualBoard(seed)` 生成「书架编号/画中题诗/借阅卡」三类语境暗号（按 playerId 种子分化），`codeEntry/codeHintOf` 支持「取自何处」线索；经典 12 词保留为回退。
+
+**关键文件**：`scene/world.ts`（对象/证据/技能派生 `categoryAttrs/skillToStash/skillToChannel/riskSeverity/approvedCustomSkills`）、`scene/codebook.ts`、`scene/JianghuIsoScene.ts`（基类）、`scene/iso.ts`（投影）；`api/{queries,mutations,admin,mock}/jianghu.ts`；`stores/jianghu.ts`；`pages/jh-{library,admin}.vue`。
+
+**验证**
+- 纯逻辑单测：`tests/jianghu-scene.spec.ts`（world 助手 / codebook contextual / iso 往返）。
+- 全部改动文件 IDE `read_lints` 0 error/0 warning。
+- 本机 `node_modules` 未安装，`pnpm install` 后跑 `pnpm test`（vitest）与 `pnpm build:h5`；dev 冒烟 `pnpm dev:h5` → `#/pkg-jianghu/pages/jh-library`（提交技能→jh-admin 审核→选择器出现→选高暴露项投放看红环/自动截获；滚轮/双指缩放、pan 拖拽、复位视野；环境谜面读暗号）。
+
+**玩法深化（2026-10-24）**
+- 道具系统实玩化：`world.inventory` 持有背包（mock `state.inventory` + `jianghuInventory/SaveInventory` + store `loadInventory/saveInventory/grantProp` 持久化）；`req` 门控生效（未持所需道具的藏点在选择器置灰「需道具」，投放前引导去人物故事会；`take-painting/climb` 属场景动作不门控）。
+- 组合技：`comboBonus/effectiveStash`（窥镜降风险、磁贴对阅览区加速、解码镜看穿画夹层、假书脊加成…）→ 调制 `doPlace` 写入的证据严重度（隐蔽手法/窥镜少留证据），选择器卡片展示组合加成。
+- 道具效果：干扰物 `useDistraction` 定时引开巡逻（期间 `alertLevel` 归零、巡逻暂停、绿环提示）；怀表在可取窗显示「巡逻警觉 %」；解码镜/显影剂在暗号框显示背景画夹层题诗（配合 P3 语境暗号）。
+- 人物故事会：story 角 NPC 面板（说书人），初见馈赠 + 机缘解锁（首次取件→窥镜/干扰物、首次流转→解码镜、段位门槛→手电/权限卡）；场景「人·走动」点到故事角或背包按钮均可打开。
+- 难度平衡与反馈：`EXPOSURE_PER_SEVERITY/PATROL_BASE_SPEED/PATROL_ALERT_GAIN/DISTRACT_MS` 常量化并接入暴露度与巡逻；暴露度评级（低/中/高/危）；取件按隐蔽度+暴露度结算奖励（mock `pickupReward`）并给 S/A/B 评级；新手三连 flash + 可关闭引导条。
+
+**剩余后端 TODO（上线前）**：`jianghuDeadDrop*`、`jianghuCustomSkill*`（submit/list/audit）、`jianghuInventory/SaveInventory` 接真实 campus-jianghu-plugin；运营 `VITE_ADMIN_TOKEN` 配置。
+
+## 11. 页面布局 / 交互 / 道具实玩收口（2026-10-24）
+
+针对「页面不美观、点不动、道具没效果、桌面移动端不一致」三项反馈的根因修复，全部经真实 Chromium E2E 验证（桌面 1280×900 + 移动 390×844 双视口，`pageerrors 0`）。
+
+**根因与修复**
+1. `pages/jh-library.vue` 原本**完全没有 `<style>` 块**（其余 10 个江湖页都有）→ 无布局/层次/响应式。补齐约 870 行 `scoped SCSS` 设计系统：`.dd` 居中容器（`max-width:480px` + 纵向渐变底 + `overflow-x:hidden`）、`.topbar/.seal`、`.tension`、`.scene-wrap/.stage`（360×560，`max-width:100%`）、`.scene-bar/.sb-btn`、`.tools`（5 列网格 + `.tool.on` 金色高亮）、`.fx/.fx-item`、`.bag/.bag-prop/.bp-use`、`.sheet/.sheet-card`（`max-height:86vh` 可滚动）、`.panel/.code-box/.cipher/.marks/.mark`、`.btn`（uni-button 重置 `&::after{border:none}`）、`.foot`。
+2. 交互不响应：`.stage` 与 canvas 统一 `touch-action:none;user-select:none`；Phaser 配置 `input:{activePointers:2,touch:{capture:true}}` + `disableContextMenu:true`；`onMounted` 用 `game.events.once('ready')` + 400ms 轮询（8s 上限）稳定给 canvas 打样式，避免画布创建时机不确定导致样式丢失。
+3. 道具不可用：原先只有 `distraction` 有动作，其余 11 件是被动的。新增 `useProp(id)` 统一入口 + 每件道具卡片的「使用」按钮 + `PROP_ACTION` 动作文案；`availableStashes()` 增加 `extra` 分支，持有道具即开辟其 `req` 藏点（不受本局分化子集限制），保证每件道具都有用武之地。
+4. 两个运行时未定义引用（E2E 抓到）：`armedStash` 未声明、`PAINTING_POEM` 未从 `scene/codebook` 导入 → 已补齐（后者同时修复模板里「背景画夹层题诗」渲染为空）。
+
+**12 件道具的预期效果（E2E 逐一实测）**
+| 道具 | 动作 | 可见效果 |
+| --- | --- | --- |
+| 借阅卡 | 刷开夹层 | `藏点就位：借阅卡夹层` |
+| 磁贴/胶带 | 吸附桌底 | `藏点就位：阅览桌底磁贴` |
+| 假书脊 | 造新藏点 | `藏点就位：假书书脊中空` |
+| 权限卡 | 刷开闭架 | `藏点就位：闭架区(需权限卡)` |
+| 显影剂 / 解码镜 | 显影暗号 / 透视夹层 | `显影：暗号「青灯」`（须先投放） |
+| 手机光/手电 | 照亮暗角 | `手电照明暗角 · 剩 10s`（场景暖色光斑） |
+| 干扰物 | 抛出引开 | `干扰物引开巡逻 · 剩 20s`（警觉归零） |
+| 怀表 | 读巡逻节拍 | `怀表预判节拍 · 警觉减半 剩 15s` |
+| 录音笔 | 录音取证 | `录音取证 N 段 · 交付 +5 声望`（交付折算） |
+| 书签便签 | 夹书签 | `书签便利 +1（已留痕）`（取件隐蔽 +1，同时 +1 证据） |
+| 窥镜/望远镜 | 远观抹痕 | `窥镜抹痕 −11% 暴露`（`clearLightestEvidence`） |
+
+生效效果汇总在 `.fx` 反馈条（`activeEffects` 计算属性）；`doReset` 统一清空。
+
+**桌面 / 移动一致**：容器 480 vs 390（均不横向溢出），画布恒 360×560，5 个工具（手·挪动 / 藏信 / 便签·标记 / 人·走动 / 视野·拖拽）均可点选并进入 `on` 态，画布拖拽 + `.scene-bar` 缩放/复位按钮两端均生效；完整闭环（投放 → 用道具 → 报暗号取件 → 流转核验）两端结果一致，`pageerrors 0`。
+
+**验证方式与坑**
+- 前端单测 `tests/jianghu-scene.spec.ts` 27/27 通过（含 `clearLightestEvidence` 善后用例）。
+- E2E 用 Playwright（`D:/zhao/laya-brawler/node_modules/playwright`，本项目未装）。注入道具须用 **uni H5 的包装结构**：`localStorage['jianghu_mock_v1'] = {type:'object', data:{inventory:[...]}}`（直接写裸对象无效）；注入走 `page.addInitScript` 首帧生效。
+- uni 组件渲染为自定义标签，选择器须用 `uni-button.btn.primary` 而非 `button`；uni 输入框用 `locator.fill` 会超时，改为 `evaluate` 设 `el.value` + `dispatchEvent(new Event('input',{bubbles:true}))`。
+- dev server 冷启动（首次预构建 phaser）可能耗时数分钟，期间 `canvas` 为 0；预热后约 21s 就绪，E2E 需 `waitForSelector('.stage canvas', 90s)`。
+- 遗留无关失败：`tests/store-display.spec.ts`（17）、`tests/timeline.spec.ts`（5）因文案改名（商家自送/拾光达 → 商户/传信者）与 `buildTimeline` 节点数变更未同步，属主流程遗留，不在本轮江湖范围内。

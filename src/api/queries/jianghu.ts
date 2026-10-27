@@ -4,6 +4,7 @@ import { JIANGHU_MOCK } from '../jianghu-env';
 import * as mock from '../mock/jianghu';
 import type {
     JianghuChapter,
+    JianghuCustomSkill,
     JianghuEvent,
     JianghuEventContent,
     JianghuEventDetail,
@@ -194,4 +195,21 @@ export async function jianghuEventContent(): Promise<JianghuEventContent | null>
  */
 export function jianghuDemoCode(): string {
     return JIANGHU_MOCK ? mock.jianghuDemoCode() : '';
+}
+
+/**
+ * 自定义技能列表（玩家侧）：已入库（全部 approved，多人共享）+ 本人提交（任意状态）。
+ * 选择器只融合 approved 项；「我的技能」据此展示提交与审核状态。
+ */
+export async function jianghuCustomSkillList(): Promise<JianghuCustomSkill[]> {
+    if (JIANGHU_MOCK) return mock.jianghuCustomSkillList();
+    // TODO(backend): 后端 campus-jianghu-plugin 提供 jianghuCustomSkillList 后替换
+    return [];
+}
+
+/** 玩家持有道具（PROPS.id）：驱动藏点 req 门控与道具效果 */
+export async function jianghuInventory(): Promise<string[]> {
+    if (JIANGHU_MOCK) return mock.jianghuInventory();
+    // TODO(backend): 后端 campus-jianghu-plugin 提供 jianghuInventory 后替换
+    return [];
 }

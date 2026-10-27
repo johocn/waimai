@@ -2,7 +2,7 @@
     <view class="jh">
         <view class="top">
             <text class="title">江湖运营后台</text>
-            <text class="sub">发布江湖事件 · 审核下线线索</text>
+            <text class="sub">发布江湖事件 · 审核线索与自定义技能</text>
         </view>
         <text class="hint">内部运营工具：复用 admin 接口的 jianghuCreateEvent / jianghuAuditClue。生产需运营 admin token（VITE_ADMIN_TOKEN），开发期走 mock。</text>
 
@@ -49,6 +49,28 @@
                 </view>
             </view>
             <EmptyState v-if="!reviewClues.length" text="本分类暂无线索" />
+
+            <!-- 自定义技能审核（UGC）：pending 待审 / approved 已入库 / rejected 已驳回 -->
+            <view class="sec"><text class="sec-h">自定义技能审核</text><text class="sec-m">{{ skillPendingCount }} 条待处理 / 共 {{ jh.adminSkills.length }} 条</text></view>
+            <view class="tabs">
+                <view class="tab" :class="{ on: skillFilter === 'pending' }" @tap="setSkillFilter('pending')">待审<text v-if="skillPendingCount" class="dot">{{ skillPendingCount }}</text></view>
+                <view class="tab" :class="{ on: skillFilter === 'approved' }" @tap="setSkillFilter('approved')">已入库</view>
+                <view class="tab" :class="{ on: skillFilter === 'rejected' }" @tap="setSkillFilter('rejected')">已驳回</view>
+                <view class="tab" :class="{ on: skillFilter === 'ALL' }" @tap="setSkillFilter('ALL')">全部</view>
+            </view>
+            <view v-for="s in reviewSkills" :key="s.id" class="clue" :class="s.status">
+                <view class="clue-h">
+                    <text class="clue-n">{{ s.name }}<text class="sk-cat">{{ catText(s.category) }}</text></text>
+                    <text class="tag" :class="s.status">{{ skillStatusText(s.status) }}</text>
+                </view>
+                <text class="clue-c">{{ s.desc }}</text>
+                <text class="clue-s">提交者：{{ s.nickname || '匿名传信者' }}</text>
+                <view class="clue-act">
+                    <button v-if="s.status !== 'approved'" class="btn approve" @tap="auditSkill(s.id, true)" :disabled="skillActing">通过入库</button>
+                    <button v-if="s.status !== 'rejected'" class="btn reject" @tap="auditSkill(s.id, false)" :disabled="skillActing">驳回</button>
+                </view>
+            </view>
+            <EmptyState v-if="!reviewSkills.length" text="本分类暂无技能" />
 
             <!-- 发布新事件 -->
             <view class="sec"><text class="sec-h">发布江湖事件</text><text class="sec-m">将成为最新当前事件</text></view>
@@ -111,6 +133,7 @@ import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useJianghuStore } from '../../stores/jianghu';
 import { jianghuAuditClue, jianghuCreateEvent } from '../../api/admin/jianghu';
+import { SKILL_CATEGORIES } from '../scene/world';
 import EmptyState from '../../components/EmptyState.vue';
 import type { JianghuEventInput } from '../../types/jianghu';
 
@@ -155,12 +178,46 @@ function statusText(s?: string) {
     return s === 'SHOWN' ? '已上墙' : s === 'REJECTED' ? '已下线' : '待审';
 }
 
+/* ── 自定义技能审核（UGC） ── */
+const SKILL_CAT_TEXT: Record<string, string> = SKILL_CATEGORIES.reduce((acc, c) => {
+    acc[c.id] = c.name;
+    return acc;
+}, {} as Record<string, string>);
+function catText(c: string): string {
+    return SKILL_CAT_TEXT[c] || c;
+}
+function skillStatusText(s: string): string {
+    return s === 'approved' ? '已入库' : s === 'rejected' ? '已驳回' : '待审';
+}
+/** 默认聚焦待审；筛选为客户端过滤（始终拉全量，使待处理计数稳定） */
+const skillFilter = ref<'pending' | 'approved' | 'rejected' | 'ALL'>('pending');
+const skillActing = ref(false);
+function setSkillFilter(f: typeof skillFilter.value) {
+    skillFilter.value = f;
+}
+const reviewSkills = computed(() =>
+    skillFilter.value === 'ALL' ? jh.adminSkills : jh.adminSkills.filter((s) => s.status === skillFilter.value),
+);
+const skillPendingCount = computed(() => jh.adminSkills.filter((s) => s.status === 'pending').length);
+
+async function auditSkill(id: string, approve: boolean) {
+    skillActing.value = true;
+    try {
+        await jh.auditCustomSkill(id, approve);
+        uni.showToast({ title: approve ? '已通过入库' : '已驳回', icon: 'none' });
+    } catch (e: any) {
+        uni.showToast({ title: (e?.message || '操作失败').slice(0, 30), icon: 'none' });
+    } finally {
+        skillActing.value = false;
+    }
+}
+
 const form = ref<JianghuEventInput>({ name: '', desc: '', total: undefined, perPersonLimit: undefined, rewardPoolRep: undefined, endAt: '' });
 
 onShow(async () => {
     loading.value = true;
     try {
-        await Promise.all([jh.loadEventDetail(), jh.loadEventClues(), jh.loadStory()]);
+        await Promise.all([jh.loadEventDetail(), jh.loadEventClues(), jh.loadStory(), jh.loadAdminCustomSkills()]);
     } catch {
         uni.showToast({ title: '江湖事件暂未开放', icon: 'none' });
     } finally {
@@ -274,12 +331,18 @@ async function adopt(id: string) {
     box-shadow: 0 2rpx 10rpx rgba(31, 27, 22, .06); border-left: 8rpx solid $jh-jade;
 }
 .clue.REJECTED { border-left-color: $jh-ink-2; opacity: .7; }
+.clue.approved { border-left-color: $jh-jade; }
+.clue.rejected { border-left-color: $jh-ink-2; opacity: .7; }
+.sk-cat { font-size: 20rpx; color: $jh-ink-2; margin-left: 12rpx; }
 .clue-h { display: flex; justify-content: space-between; align-items: center; }
 .clue-n { font-size: 26rpx; font-weight: 700; color: $jh-ink; }
 .tag { font-size: 20rpx; padding: 4rpx 14rpx; border-radius: 999rpx; }
 .tag.SHOWN { background: rgba(31, 111, 92, .12); color: $jh-jade; }
 .tag.REJECTED { background: rgba(120, 120, 120, .14); color: $jh-ink-2; }
 .tag.PENDING { background: rgba(200, 162, 74, .2); color: #8a6b1f; }
+.tag.approved { background: rgba(31, 111, 92, .12); color: $jh-jade; }
+.tag.rejected { background: rgba(120, 120, 120, .14); color: $jh-ink-2; }
+.tag.pending { background: rgba(200, 162, 74, .2); color: #8a6b1f; }
 .clue-c { display: block; font-size: 28rpx; color: $jh-ink; line-height: 1.7; margin: 12rpx 0; }
 .clue-s { display: block; font-size: 22rpx; color: $jh-ink-2; }
 .clue-act { display: flex; gap: 16rpx; margin-top: 16rpx; }

@@ -365,6 +365,25 @@ export interface JianghuDeadDrop {
     phase: DeadDropPhase;
     /** 取件人（上线）名号，取走后填写 */
     pickedBy?: string;
+    /** 暗号线索（只给类别与字数，暗号本体不下发） */
+    codeHint?: string;
+    /** 暗号剩余可报错次数 */
+    codeTriesLeft?: number;
+    /** 被截获的原因（超时 / 暗号错误） */
+    seizeReason?: string;
+    /** 本次投放选用的藏匿手法 id（内置或 approved 自定义技能 ugc:*），可回看 */
+    methodId?: string;
+    /** 本次投放选用的传递通道 id，可回看 */
+    channelId?: string;
+    /** 暗点所在区域（bookshelf/painting/reading/desk/story/custom），驱动识别与巡逻分区 */
+    zone?: string;
+    /** 暗点所在格子（等距网格坐标），取件须走到附近并点开 */
+    gx?: number;
+    gy?: number;
+    /** 本次投放的有效隐蔽度（1..3，组合技后），影响取件评级与巡逻发现概率 */
+    conceal?: number;
+    /** 便签指向与暗点实际格子的曼哈顿偏移（0=精确），越大寻点越难 */
+    markerDrift?: number;
 }
 
 /** 死信箱投放入参 */
@@ -372,4 +391,45 @@ export interface DeadDropPlaceInput {
     topic: string;
     plainText: string;
     marker: DeadDropMarker;
+    /** 暗号（须取自暗语本），由服务端留存校验，不下发前端 */
+    code: string;
+    /** 本次投放选用的藏匿手法 id（内置或 approved 自定义技能 ugc:*） */
+    methodId?: string;
+    /** 本次投放选用的传递通道 id */
+    channelId?: string;
+    /** 暗点区域（与手法 zone 一致） */
+    zone?: string;
+    /** 暗点所在格子（等距网格坐标） */
+    gx?: number;
+    gy?: number;
+    /** 有效隐蔽度 1..3（组合技后由前端结算并随投放入库） */
+    conceal?: number;
+    /** 便签指向与暗点格子的曼哈顿偏移 */
+    markerDrift?: number;
+}
+
+/* ── 自定义技能（UGC）：提交 → pending → 运营审核 approved / rejected ── */
+
+/** 技能类别（与 scene/world.ts 的 SkillCategory 同集，结构兼容） */
+export type JianghuSkillCategory = 'item' | 'hide' | 'gather' | 'layout' | 'frame' | 'interrupt';
+
+/** 自定义技能实体：approved 进入多人共享库，出现在藏匿/通道选择器 */
+export interface JianghuCustomSkill {
+    id: string;
+    name: string;
+    category: JianghuSkillCategory;
+    desc: string;
+    /** pending 待审 / approved 已入库 / rejected 已驳回 */
+    status: 'pending' | 'approved' | 'rejected';
+    /** 提交者（玩家侧查询据此区分「我的」） */
+    customerId?: string;
+    nickname?: string;
+    createdAt?: string;
+}
+
+/** 自定义技能提交入参 */
+export interface CustomSkillInput {
+    name: string;
+    category: JianghuSkillCategory;
+    desc: string;
 }

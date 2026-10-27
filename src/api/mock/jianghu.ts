@@ -15,6 +15,7 @@ import type {
     DeadDropPlaceInput,
     JianghuChapter,
     JianghuClue,
+    JianghuCustomSkill,
     JianghuDeadDrop,
     JianghuDemand,
     JianghuEvent,
@@ -32,8 +33,30 @@ import type {
     JianghuVoice,
     RankTier,
     RumorInput,
-    VoiceInput
+    VoiceInput,
+    CustomSkillInput
 } from '../../types/jianghu';
+import { MAX_CODE_TRIES, codeEntry, codeHintOf } from '../../pkg-jianghu/scene/codebook';
+import { CLUE_SOURCES, clueFragment, type ClueFragment, type ClueSource } from '../../pkg-jianghu/scene/clues';
+
+/* ────────────────── 识别系统：点场景物体取线索碎片（demo：客户端同源生成） ────────────────── */
+
+/** 点场景物体取得一枚线索碎片；同一来源重复取只刷新文案，不重复入包 */
+export async function jianghuDeadDropClue(source: ClueSource, seed: string): Promise<ClueFragment> {
+    await delay(180);
+    if (!CLUE_SOURCES.some((s) => s.id === source)) throw new Error('没有这类线索');
+    return clueFragment(source, seed);
+}
+
+/** 服务端内部字段：暗号本体与报错次数，绝不随暗点下发前端 */
+type DeadDropInternal = JianghuDeadDrop & { codeKey?: string; codeFails?: number };
+
+/** 脱敏：剥离暗号等内部字段后再下发 */
+function toPublic(d: DeadDropInternal | null): JianghuDeadDrop | null {
+    if (!d) return null;
+    const { codeKey, codeFails, ...rest } = d;
+    return clone(rest as JianghuDeadDrop);
+}
 
 /** 九级段位（与后端 JianghuRankConfig 保持一致，真实环境由 jianghuRankLadder 下发） */
 export const RANK_LADDER: RankTier[] = [
@@ -200,6 +223,15 @@ const state = {
         { id: 'd5', text: '暗号希望更有江湖设定（诗谜 / 手势）', votes: 15, tag: '玩法' }
     ] as JianghuDemand[],
 
+    /** 自定义技能（UGC）：pending 待审 / approved 已入库（多人共享）/ rejected 已驳回 */
+    skills: [
+        { id: 'sk1', name: '窗台借光传信', category: 'gather', desc: '借窗格光影做实时信号，闭馆前约定明暗节奏。', status: 'approved', customerId: 'u9', nickname: '青羽阿七', createdAt: '2026-10-08T20:00:00+08:00' },
+        { id: 'sk2', name: '双层藏（画后书脊）', category: 'hide', desc: '背景画后再塞假书脊，双保险藏点。', status: 'pending', customerId: 'mock-customer-1', nickname: '夜行小驿', createdAt: '2026-10-09T09:00:00+08:00' }
+    ] as JianghuCustomSkill[],
+
+    /** 持有道具（PROPS.id）：演示初始发放书签与磁贴，用于展示 req 门控与组合技 */
+    inventory: ['bookmark', 'magnet'] as string[],
+
     /** 死信箱（虚拟暗点投递） demo 态：当前暗点 + 演示时间快进（分钟） */
     deadDrop: null as JianghuDeadDrop | null,
     clockOffsetMin: 0
@@ -221,7 +253,7 @@ function hydrate() {
     try {
         const saved = (uni as any).getStorageSync(STORAGE_KEY);
         if (saved && typeof saved === 'object') {
-            for (const k of ['profile', 'tasks', 'records', 'bounties', 'market', 'event', 'clues', 'chapters', 'voices', 'demands', 'deadDrop', 'clockOffsetMin'] as const) {
+            for (const k of ['profile', 'tasks', 'records', 'bounties', 'market', 'event', 'clues', 'chapters', 'voices', 'demands', 'skills', 'inventory', 'deadDrop', 'clockOffsetMin'] as const) {
                 if (saved[k] !== undefined) (state as any)[k] = saved[k];
             }
         }
@@ -434,6 +466,75 @@ export async function jianghuListClues(status?: string, limit = 50): Promise<Jia
     let list = clone(state.clues);
     if (status) list = list.filter((c) => c.status === status);
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, limit);
+}
+
+/* ────────────────── 自定义技能（UGC）审核闭环 ────────────────── */
+/** 单人待审技能上限，避免刷量（照搬线索单人贡献限制的思路） */
+const MAX_MY_PENDING_SKILLS = 5;
+
+/** 提交自定义技能：进入 pending（待运营审核），非 approved 不进选择器 */
+export async function jianghuCustomSkillSubmit(input: CustomSkillInput): Promise<JianghuCustomSkill> {
+    await delay(300);
+    if (!input.name?.trim()) throw new Error('请填写技能名');
+    if (!input.desc?.trim()) throw new Error('请补充技能说明（如何不露痕迹）');
+    const me = state.profile.customerId ?? '';
+    const myPending = state.skills.filter((s) => s.customerId === me && s.status === 'pending');
+    if (myPending.length >= MAX_MY_PENDING_SKILLS) throw new Error(`待审技能过多（上限 ${MAX_MY_PENDING_SKILLS} 条），先等运营审核`);
+    const sk: JianghuCustomSkill = {
+        id: 'sk' + Date.now(),
+        name: input.name.trim(),
+        category: input.category,
+        desc: input.desc.trim(),
+        status: 'pending',
+        customerId: me,
+        nickname: state.profile.nickname,
+        createdAt: new Date().toISOString()
+    };
+    state.skills.push(sk);
+    persist();
+    return clone(sk);
+}
+
+/** 玩家查询：已入库（全部 approved，多人共享）+ 本人提交（任意状态），按创建时间倒序 */
+export async function jianghuCustomSkillList(): Promise<JianghuCustomSkill[]> {
+    await delay(120);
+    const me = state.profile.customerId ?? '';
+    const list = clone(state.skills).filter((s) => s.status === 'approved' || s.customerId === me);
+    return list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+}
+
+/** 运营后台：列出自定义技能（含 pending 待审），status 可过滤，按创建时间倒序 */
+export async function jianghuListCustomSkills(status?: string, limit = 50): Promise<JianghuCustomSkill[]> {
+    await delay(180);
+    let list = clone(state.skills);
+    if (status) list = list.filter((s) => s.status === status);
+    return list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).slice(0, limit);
+}
+
+/** 运营后台：审核自定义技能。approve=true 入库(approved)；approve=false 驳回(rejected) */
+export async function jianghuAuditCustomSkill(id: string, approve: boolean): Promise<JianghuCustomSkill> {
+    await delay(240);
+    const sk = state.skills.find((x) => x.id === id);
+    if (!sk) throw new Error('技能不存在');
+    sk.status = approve ? 'approved' : 'rejected';
+    persist();
+    return clone(sk);
+}
+
+/* ────────────────── 持有道具（背包） ────────────────── */
+
+/** 玩家持有道具列表（PROPS.id） */
+export async function jianghuInventory(): Promise<string[]> {
+    await delay(80);
+    return clone(state.inventory);
+}
+
+/** 保存持有道具（领取/使用后整体回写，简单可靠） */
+export async function jianghuSaveInventory(ids: string[]): Promise<string[]> {
+    await delay(80);
+    state.inventory = (ids || []).filter((x) => typeof x === 'string');
+    persist();
+    return clone(state.inventory);
 }
 
 /** P2 提交线索：进入待审(PENDING)，不上墙、不计数；集齐后由运营审核通过触发结算 */
@@ -659,7 +760,7 @@ function recomputeDeadDrop(d: JianghuDeadDrop): JianghuDeadDrop {
     let phase: DeadDropPhase = 'PLACED';
     if (now >= to) phase = 'SEIZED';
     else if (now >= from) phase = 'PICKABLE';
-    return { ...d, phase };
+    return { ...d, phase, seizeReason: phase === 'SEIZED' ? d.seizeReason || '超时未取，被巡查取走' : d.seizeReason };
 }
 
 /** 查看暗点：返回当前暗点 + 当前（快进后的）时钟 */
@@ -668,7 +769,7 @@ export async function jianghuDeadDropInspect(): Promise<{ drop: JianghuDeadDrop 
     const d = state.deadDrop ? recomputeDeadDrop(state.deadDrop) : null;
     if (d) state.deadDrop = d; // 固化阶段，避免回退
     persist();
-    return { drop: d ? clone(d) : null, nowIso: new Date(effectiveNow()).toISOString() };
+    return { drop: toPublic(d as DeadDropInternal), nowIso: new Date(effectiveNow()).toISOString() };
 }
 
 /** 投放情报：自动加密、记录标记与可取窗口，投放后玩家不可再查看明文 */
@@ -676,48 +777,90 @@ export async function jianghuDeadDropPlace(input: DeadDropPlaceInput): Promise<J
     await delay(320);
     if (!input.topic?.trim()) throw new Error('请填写情报主题');
     if (!input.plainText?.trim()) throw new Error('请录入情报原文');
+    if (!codeEntry(input.code)) throw new Error('暗号须从暗语本中选取');
     const now = effectiveNow();
-    const drop: JianghuDeadDrop = {
+    const drop: DeadDropInternal = {
         id: 'dd' + Date.now(),
         topic: input.topic.trim(),
         cipher: fakeCipher(input.plainText.trim()),
         marker: input.marker,
         markerText: MARKER_TEXT[input.marker],
+        methodId: input.methodId,
+        channelId: input.channelId,
+        zone: input.zone,
+        gx: input.gx,
+        gy: input.gy,
+        conceal: input.conceal,
+        markerDrift: input.markerDrift,
         placedAt: new Date(now).toISOString(),
         pickableFrom: new Date(now + DD_PICKABLE_DELAY_MS).toISOString(),
         pickableTo: new Date(now + DD_PICKABLE_DELAY_MS + DD_WINDOW_MS).toISOString(),
-        phase: 'PLACED'
+        phase: 'PLACED',
+        codeKey: input.code,
+        codeFails: 0,
+        codeHint: codeHintOf(input.code),
+        codeTriesLeft: MAX_CODE_TRIES
     };
     state.deadDrop = drop;
     persist();
-    return clone(drop);
+    return toPublic(drop) as JianghuDeadDrop;
 }
 
-/** 上线错时取件：仅在 PICKABLE 可取，取走后明文下发，取件人声望 + */
-export async function jianghuDeadDropPickup(): Promise<{ drop: JianghuDeadDrop; plainText: string; rewardRep: number }> {
+/** 取件奖励：基础 + 隐蔽加成 − 高暴露惩罚（client 传入 conceal/exposure；缺省按中性计） */
+function pickupReward(conceal = 2, exposure = 40): number {
+    const base = 18;
+    const c = Math.max(1, Math.min(3, Math.round(conceal)));
+    const concealBonus = (c - 1) * 4; // 0 / 4 / 8
+    const exposurePenalty = exposure > 60 ? Math.round((exposure - 60) / 10) * 2 : 0;
+    return Math.max(4, base + concealBonus - exposurePenalty);
+}
+
+/** 上线错时取件：须报对暗号；报错超过上限即被巡线截获并扣声望 */
+export async function jianghuDeadDropPickup(code: string, opts?: { conceal?: number; exposure?: number }): Promise<{ drop: JianghuDeadDrop; plainText: string; rewardRep: number }> {
     await delay(320);
-    const d = state.deadDrop ? recomputeDeadDrop(state.deadDrop) : null;
+    const d = state.deadDrop ? (recomputeDeadDrop(state.deadDrop) as DeadDropInternal) : null;
     if (!d) throw new Error('暗点空空如也');
     if (d.phase !== 'PICKABLE') throw new Error('尚不可取件（未到可取窗口或已失效）');
-    const upd: JianghuDeadDrop = { ...d, phase: 'PICKED', pickedBy: '上线·云中君' };
+
+    // 暗号校验
+    if (d.codeKey && code !== d.codeKey) {
+        const fails = (d.codeFails || 0) + 1;
+        const seized = fails >= MAX_CODE_TRIES;
+        const bad: DeadDropInternal = {
+            ...d,
+            codeFails: fails,
+            codeTriesLeft: Math.max(0, MAX_CODE_TRIES - fails)
+        };
+        if (seized) {
+            bad.phase = 'SEIZED';
+            bad.seizeReason = '暗号不符，被巡线截获';
+            state.profile.rep = Math.max(0, state.profile.rep - 12);
+        }
+        state.deadDrop = bad;
+        persist();
+        throw new Error(seized ? '暗号再次不符——情报被巡线截获！' : `暗号不符，巡线起疑（还剩 ${MAX_CODE_TRIES - fails} 次机会）`);
+    }
+
+    const upd: DeadDropInternal = { ...d, phase: 'PICKED', pickedBy: '上线·云中君' };
     state.deadDrop = upd;
-    const rewardRep = 18;
+    const rewardRep = pickupReward(opts?.conceal, opts?.exposure);
     state.profile.rep += rewardRep;
     state.profile.repToday = Math.min(state.profile.repDailyCap, state.profile.repToday + rewardRep);
     persist();
-    return { drop: clone(upd), plainText: fakeDecipher(d.cipher), rewardRep };
+    return { drop: toPublic(upd) as JianghuDeadDrop, plainText: fakeDecipher(d.cipher), rewardRep };
 }
 
-/** 取件后情报流转至交通站 → 总舵译信核验，投放人与取件人双方声望入账 */
-export async function jianghuDeadDropDeliver(): Promise<{ rewardRep: number }> {
+/** 取件后情报流转至交通站 → 总舵译信核验，投放人与取件人双方声望入账（bonus=取证加成，如录音笔） */
+export async function jianghuDeadDropDeliver(opts?: { bonus?: number }): Promise<{ rewardRep: number; bonus?: number }> {
     await delay(320);
     const d = state.deadDrop;
     if (!d || d.phase !== 'PICKED') throw new Error('情报尚未取走，无法流转');
-    const rewardRep = 22;
+    const bonus = Math.max(0, Math.round(opts?.bonus || 0));
+    const rewardRep = 22 + bonus;
     state.profile.rep += rewardRep;
     state.profile.repToday = Math.min(state.profile.repDailyCap, state.profile.repToday + rewardRep);
     persist();
-    return { rewardRep };
+    return { rewardRep, bonus };
 }
 
 /** 演示用时间快进（分钟）：让单人即可体验错时取件 / 超时截获 */
@@ -727,7 +870,31 @@ export async function jianghuDeadDropFastForward(min: number): Promise<{ drop: J
     const d = state.deadDrop ? recomputeDeadDrop(state.deadDrop) : null;
     if (d) state.deadDrop = d;
     persist();
-    return { drop: d ? clone(d) : null, nowIso: new Date(effectiveNow()).toISOString() };
+    return { drop: toPublic(d as DeadDropInternal), nowIso: new Date(effectiveNow()).toISOString() };
+}
+
+/** 时间沙漏：延长可取窗（分钟） */
+export async function jianghuDeadDropExtend(min: number): Promise<JianghuDeadDrop> {
+    await delay(160);
+    const d = state.deadDrop ? (recomputeDeadDrop(state.deadDrop) as DeadDropInternal) : null;
+    if (!d || d.phase !== 'PICKABLE') throw new Error('仅可取窗可延长');
+    const add = Math.max(1, Math.round(min)) * 60_000;
+    const bad: DeadDropInternal = { ...d, pickableTo: new Date(new Date(d.pickableTo).getTime() + add).toISOString() };
+    state.deadDrop = bad;
+    persist();
+    return toPublic(bad) as JianghuDeadDrop;
+}
+
+/** 主动失败（取件过慢 / 被目击等）：直接进入截获终态并留痕 */
+export async function jianghuDeadDropFail(reason: string, penalty = 8): Promise<JianghuDeadDrop> {
+    await delay(120);
+    const d = state.deadDrop ? (recomputeDeadDrop(state.deadDrop) as DeadDropInternal) : null;
+    if (!d || d.phase === 'PICKED' || d.phase === 'SEIZED') throw new Error('当前没有可失败的暗点');
+    const bad: DeadDropInternal = { ...d, phase: 'SEIZED', seizeReason: reason || '任务失败' };
+    state.deadDrop = bad;
+    state.profile.rep = Math.max(0, state.profile.rep - Math.max(0, Math.round(penalty)));
+    persist();
+    return toPublic(bad) as JianghuDeadDrop;
 }
 
 /** 重置暗点（清空当前暗点与时钟偏移） */

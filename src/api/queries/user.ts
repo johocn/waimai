@@ -5,7 +5,7 @@ export async function getActiveCustomer() {
     return client.request(`query {
         activeCustomer {
             id firstName lastName emailAddress phoneNumber
-            customFields { avatarUrl invoiceTitles referralCode }
+            customFields { avatarUrl invoiceTitles referralCode tasteProfile }
             addresses {
                 id fullName streetLine1 streetLine2 city province postalCode country { name } phoneNumber defaultShippingAddress defaultBillingAddress
                 customFields { zoneId buildingId route }

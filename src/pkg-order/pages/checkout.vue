@@ -1479,6 +1479,14 @@ onMounted(async () => {
     let custFields: any = null;
     try { const custRes: any = await getActiveCustomer(); customerAddresses.value = custRes.activeCustomer?.addresses || []; custFields = custRes.activeCustomer?.customFields; if (customerAddresses.value.length > 0) { selectedAddress.value = customerAddresses.value.find((a: any) => a.defaultShippingAddress) || customerAddresses.value[0]; } } catch (e) {}
     await loadInvoiceTitles(custFields);
+    // 口味偏好云端优先（P3-1）：登录用户换设备后自动恢复本机偏好
+    try {
+        const cloudTaste = custFields?.tasteProfile;
+        if (cloudTaste) {
+            tasteProfile.value = writeTasteProfile(JSON.parse(cloudTaste));
+            tablewareCount.value = tasteProfile.value.tableware;
+        }
+    } catch (e) { /* 云端异常保持本机 */ }
     try {
         const orderRes: any = await getActiveOrder();
         if (orderRes.activeOrder) cart.setOrder(orderRes.activeOrder);

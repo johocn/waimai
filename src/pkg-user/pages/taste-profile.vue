@@ -88,8 +88,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useLocaleStore } from '../../stores/locale';
+import { getActiveCustomer } from '../../api/queries/user';
+import { saveTasteProfile } from '../../api/queries/taste';
 import {
   SPICY_KEYS,
   AVOID_KEYS,
@@ -100,6 +102,7 @@ import {
   clearTasteProfile,
   tasteNoteParts,
   tasteLabels,
+  hasTaste,
   type TasteProfile,
   type SpicyKey,
   type AvoidKey,
@@ -138,8 +141,9 @@ function pickTableware(n: number) {
 }
 
 function save() {
-  writeTasteProfile(profile.value);
+  const norm = writeTasteProfile(profile.value);
   uni.showToast({ title: locale.t('taste.saved'), icon: 'success' });
+  void pushCloud(JSON.stringify(norm));
   setTimeout(() => uni.navigateBack(), 600);
 }
 
@@ -147,7 +151,32 @@ function clearAll() {
   clearTasteProfile();
   profile.value = { ...EMPTY_PROFILE, avoid: [], allergens: [] };
   uni.showToast({ title: locale.t('taste.cleared'), icon: 'none' });
+  void pushCloud('');
 }
+
+/** 云端上行（P3-1）：未登录/网络失败静默降级，本机仍是权威副本 */
+async function pushCloud(json: string) {
+  try {
+    await saveTasteProfile(json);
+  } catch {
+    /* 忽略 */
+  }
+}
+
+/** 登录态：云端优先（换设备自动恢复）；云端为空则把本机偏好上行一次 */
+onMounted(async () => {
+  try {
+    const res: any = await getActiveCustomer();
+    const cloud: string = res?.activeCustomer?.customFields?.tasteProfile || '';
+    if (cloud) {
+      profile.value = writeTasteProfile(JSON.parse(cloud));
+    } else if (hasTaste(profile.value)) {
+      void pushCloud(JSON.stringify(profile.value));
+    }
+  } catch {
+    /* 游客/未登录：保持本机 */
+  }
+});
 </script>
 
 <style lang="scss" scoped>

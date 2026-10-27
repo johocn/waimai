@@ -34,6 +34,13 @@ const GRAB = gql`
     mutation campusGrabOrder($orderId: ID!) { campusGrabOrder(orderId: $orderId) { id code } }
 `;
 
+// P3-3 批量接单：同渠道一次最多 10 单，逐单独立事务，返回逐单结果（失败不抛整体错误）
+const GRAB_BATCH = gql`
+    mutation campusGrabOrders($orderIds: [ID!]!) {
+        campusGrabOrders(orderIds: $orderIds) { orderId ok message }
+    }
+`;
+
 const MY_TASKS = gql`
     query campusMyTasks($status: String) {
         campusMyTasks(status: $status) {
@@ -62,6 +69,12 @@ export async function fetchHall(): Promise<ChannelOrder[]> {
 
 export async function grabOrder(orderId: string, channelToken?: string) {
     return riderClient(channelToken).request(GRAB, { orderId }).then((r: any) => r.campusGrabOrder);
+}
+
+/** 批量接单（P3-3）：同渠道订单一次提交（≤10），返回 `[{orderId, ok, message}]` */
+export async function grabOrders(orderIds: string[], channelToken?: string) {
+    return riderClient(channelToken).request(GRAB_BATCH, { orderIds })
+        .then((r: any) => (r.campusGrabOrders ?? []) as Array<{ orderId: string; ok: boolean; message?: string }>);
 }
 
 /** 我的任务：逐店铺渠道并行聚合 */

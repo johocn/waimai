@@ -1,5 +1,5 @@
 <template>
-    <view class="hall">
+    <view class="hall" :style="picked.size ? { paddingBottom: '200rpx' } : null">
         <view class="topbar">
             <view class="online" :class="{ on }" @tap="toggleOnline">
                 <view class="dot"></view><text>{{ on ? $t('riderHome.online') : $t('riderHome.offline') }}</text>
@@ -44,17 +44,26 @@
         <view class="hint" v-if="!on">{{ $t('riderHome.offlineHint') }}</view>
         <EmptyState v-else-if="!tasks.length" :text="$t('riderHome.empty')" />
         <view v-else class="tasks">
-            <view v-for="t in tasks" :key="t.id" class="task" :class="{ taken: takenIds.has(t.id) }">
+            <view v-for="t in tasks" :key="t.id" class="task" :class="{ taken: takenIds.has(t.id), sel: picked.has(t.id) }" @tap="togglePick(t)">
                 <view class="task-head">
+                    <view class="pick" :class="{ on: picked.has(t.id) }"><text v-if="picked.has(t.id)">✓</text></view>
                     <text class="order-code">#{{ t.code }}<text v-if="isUrgent(t)" class="urgent">{{ $t('riderHome.urgent') }}</text><text v-if="routeCount(t) > 1" class="route-tag">{{ $t('riderHome.routeTag').replace('{n}', String(routeCount(t))) }}</text></text>
                     <text class="fee">¥{{ fmt(runnerFee(t)) }}</text>
                 </view>
                 <text class="task-addr">{{ t.channelName || '' }} · {{ t.customFields?.campusZone || '' }} {{ buildingName(t) }}</text>
                 <text class="task-route">{{ ['R1', 'R2'].includes(t.customFields?.fulfillmentRoute ?? '') ? $t('riderHome.routeR1') : $t('riderHome.routeDirect') }}</text>
-                <button class="grab" :disabled="grabbing || takenIds.has(t.id)" @tap="grab(t)">
+                <button class="grab" :disabled="grabbing || batching || takenIds.has(t.id)" @tap.stop="grab(t)">
                     {{ takenIds.has(t.id) ? $t('riderHome.taken') : grabbing ? $t('riderHome.locking') : $t('riderHome.grab') }}
                 </button>
             </view>
+        </view>
+        <!-- P3-3 批量接单：勾选任意多单一次提交（同渠道 ≤10，逐单结果独立） -->
+        <view v-if="picked.size" class="batchbar">
+            <text class="bb-count">{{ $t('riderHome.picked').replace('{n}', String(picked.size)) }}</text>
+            <text class="bb-clear" @tap="clearPicked">{{ $t('riderHome.pickClear') }}</text>
+            <button class="bb-go" :disabled="batching || grabbing" @tap="grabBatch">
+                {{ batching ? $t('riderHome.locking') : $t('riderHome.batchGrab').replace('{n}', String(picked.size)) }}
+            </button>
         </view>
     </view>
 </template>
@@ -62,7 +71,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
-import { fetchHall, grabOrder, fetchBuildingMap } from '../../api/queries/hall';
+import { fetchHall, grabOrder, grabOrders, fetchBuildingMap } from '../../api/queries/hall';
 import { myRiderProfile, riderOnline, riderHeartbeat } from '../../api/queries/rider';
 import { fetchMyRiderRating, fetchMyRiderReviews } from '../../api/queries/support';
 import { useAuthStore } from '../../stores/auth';
@@ -116,6 +125,8 @@ function shortDate(v?: string): string {
 }
 const tasks = ref<any[]>([]);
 const grabbing = ref(false);
+const batching = ref(false);
+const picked = ref<Set<string>>(new Set());
 const takenIds = ref(new Set<string>());
 const buildingMap = ref<Record<string, string>>({});
 let pollTimer: any = null;
@@ -168,7 +179,80 @@ function routeCount(t: any) {
 }
 
 async function refresh() {
-    try { tasks.value = await fetchHall(); } catch { /* 网络抖动静默重试 */ }
+    try {
+        tasks.value = await fetchHall();
+        // 勾选态跟着大厅刷新收敛：已被别人接走的单自动去掉，避免批量提交时整批失败
+        if (picked.value.size) {
+            const alive = new Set(tasks.value.map((t: any) => t.id));
+            picked.value = new Set([...picked.value].filter((id) => alive.has(id)));
+        }
+    } catch { /* 网络抖动静默重试 */ }
+}
+
+/* ===== P3-3 批量接单：勾选多单一次提交（同渠道 ≤10，逐单结果独立） ===== */
+const PICK_LIMIT = 10;
+
+function togglePick(t: any) {
+    if (grabbing.value || batching.value || takenIds.value.has(t.id)) return;
+    const next = new Set(picked.value);
+    if (next.has(t.id)) next.delete(t.id);
+    else {
+        if (next.size >= PICK_LIMIT) {
+            uni.showToast({ title: locale.t('riderHome.pickLimit').replace('{n}', String(PICK_LIMIT)), icon: 'none' });
+            return;
+        }
+        next.add(t.id);
+    }
+    picked.value = next;
+}
+
+function clearPicked() { picked.value = new Set(); }
+
+async function grabBatch() {
+    const chosen = tasks.value.filter((t: any) => picked.value.has(t.id) && !takenIds.value.has(t.id));
+    if (!chosen.length) return;
+    batching.value = true;
+    let okCount = 0;
+    let failMsg = '';
+    try {
+        // 按渠道分组：抢单按 ctx 渠道校验班次/配置，必须带各自渠道 token 逐渠道提交
+        const groups = new Map<string, any[]>();
+        for (const t of chosen) {
+            const key = t.channelToken ?? '';
+            groups.set(key, [...(groups.get(key) ?? []), t]);
+        }
+        for (const [token, list] of groups) {
+            for (let i = 0; i < list.length; i += PICK_LIMIT) {
+                const chunk = list.slice(i, i + PICK_LIMIT);
+                const res = await grabOrders(chunk.map((t: any) => t.id), token);
+                for (const r of res) {
+                    if (r.ok) { okCount += 1; continue; }
+                    const msg = r.message || locale.t('riderHome.grabFail');
+                    if (msg.includes('已被抢')) takenIds.value.add(r.orderId);
+                    failMsg = failMsg || msg;
+                }
+            }
+        }
+    } catch (e: any) {
+        failMsg = e?.response?.errors?.[0]?.message || e?.message || locale.t('riderHome.grabFail');
+    } finally {
+        batching.value = false;
+    }
+    clearPicked();
+    await refresh();
+    if (okCount > 0) {
+        const failed = chosen.length - okCount;
+        uni.showToast({
+            title: failed
+                ? locale.t('riderHome.batchPartial').replace('{n}', String(okCount)).replace('{m}', String(failed))
+                : locale.t('riderHome.batchDone').replace('{n}', String(okCount)),
+            icon: 'none',
+        });
+        // 已接到单 → 进在途页；未成功的单继续留在大厅（勾选已清空，可重新挑选）
+        setTimeout(() => uni.redirectTo({ url: '/pkg-rider/pages/rider-delivering' }), 600);
+    } else if (failMsg) {
+        uni.showToast({ title: failMsg.slice(0, 40), icon: 'none' });
+    }
 }
 
 async function toggleOnline() {
@@ -253,10 +337,15 @@ async function grab(t: any) {
 .jh-go { font-size: 24rpx; color: #e3c877; }
 .hint { text-align: center; color: $text-muted; font-size: 26rpx; margin-top: 120rpx; }
 .tasks { display: flex; flex-direction: column; gap: 20rpx; }
-.task { background: $surface; border-radius: $radius-card; padding: 24rpx; }
+.task { background: $surface; border-radius: $radius-card; padding: 24rpx; border: 2rpx solid transparent; }
 .task.taken { opacity: .45; }
-.task-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8rpx; }
-.order-code { font-size: 26rpx; color: $text-muted; }
+.task.sel { border-color: $brand-color; background: rgba(255, 102, 0, .04); }
+.task-head { display: flex; align-items: center; gap: 12rpx; margin-bottom: 8rpx; }
+/* P3-3 勾选圆点：点卡片任意位置切换，按钮上的 @tap.stop 不触发选择 */
+.pick { width: 36rpx; height: 36rpx; border-radius: 999rpx; border: 2rpx solid #ccc; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 22rpx; color: #fff; }
+.pick.on { background: $brand-color; border-color: $brand-color; }
+.order-code { flex: 1; font-size: 26rpx; color: $text-muted; }
 .urgent { margin-left: 12rpx; color: #e02020; font-size: 22rpx; background: #ffece8; padding: 2rpx 12rpx; border-radius: 999rpx; }
 .route-tag { margin-left: 12rpx; color: #0a8f4d; font-size: 22rpx; background: rgba(29, 201, 129, .12); padding: 2rpx 12rpx; border-radius: 999rpx; }
 .fee { font-size: 34rpx; font-weight: 700; color: $brand-color; }
@@ -264,4 +353,12 @@ async function grab(t: any) {
 .task-route { display: block; font-size: 24rpx; color: $text-muted; margin-bottom: 20rpx; }
 .grab { background: $brand-color; color: #fff; border-radius: 999rpx; font-size: 30rpx; }
 .grab[disabled] { opacity: .5; }
+/* P3-3 批量接单底栏：有勾选才出现，避开底部安全区 */
+.batchbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    display: flex; align-items: center; gap: 16rpx; padding: 20rpx 24rpx calc(20rpx + env(safe-area-inset-bottom));
+    background: $surface; box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, .08); }
+.bb-count { font-size: 26rpx; color: $text; font-weight: 600; }
+.bb-clear { font-size: 24rpx; color: $text-muted; }
+.bb-go { flex: 1; margin: 0; background: $brand-color; color: #fff; border-radius: 999rpx; font-size: 28rpx; }
+.bb-go[disabled] { opacity: .5; }
 </style>

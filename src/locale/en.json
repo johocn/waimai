@@ -2814,6 +2814,16 @@
     "sponsored": "Sponsored",
     "ends": "Until {d}"
   },
+  "locker": {
+    "brief": "{n} smart lockers available",
+    "briefUnmanned": "Unmanned delivery enabled",
+    "title": "Smart Lockers · Unmanned Delivery",
+    "loading": "Loading…",
+    "empty": "No locker is open on this campus yet",
+    "cells": "{a} free / {t} total",
+    "unmannedOn": "{p} is enabled; unmanned delivery can be chosen at checkout",
+    "tip": "Lockers are operated by the platform; if a locker is disabled or outside its open hours, follow the on-site instructions."
+  },
   "circle": {
     "title": "Food Circle",
     "sub": "Share your food moments and discover nearby favorites",

@@ -38,6 +38,12 @@
                 <text v-if="storeInfo?.kitchenLiveEnabled && storeInfo?.kitchenLiveUrl" class="fs-bar__live">● {{ $t('menu.kitchenLiveOn') }}</text>
                 <text class="fs-bar__more">{{ $t('menu.noticeMore') }} ›</text>
             </view>
+            <!-- 智能取餐柜入口（P2-4）：有启用柜机或无人配送已开通时展示 -->
+            <view v-if="hasLocker" class="lk-bar" @tap.stop="openLocker">
+                <text class="lk-bar__ico">🔒</text>
+                <text class="lk-bar__txt">{{ lockerBrief }}</text>
+                <text class="lk-bar__more">{{ $t('menu.noticeMore') }} ›</text>
+            </view>
         </view>
         <!-- 商家投放：店铺页顶部广告（P2-3 广告位，审核通过且在投放窗口内才展示） -->
         <view v-if="shopAds.length" class="shop-ad">
@@ -445,6 +451,38 @@
                 <button class="notice-sheet__btn" @tap="foodSafetyOpen = false">{{ $t('menu.noticeOk') }}</button>
             </view>
         </view>
+
+        <!-- 智能取餐柜 / 无人配送（P2-4） -->
+        <view v-if="lockerOpen" class="notice-mask" @tap="lockerOpen = false">
+            <view class="notice-sheet lk-sheet" @tap.stop>
+                <view class="notice-sheet__head">
+                    <text class="notice-sheet__ico">🔒</text>
+                    <text class="notice-sheet__title">{{ $t('locker.title') }}</text>
+                </view>
+                <scroll-view scroll-y class="notice-sheet__body">
+                    <view v-if="lockerLoading" class="lk-tip">{{ $t('locker.loading') }}</view>
+                    <view v-else-if="!lockers.length" class="lk-tip">{{ $t('locker.empty') }}</view>
+                    <view v-for="s in lockers" :key="'lk-' + s.id" class="lk-item">
+                        <view class="lk-item__head">
+                            <text class="lk-item__name">{{ s.name }}</text>
+                            <text class="lk-item__cells">{{ $t('locker.cells').replace('{a}', String(s.availableCells)).replace('{t}', String(s.totalCells)) }}</text>
+                        </view>
+                        <text class="lk-item__loc">{{ s.location }}</text>
+                        <view class="lk-item__meta">
+                            <text class="lk-item__tag">{{ s.providerName }}</text>
+                            <text v-if="s.openHours" class="lk-item__hours">{{ s.openHours }}</text>
+                        </view>
+                        <text v-if="s.pickupGuide" class="lk-item__guide">{{ s.pickupGuide }}</text>
+                    </view>
+                    <view v-if="unmanned && unmanned.enabled" class="lk-unmanned">
+                        <text class="lk-unmanned__ico">🚗</text>
+                        <text class="lk-unmanned__txt">{{ $t('locker.unmannedOn').replace('{p}', unmanned.providerName) }}</text>
+                    </view>
+                    <text class="fs-tip">{{ $t('locker.tip') }}</text>
+                </scroll-view>
+                <button class="notice-sheet__btn" @tap="lockerOpen = false">{{ $t('menu.noticeOk') }}</button>
+            </view>
+        </view>
     </view>
 </template>
 
@@ -474,6 +512,7 @@ import { claimProductCoupon } from '../../api/mutations/coupon';
 import { getActiveOrder, getOrdersForChannel } from '../../api/queries/order';
 import { fetchNearbyStock, isDistanceKnown } from '../../api/queries/nearby-stock';
 import { fetchActiveAds, type ShopAd } from '../../api/queries/ads';
+import { fetchLockerInfo, type LockerStation, type UnmannedChannel } from '../../api/queries/locker';
 import VImage from '../../components/VImage.vue';
 import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
@@ -501,6 +540,17 @@ const storeNotice = computed(() => String(storeInfo.value?.storeNotice || '').tr
 const noticeOpen = ref(false);
 // 食安公示：证照 / 等级 / 明厨亮灶（店铺级配置，随 waimaiStoreList 下发）
 const foodSafetyOpen = ref(false);
+// 智能取餐柜（P2-4）：渠道级数据，进店时拉一次，点入口开弹层
+const lockerOpen = ref(false);
+const lockerLoading = ref(false);
+const lockers = ref<LockerStation[]>([]);
+const unmanned = ref<UnmannedChannel | null>(null);
+const hasLocker = computed(() => lockers.value.length > 0 || !!unmanned.value?.enabled);
+const lockerBrief = computed(() =>
+    lockers.value.length
+        ? locale.t('locker.brief').replace('{n}', String(lockers.value.length))
+        : locale.t('locker.briefUnmanned')
+);
 const foodGradeKey = computed(() => {
     const g = String(storeInfo.value?.foodSafetyGrade || '').trim().toUpperCase();
     return ['A', 'B', 'C'].includes(g) ? g : 'none';
@@ -566,6 +616,27 @@ async function loadShopAds() {
 /** 打开食安公示弹层 */
 function openFoodSafety() {
     foodSafetyOpen.value = true;
+}
+
+/** 取餐柜/无人配送：失败静默（不占位、不阻塞商品加载） */
+async function loadLockerInfo() {
+    lockerLoading.value = true;
+    try {
+        const info = await fetchLockerInfo();
+        lockers.value = info.stations;
+        unmanned.value = info.unmanned;
+    } catch {
+        lockers.value = [];
+        unmanned.value = null;
+    } finally {
+        lockerLoading.value = false;
+    }
+}
+
+/** 打开取餐柜弹层：首次打开时补拉（进店时已拉过一次，命中缓存不重复请求） */
+function openLocker() {
+    lockerOpen.value = true;
+    if (!lockers.value.length && !lockerLoading.value && !unmanned.value) void loadLockerInfo();
 }
 
 /** 店铺页顶部广告跳转：http(s) 走站内 webview，站内路径直接跳转（失败回退 switchTab） */
@@ -1070,6 +1141,7 @@ onLoad(async (q: any) => {
     // 关键：切到店铺渠道（activeOrder 随 session+渠道隔离 = 每店独立购物车）
     await tenant.switchTenant(shopToken.value);
     void loadShopAds();
+    void loadLockerInfo();
     try {
         // 恢复本店已加购的 activeOrder（切渠道后 session 内该渠道购物车）
         const active: any = await getActiveOrder().catch(() => null);
@@ -1606,6 +1678,28 @@ function goCheckout() {
 .fs-tip { display: block; margin-top: 16rpx; font-size: 22rpx; line-height: 1.6; color: var(--w-text-muted); }
 .menu-page.dark .fs-sheet { background: var(--w-surface); }
 .menu-page.dark .fs-sheet .notice-sheet__title { color: var(--w-text); }
+/* 智能取餐柜入口条 + 弹层（P2-4） */
+.lk-bar { display: flex; align-items: center; gap: 10rpx; margin-top: 12rpx; padding-top: 12rpx; border-top: 1rpx dashed var(--w-border); }
+.lk-bar__ico { font-size: 24rpx; flex-shrink: 0; }
+.lk-bar__txt { flex: 1; min-width: 0; font-size: 22rpx; color: var(--w-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lk-bar__more { flex-shrink: 0; font-size: 22rpx; color: var(--w-brand-text); }
+.lk-sheet { max-height: 76vh; }
+.lk-tip { display: block; padding: 40rpx 0; text-align: center; font-size: 24rpx; color: var(--w-text-muted); }
+.lk-item { padding: 20rpx 0; border-bottom: 1rpx solid var(--w-border); }
+.lk-item:last-of-type { border-bottom: 0; }
+.lk-item__head { display: flex; align-items: center; gap: 12rpx; }
+.lk-item__name { flex: 1; min-width: 0; font-size: 28rpx; font-weight: 600; color: var(--w-text); }
+.lk-item__cells { flex-shrink: 0; font-size: 20rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 8rpx; padding: 4rpx 12rpx; }
+.lk-item__loc { display: block; margin-top: 8rpx; font-size: 24rpx; color: var(--w-text-muted); }
+.lk-item__meta { display: flex; align-items: center; gap: 12rpx; margin-top: 8rpx; }
+.lk-item__tag { font-size: 20rpx; color: var(--w-brand-text); border: 1rpx solid var(--w-brand); border-radius: 6rpx; padding: 0 10rpx; }
+.lk-item__hours { font-size: 20rpx; color: var(--w-text-muted); }
+.lk-item__guide { display: block; margin-top: 10rpx; padding: 12rpx 16rpx; border-radius: 10rpx; background: var(--w-surface-2, var(--w-brand-soft)); font-size: 22rpx; line-height: 1.6; color: var(--w-text-muted); }
+.lk-unmanned { display: flex; align-items: center; gap: 10rpx; margin-top: 20rpx; padding: 14rpx 18rpx; border-radius: 10rpx; background: var(--w-brand-soft); }
+.lk-unmanned__ico { font-size: 26rpx; }
+.lk-unmanned__txt { flex: 1; min-width: 0; font-size: 22rpx; color: var(--w-brand-text); }
+.menu-page.dark .lk-sheet { background: var(--w-surface); }
+.menu-page.dark .lk-sheet .notice-sheet__title { color: var(--w-text); }
 /* 营业状态条：打烊红、即将打烊橙，均贴在店铺卡下方 */
 .shop-state { display: flex; align-items: center; gap: 10rpx; margin: 16rpx 24rpx 0; padding: 14rpx 20rpx; border-radius: 12rpx; flex-shrink: 0; }
 .shop-state--closed { background: #fff2f0; border: 1rpx solid #f3b6b0; }

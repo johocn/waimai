@@ -27,14 +27,19 @@ export function riderClient(channelToken?: string): GraphQLClient {
 }
 
 const APPLY_RIDER = gql`
-    mutation applyRider($realName: String!, $studentNo: String!, $campus: String!, $idImg: String) {
-        applyRider(realName: $realName, studentNo: $studentNo, campus: $campus, idImg: $idImg) { status }
+    mutation applyRider($realName: String!, $studentNo: String!, $campus: String!, $idImg: String, $healthCertImg: String) {
+        applyRider(realName: $realName, studentNo: $studentNo, campus: $campus, idImg: $idImg, healthCertImg: $healthCertImg) { status }
     }
 `;
 
+// P2-5 合规：compliance 由后端 rider-compliance.ts 实时判定（过期/背调未通过 → blocked 禁止接单）
 const MY_RIDER_PROFILE = gql`
     query myRiderProfile {
-        myRiderProfile { customerId riderStatus riderRealName riderStudentNo riderCampus riderCredit }
+        myRiderProfile {
+            customerId riderStatus riderRealName riderStudentNo riderCampus riderCredit
+            riderHealthCertExpiry riderInsuranceExpiry
+            compliance { ok blocked pending items { key label status expiry detail } }
+        }
     }
 `;
 
@@ -46,8 +51,8 @@ const RIDER_HEARTBEAT = gql`
     mutation campusRiderHeartbeat { campusRiderHeartbeat { online } }
 `;
 
-/** 提交骑手入驻申请，后端返回 { status: 'pending' } */
-export async function applyRider(v: { realName: string; studentNo: string; campus: string; idImg?: string }) {
+/** 提交骑手入驻申请，后端返回 { status: 'pending' }；healthCertImg 为健康证照片（选填） */
+export async function applyRider(v: { realName: string; studentNo: string; campus: string; idImg?: string; healthCertImg?: string }) {
     return riderClient().request(APPLY_RIDER, v).then((r: any) => r.applyRider);
 }
 

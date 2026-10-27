@@ -6,6 +6,11 @@
             </view>
             <text class="credit">{{ $t('riderHome.credit').replace('{n}', String(profile?.riderCredit ?? '--')) }}</text>
         </view>
+        <!-- P2-5 合规提醒：健康证/保险过期或背调未通过 → 禁止接单（后端同样拦截） -->
+        <view class="comp-warn" v-if="compLevel !== 'ok'" :class="'cw-' + compLevel">
+            <text class="cw-t">{{ $t('riderHome.compTip_' + compLevel) }}</text>
+            <text class="cw-d" v-if="compDetail">{{ compDetail }}</text>
+        </view>
         <!-- 骑手评分（用户 1-5 星均分）+ 班次/申诉入口 -->
         <view class="quick">
             <text class="rating">
@@ -75,6 +80,32 @@ const avgText = computed(() => {
     return rating.value?.ratingCount ? (Number.isFinite(n) ? n.toFixed(1) : '--') : '--';
 });
 
+/* ===== P2-5 合规：与后端 rider-compliance.ts 同口径（blocked > pending > expiring > ok） ===== */
+const compLevel = computed(() => {
+    const c = profile.value?.compliance;
+    if (!c) return 'ok';
+    if (c.blocked) return 'blocked';
+    if (c.pending) return 'pending';
+    if ((c.items || []).some((i: any) => i.status === 'expiring')) return 'expiring';
+    return 'ok';
+});
+
+/** 异常项摘要：健康证 · 2026-08-01 / 背景调查 · 未通过 */
+const compDetail = computed(() => {
+    const items = (profile.value?.compliance?.items || []).filter((i: any) => i.status !== 'ok');
+    return items
+        .map((i: any) => locale.t('riderHome.comp_' + i.key) + (i.expiry ? ' · ' + shortDay(i.expiry) : ''))
+        .join(' / ');
+});
+
+function shortDay(v?: string): string {
+    if (!v) return '';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '';
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** 评价时间显示为 MM-DD HH:mm（列表只展示最近 5 条，无需完整年份） */
 function shortDate(v?: string): string {
     if (!v) return '';
@@ -141,6 +172,10 @@ async function refresh() {
 }
 
 async function toggleOnline() {
+    // 合规失效时后端会拒绝上线，前端提前拦截并给出明确原因
+    if (!on.value && compLevel.value === 'blocked') {
+        return uni.showToast({ title: locale.t('riderHome.compTip_blocked'), icon: 'none' });
+    }
     on.value = !on.value;
     try {
         await riderOnline(on.value);
@@ -179,6 +214,13 @@ async function grab(t: any) {
 .online .dot { width: 16rpx; height: 16rpx; border-radius: 999rpx; background: #ccc; }
 .online.on .dot { background: #1dc981; }
 .credit { font-size: 26rpx; color: $text-muted; }
+/* P2-5 合规提醒（健康证/保险/背调异常） */
+.comp-warn { display: flex; flex-direction: column; gap: 6rpx; padding: 20rpx 24rpx; border-radius: $radius-card; margin-bottom: 24rpx;
+    .cw-t { font-size: 26rpx; font-weight: 600; }
+    .cw-d { font-size: 22rpx; opacity: .85; line-height: 1.6; }
+    &.cw-blocked { background: #fdeaea; .cw-t { color: #b91c1c; } .cw-d { color: #b91c1c; } }
+    &.cw-expiring { background: #fdf3e0; .cw-t { color: #b45309; } .cw-d { color: #b45309; } }
+    &.cw-pending { background: #f0f1f4; .cw-t { color: #6b7280; } .cw-d { color: #6b7280; } } }
 /* 评分 + 班次/申诉快捷入口 */
 .quick { display: flex; justify-content: space-between; align-items: center; gap: 16rpx; margin-bottom: 24rpx; }
 .rating { font-size: 24rpx; color: #f59e0b; }

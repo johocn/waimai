@@ -229,6 +229,8 @@
         <text v-else>¥{{ shipDisplayYuan }}</text>
       </view>
       <view class="ship-free-hint" v-if="freeShipShortYuan">{{ $t('checkout.freeShipHint').replace('{a}', freeShipYuan).replace('{b}', freeShipShortYuan) }}</view>
+      <!-- 配送费阶梯（P3-4）：按订单商品金额分档，命中档位时说明当前配送费口径 -->
+      <view class="ship-free-hint" v-if="feeTierHint">{{ feeTierHint }}</view>
       <!-- 动态计价加价提示：高峰/供需/手动倍率，结算口径与 campusZones.price 一致 -->
       <view class="ship-free-hint" v-if="campusRouteSel && !freeShipOn && selectedZoneAddFeeFen > 0">{{ $t('checkout.dynAddFee').replace('{a}', (selectedZoneAddFeeFen / 100).toFixed(2)) }}</view>
       <!-- 满减凑单提示：promoText 解析「满X减Y」，未达标给差额，已达标给优惠 -->
@@ -671,6 +673,7 @@ const zonesLoading = ref(false);
 const minOrderFen = ref<number | null>(null);   // 起送价（分，URL 透传；null=未配置）
 const deliveryFeeFen = ref<number | null>(null); // 配送费（分，仅展示）
 const freeShipFen = ref<number | null>(null);    // 满X元免配送费门槛（分；null/0=不启用，plan 3.2）
+const feeTiers = ref<Array<{ minAmount: number; fee: number }>>([]); // 配送费阶梯（P3-4）：按商品金额分档替换基价
 // 打包费/餐盒费（P1）：店铺配置 + 商品级覆盖，结算时由后端落一条 surcharge，这里只做预估展示
 const packingCfg = ref<{ enabled: boolean; mode: string; amount: number; cap: number | null; label: string | null }>
     ({ enabled: false, mode: 'perItem', amount: 0, cap: null, label: null });
@@ -723,6 +726,7 @@ async function loadStoreRoutes() {
         const storeToken = storeMeta.value.channelToken || tenantStore.token;
         const store = stores.find((s: any) => s.channelToken === storeToken);
         freeShipFen.value = store?.freeShippingThreshold ?? null;
+        feeTiers.value = parseFeeTiers(store?.deliveryFeeTiers);
         promoText.value = store?.promoText ?? '';
         packingCfg.value = {
             enabled: !!store?.packingFeeEnabled,
@@ -853,7 +857,13 @@ const shippingFee = computed(() => cart.formatPrice(cart.order?.shippingWithTax 
 const campusRouteSel = computed(() => activeTab.value === 'campus' && ['R1', 'R3'].includes(routeChoice.value));
 const selectedZoneFeeFen = computed(() => {
     const z = zones.value.find(x => String(x.id) === String(zoneId.value));
-    return z ? Number(zonePrice(z)) : null;   // 实时配送费（含高峰/供需加价，与结算同口径）
+    if (!z) return null;
+    const base = tierBaseFeeFen(z);        // 配送费阶梯：按商品金额分档替换基价（未配置/未达档返回 null）
+    if (base == null) return Number(zonePrice(z)); // 实时配送费（含高峰/供需加价，与结算同口径）
+    const add = z.addFee != null
+        ? Number(z.addFee)
+        : Math.max(0, (zonePrice(z) ?? 0) - Number(z.fee ?? 0));
+    return base + add;
 });
 /** 分区实时价：优先 price（动态计价后），无该字段时退回基价 fee */
 function zonePrice(z: any): number | null {
@@ -861,6 +871,44 @@ function zonePrice(z: any): number | null {
     if (z.price != null) return Number(z.price);
     return z.fee != null ? Number(z.fee) : null;
 }
+/** 配送费阶梯（P3-4）：后端下发 JSON → 升序档位；坏数据当作未配置，永不抛错 */
+function parseFeeTiers(raw: string | null | undefined): Array<{ minAmount: number; fee: number }> {
+    if (!raw) return [];
+    try {
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return [];
+        return arr
+            .filter((t: any) => t && Number.isFinite(Number(t.minAmount)) && Number.isFinite(Number(t.fee)))
+            .map((t: any) => ({ minAmount: Number(t.minAmount), fee: Number(t.fee) }))
+            .sort((a: any, b: any) => a.minAmount - b.minAmount);
+    } catch {
+        return [];
+    }
+}
+/** 命中档位基价（分）：商品金额 >= 门槛的最高档；未达最低档返回 null 由调用方回退分区原价 */
+function tierBaseFeeFen(z: any): number | null {
+    if (!feeTiers.value.length) return null;
+    const goods = Number(goodsFen.value) || 0;
+    let hit: { minAmount: number; fee: number } | null = null;
+    for (const t of feeTiers.value) {
+        if (goods >= t.minAmount) hit = t;
+        else break;
+    }
+    if (!hit) return null;
+    // 档位费是基价：动态加价仍按分区原价口径叠加（zone.price - zone.fee），与后端结算同口径
+    return hit.fee;
+}
+/** 当前命中档位（用于结算页提示）；未命中返回 null */
+const tierHit = computed(() => {
+    if (!feeTiers.value.length) return null;
+    const goods = Number(goodsFen.value) || 0;
+    let hit: { minAmount: number; fee: number } | null = null;
+    for (const t of feeTiers.value) {
+        if (goods >= t.minAmount) hit = t;
+        else break;
+    }
+    return hit;
+});
 /** 当前分区加价额（分）：price - fee，0 表示未加价 */
 const selectedZoneAddFeeFen = computed(() => {
     const z = zones.value.find(x => String(x.id) === String(zoneId.value));
@@ -959,6 +1007,13 @@ const shipDisplayYuan = computed(() => {
 const shipOriginalYuan = computed(() => selectedZoneFeeFen.value != null ? (selectedZoneFeeFen.value / 100).toFixed(2) : '');
 const freeShipYuan = computed(() => freeShipFen.value != null ? (freeShipFen.value / 100).toFixed(2) : '');
 const freeShipShortYuan = computed(() => freeShipShortFen.value ? (freeShipShortFen.value / 100).toFixed(2) : '');
+// 配送费阶梯（P3-4）提示：已命中档位且未满免时说明当前档位口径
+const feeTierHint = computed(() => {
+    if (!campusRouteSel.value || freeShipOn.value || !tierHit.value) return '';
+    return locale.t('checkout.feeTierHint')
+        .replace('{a}', yuan(tierHit.value.minAmount))
+        .replace('{b}', yuan(tierHit.value.fee));
+});
 
 // ===== 第 33 轮 结算页凑单：差价内商品一键加购，加购后金额/运费减免实时刷新 =====
 const upsellCatalog = ref<any[]>([]);

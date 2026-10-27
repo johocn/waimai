@@ -9,6 +9,7 @@ export const WAIMAI_STORE_LIST = gql`
         waimaiStoreList {
             channelId channelToken name logo tags monthlySales promoText paused openNow routesEnabled businessHours
             deliveryMinutes minOrderAmount deliveryFee storeAddress storePhone storeNotice errandBaseFee freeShippingThreshold
+            deliveryFeeTiers
             foodLicenseNo foodLicenseImage foodLicenseExpiry foodSafetyGrade foodSafetyCommitmentImage kitchenLiveUrl kitchenLiveEnabled
             packingFeeEnabled packingFeeMode packingFeeAmount packingFeeCap packingFeeLabel
         }

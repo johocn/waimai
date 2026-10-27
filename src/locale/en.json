@@ -818,6 +818,7 @@
     "shipping": "Shipping",
     "freeShipTag": "Free delivery over ¥{c}",
     "freeShipHint": "Free delivery over ¥{a} — add ¥{b} more",
+    "feeTierHint": "Over ¥{a}: delivery ¥{b}",
     "dynAddFee": "Incl. peak/supply surcharge ¥{a}",
     "upsellShip": "¥{d} away from free delivery",
     "upsellTier": "Add ¥{d} to save ¥{y}",

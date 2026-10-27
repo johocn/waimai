@@ -17,10 +17,15 @@
                 <text class="target-row__txt">📍 {{ deliveryTarget.zoneName }} · {{ deliveryTarget.buildingName }}</text>
                 <text class="target-row__sw">{{ $t('home.switchTarget') }} ▸</text>
             </view>
-            <input
-                class="search" v-model="keyword" :placeholder="$t('home.searchPh')" confirm-type="search"
-                @focus="onSearchFocus" @blur="onSearchBlur" @input="onKeywordInput" @confirm="submitSearch(keyword)"
-            />
+            <!-- 语音/拍照搜索（P2-2）：识别出的关键词填入搜索框并直接搜索 -->
+            <view class="search-row">
+                <input
+                    class="search" v-model="keyword" :placeholder="$t('home.searchPh')" confirm-type="search"
+                    @focus="onSearchFocus" @blur="onSearchBlur" @input="onKeywordInput" @confirm="submitSearch(keyword)"
+                />
+                <view class="assist-btn" :class="{ busy: assisting }" @tap.stop="assistSearch('voice')">🎤</view>
+                <view class="assist-btn" :class="{ busy: assisting }" @tap.stop="assistSearch('image')">📷</view>
+            </view>
         </view>
         <view class="body">
             <!-- 运营位：公告条（后台 operations-plugin 发布内容，无配置时隐藏） -->
@@ -478,6 +483,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { fetchStoreList, fetchProductListForChannel } from '../../api/queries/waimai';
+import { assistSearch as requestSearchAssist } from '../../api/queries/search-assist';
 import { fetchZones, fetchBuildings } from '../../api/mutations/campus';
 import { getMyCoupons } from '../../api/queries/coupon';
 import { getPublishedContent, type ContentItemPublic } from '../../api/queries/operations';
@@ -567,6 +573,46 @@ const hotSaleStores = computed(() =>
         .slice(0, 8),
 );
 let blurTimer: any = null;
+
+// ── 语音/拍照搜索（P2-2）：识别服务商由后台按渠道配置，C 端只消费关键词 ──
+const assisting = ref(false);
+/** 选图：取消/失败返回 null，不视为错误 */
+function chooseAssistImage(): Promise<string | null> {
+    return new Promise(resolve => {
+        uni.chooseImage({
+            count: 1,
+            sizeType: ['compressed'],
+            success: (res: any) => resolve(res?.tempFilePaths?.[0] || null),
+            fail: () => resolve(null),
+        });
+    });
+}
+async function assistSearch(type: 'voice' | 'image') {
+    if (assisting.value) return;
+    assisting.value = true;
+    uni.showToast({ title: locale.t('home.assistRecognizing'), icon: 'none', duration: 1200 });
+    try {
+        let payload: string | undefined;
+        if (type === 'image') {
+            const picked = await chooseAssistImage();
+            if (!picked) return;
+            payload = picked;
+        }
+        const res = await requestSearchAssist(type, payload);
+        if (!res?.ok || !res.keywords?.length) {
+            uni.showToast({ title: res?.error || locale.t('home.assistNoWord'), icon: 'none' });
+            return;
+        }
+        if (res.keywords.length > 1) {
+            uni.showToast({ title: locale.t('home.assistKeywords').replace('{kw}', res.keywords.join(' / ')), icon: 'none' });
+        }
+        pickWord(res.keywords[0]);
+    } catch (e: any) {
+        uni.showToast({ title: e?.message || locale.t('home.assistFailed'), icon: 'none' });
+    } finally {
+        assisting.value = false;
+    }
+}
 
 function onSearchFocus() {
     if (blurTimer) clearTimeout(blurTimer);
@@ -1156,8 +1202,11 @@ onPullDownRefresh(async () => { await load(); await favorites.loadRemote(); uni.
 .bell-ico { font-size: 26rpx; line-height: 1; }
 .bell-badge { position: absolute; top: -6rpx; right: -8rpx; min-width: 30rpx; height: 30rpx; line-height: 30rpx; padding: 0 6rpx; border-radius: 999rpx; background: #ff3b30; color: #fff; font-size: 18rpx; text-align: center; }
 .hlink { color: #fff; font-size: 24rpx; opacity: .92; padding: 4rpx 0 4rpx 8rpx; }
-.search { background: var(--w-search-bg); color: var(--w-text); border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; }
+.search-row { display: flex; align-items: center; gap: 12rpx; }
+.search { flex: 1; background: var(--w-search-bg); color: var(--w-text); border-radius: 999rpx; padding: 12rpx 24rpx; font-size: 26rpx; }
 .search :deep(.uni-input-placeholder) { color: var(--w-text-muted); }
+.assist-btn { width: 64rpx; height: 64rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.22); display: flex; align-items: center; justify-content: center; font-size: 30rpx; }
+.assist-btn.busy { opacity: .5; }
 .body { padding: 0 24rpx; }
 .quick { margin-top: 20rpx; background: var(--w-surface); border-radius: $radius-card; padding: 24rpx 8rpx 18rpx;
     display: grid; grid-template-columns: repeat(5, 1fr); row-gap: 22rpx; }

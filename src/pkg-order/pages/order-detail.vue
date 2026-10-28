@@ -265,6 +265,7 @@
       <text class="invoice-card__hint">{{ $t('orderDetail.invoiceMailHint') }}</text>
     </view>
     <view class="order-detail__actions">
+      <button v-if="canPayNow" class="action-btn action-btn--primary" @click="onPayNow">{{ $t('orderDetail.payNow') }}</button>
       <button v-if="canReceive" class="action-btn action-btn--primary" @click="confirmReceive">{{ $t('orderDetail.receiveBtn') }}</button>
       <button v-if="canAfterSale" class="action-btn" @click="goAfterSale">{{ $t('orderDetail.afterSaleBtn') }}</button>
       <button v-if="canInvoice" class="action-btn" @click="openInvoice">{{ $t('orderDetail.invoice') }}</button>
@@ -394,6 +395,7 @@ import { fetchMyAfterSales } from '../../api/queries/afterSale';
 import type { AfterSaleRequest } from '../../api/queries/afterSale';
 import { getActiveCustomer } from '../../api/queries/user';
 import { applyOrderInvoice } from '../../api/mutations/user';
+import { resumePay } from '../../utils/resume-pay';
 import { parseInvoiceTitles, type InvoiceTitle } from '../../utils/profile-mapping';
 import { fetchMyPickupCode, claimPickup } from '../../api/queries/pickup';
 import { sharePage } from '../../utils/share';
@@ -555,6 +557,36 @@ const canCancel = computed(() => {
   return !IN_FLIGHT_HALL.includes(String(cf.hallStatus ?? ''));
 });
 const canReview = computed(() => ['Delivered', 'Completed'].includes(order.value?.state));
+// 待付款续付：已提交但未完成支付的订单可直接拉起收银台（与订单列表同款能力）
+const canPayNow = computed(() => String(order.value?.state ?? '') === 'ArrangingPayment');
+function onPayNow() {
+  const o = order.value;
+  if (!o?.id) return;
+  const amount = (Number(o.totalWithTax ?? 0) / 100).toFixed(2);
+  uni.showModal({
+    title: locale.t('orders.payTitle'),
+    content: locale.t('orders.payConfirm').replace('{a}', amount),
+    success: async (r: any) => {
+      if (!r.confirm) return;
+      uni.showLoading({ title: locale.t('orders.paying'), mask: true });
+      const res = await resumePay({ id: o.id, code: o.code, channelToken: tenant.token, totalWithTax: o.totalWithTax });
+      uni.hideLoading();
+      if (res.status === 'blocked') {
+        uni.showModal({
+          title: locale.t('orders.payBlockedTitle'),
+          content: locale.t('orders.payBlocked').replace('{n}', String(res.cartCount ?? 0)),
+          showCancel: false,
+        });
+        return;
+      }
+      if (res.status === 'fail') {
+        uni.showToast({ title: res.message || locale.t('orders.payFail'), icon: 'none' });
+        return;
+      }
+      uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(res.code || o.code)}&status=${res.status}` });
+    },
+  });
+}
 // 预约单（plan 3.1）：未放量进大厅前不显示骑手等待卡（时间线首节点已表达预约态）
 const isScheduled = computed(() => ((order.value?.customFields?.hallStatus ?? '') + '').toLowerCase() === 'scheduled');
 // 预约送达时段（结算页写入 customFields.deliverySlotText）

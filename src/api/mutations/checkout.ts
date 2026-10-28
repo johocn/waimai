@@ -21,6 +21,17 @@ export async function transitionOrderToState(state: string) {
         mutation Transition($state: String!) { transitionOrderToState(state: $state) { ... on Order { ...OrderDetail } ... on ErrorResult { errorCode message } } }`, { state });
 }
 
+/**
+ * 切换活跃订单（待付款订单续付）：把目标订单设为 activeOrder 后才能提交支付。
+ * Vendure Shop API 无内置 setActiveOrder，由 campus-delivery-plugin 提供
+ * campusResumePaymentOrder（校验归属 + 状态后落 session）。须在订单所属渠道下调用，故支持传入渠道客户端。
+ */
+export async function setActiveOrder(orderId: string, client?: any) {
+    const c = client || getGraphQLClient();
+    return c.request(`${ORDER_FRAGMENT}
+        mutation ResumePay($orderId: ID!) { campusResumePaymentOrder(orderId: $orderId) { ...OrderDetail } }`, { orderId });
+}
+
 export async function addPaymentToOrder(method: string, metadata?: Record<string, any>) {
     const client = getGraphQLClient();
     return client.request(`${ORDER_FRAGMENT}

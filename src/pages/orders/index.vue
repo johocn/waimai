@@ -84,8 +84,9 @@
             <PriceTag :price="order.totalWithTax" />
           </view>
         </view>
-        <!-- 快捷操作：可催单、送达 24h 内可申请售后；配送中看骑手地图；已结束可再来一单；未开票可开票 -->
-        <view class="order-card__quick" v-if="canUrge(order) || canApplyAfterSale(order) || canTrack(order) || canReorder(order) || canInvoice(order)">
+        <!-- 快捷操作：待付款可续付；可催单、送达 24h 内可申请售后；配送中看骑手地图；已结束可再来一单；未开票可开票 -->
+        <view class="order-card__quick" v-if="canPay(order) || canUrge(order) || canApplyAfterSale(order) || canTrack(order) || canReorder(order) || canInvoice(order)">
+          <text v-if="canPay(order)" class="quick-btn quick-btn--primary" @click.stop="onPay(order)">{{ $t('orders.payNow') }}</text>
           <text v-if="canUrge(order)" class="quick-btn" @click.stop="onUrge(order)">{{ $t('orderDetail.urgeBtn') }}</text>
           <text v-if="canApplyAfterSale(order)" class="quick-btn" @click.stop="goAfterSaleCreate(order)">{{ $t('orderDetail.afterSaleBtn') }}</text>
           <text v-if="canTrack(order)" class="quick-btn" @click.stop="goTracking(order)">{{ $t('orders.trackBtn') }}</text>
@@ -137,6 +138,7 @@ import { fetchStoreList } from '../../api/queries/waimai';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
 import { urgeOrder } from '../../api/mutations/campus';
 import { getMyReviews } from '../../api/queries/review';
+import { resumePay } from '../../utils/resume-pay';
 import { fulfillmentBadge } from '../../utils/order-badge';
 import { orderEta, clockHM } from '../../utils/order-eta';
 import { storeDisplayName } from '../../utils/store-display';
@@ -304,6 +306,38 @@ function onUrge(order: any) {
             } catch (e: any) {
                 uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || locale.t('orderDetail.urgeFail'), icon: 'none' });
             }
+        },
+    });
+}
+/** 可续付：已提交订单但未完成支付 */
+function canPay(order: any): boolean {
+    return String(order?.state ?? '') === 'ArrangingPayment';
+}
+/** 待付款续付：确认金额 → 切活跃订单并拉起支付 → 跳支付结果页；活跃购物车非空时拦截提示 */
+function onPay(order: any) {
+    if (!order?.id) return;
+    const amount = (Number(order.totalWithTax ?? 0) / 100).toFixed(2);
+    uni.showModal({
+        title: locale.t('orders.payTitle'),
+        content: locale.t('orders.payConfirm').replace('{a}', amount),
+        success: async (r: any) => {
+            if (!r.confirm) return;
+            uni.showLoading({ title: locale.t('orders.paying'), mask: true });
+            const res = await resumePay({ id: order.id, code: order.code, channelToken: order.channelToken, totalWithTax: order.totalWithTax });
+            uni.hideLoading();
+            if (res.status === 'blocked') {
+                uni.showModal({
+                    title: locale.t('orders.payBlockedTitle'),
+                    content: locale.t('orders.payBlocked').replace('{n}', String(res.cartCount ?? 0)),
+                    showCancel: false,
+                });
+                return;
+            }
+            if (res.status === 'fail') {
+                uni.showToast({ title: res.message || locale.t('orders.payFail'), icon: 'none' });
+                return;
+            }
+            uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(res.code || order.code)}&status=${res.status}` });
         },
     });
 }
@@ -537,7 +571,7 @@ async function loadData() {
         const results = await Promise.all(queryChannels().map((c) =>
             getOrdersForChannel(c.token, options)
                 .then((res: any) => ({
-                    items: (res?.myOrders?.items || []).map((o: any) => ({ ...o, channelName: c.name })),
+                    items: (res?.myOrders?.items || []).map((o: any) => ({ ...o, channelName: c.name, channelToken: c.token })),
                     total: res?.myOrders?.totalItems || 0,
                 }))
                 .catch((e) => { console.error('myOrders@' + (c.name || 'default'), e); return { items: [], total: 0 }; }),

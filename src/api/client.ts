@@ -156,6 +156,19 @@ export function getBootstrapClient(): ShopGraphQLClient {
     return new ShopClient(bootstrapInstance, false);
 }
 
+/**
+ * 指定渠道的 GraphQLClient（跨渠道操作用）。
+ * 待付款订单续付：订单可能挂在店铺渠道下，setActiveOrder / addPaymentToOrder 必须在订单所属渠道执行，
+ * 不能依赖 tenantStore.token（订单列表/详情可能已在默认渠道）。
+ */
+export function getChannelClient(channelToken: string): GraphQLClient {
+    const authStore = useAuthStore();
+    const headers: Record<string, string> = { 'vendure-token': channelToken || '' };
+    const bearer = authStore.token || getSessionToken();
+    if (bearer) headers['Authorization'] = 'Bearer ' + bearer;
+    return new GraphQLClient(API_URL, { fetch: customFetch as any, headers });
+}
+
 /** Deduplicate identical in-flight requests */
 export function deduped<T>(key: string, fn: () => Promise<T>): Promise<T> {
     if (inFlight.has(key)) return inFlight.get(key) as Promise<T>;

@@ -78,6 +78,18 @@ with sync_playwright() as p:
         print(f"0{idx + 3} state", {**state(pg), "range": name})
         pg.screenshot(path=os.path.join(OUT, f"{idx + 1:02d}-admin-sales-{name}.png"), full_page=True)
 
+    # P4-1-4 导出 CSV：捕获下载并校验内容
+    with pg.expect_download(timeout=20000) as dl_info:
+        pg.click("text=导出 CSV", timeout=8000)
+    dl = dl_info.value
+    csv_path = os.path.join(OUT, "05-admin-sales-products.csv")
+    dl.save_as(csv_path)
+    with open(csv_path, encoding="utf-8-sig") as f:
+        lines = [ln.rstrip("\n") for ln in f.readlines()]
+    print("export state", {"file": dl.suggested_filename, "rows": len(lines) - 1,
+                           "header": lines[0] if lines else "", "first": lines[1] if len(lines) > 1 else ""})
+    assert len(lines) > 1 and lines[0].count(",") == 3, "CSV 内容异常"
+
     browser.close()
 
 print("SHOTS DONE ->", OUT)

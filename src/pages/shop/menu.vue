@@ -497,7 +497,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
-import { onLoad, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
@@ -1156,6 +1156,7 @@ onLoad(async (q: any) => {
         const active: any = await getActiveOrder().catch(() => null);
         if (active?.activeOrder) cart.setOrder(active.activeOrder);
         products.value = await fetchProductList();
+        menuReady = true;
         cats.value = buildCats(products.value);
         loadProductCoupons(goodsOf(activeCat.value));
         void loadCombo();
@@ -1386,6 +1387,38 @@ function goodSoldOut(g: any): boolean {
     return !variants.some(v => variantAvailable(v));
 }
 
+// —— 售罄实时同步：商家沽清/恢复后，回到菜单或加购被拒时静默回填，不重建分类、不打断滚动 ——
+let menuReady = false;
+let syncBusy = false;
+async function syncSoldOut(): Promise<void> {
+    if (!menuReady || syncBusy) return;
+    syncBusy = true;
+    try {
+        const list = await fetchProductList();
+        const byId = new Map<string, any>();
+        (list ?? []).forEach((p: any) => byId.set(String(p.id), p));
+        products.value.forEach((p: any) => {
+            const next = byId.get(String(p.id));
+            if (!next) return;
+            p.customFields = { ...(p.customFields || {}), waimaiSoldOut: !!next?.customFields?.waimaiSoldOut };
+            const vMap = new Map<string, any>();
+            (next.variants ?? []).forEach((v: any) => vMap.set(String(v.id), v));
+            (p.variants ?? []).forEach((v: any) => {
+                const nv = vMap.get(String(v.id));
+                if (!nv) return;
+                v.stockLevel = nv.stockLevel;
+                v.enabled = nv.enabled;
+            });
+        });
+    } catch {
+        // 静默失败：下次回前台/下次加购被拒时再试
+    } finally {
+        syncBusy = false;
+    }
+}
+// 从购物车/详情返回、切后台再回来时同步一次售罄状态
+onShow(() => { void syncSoldOut(); });
+
 function goodLowStock(g: any): boolean {
     const variants: any[] = g?.variants ?? [];
     return variants.some(v => variantAvailable(v)) && variants.some(v => variantAvailable(v) && v.stockLevel === 'LOW_STOCK');
@@ -1440,6 +1473,8 @@ function findVariant(variantId: string): any {
 
 function toastSoldOut() {
     uni.showToast({ title: locale.t('menu.soldOutToast'), icon: 'none' });
+    // 加购被拒多为商家刚沽清：顺手同步一次，避免用户反复点同一个已售罄商品
+    void syncSoldOut();
 }
 
 /** 点商品：统一打开详情弹层（大图/描述/月销/规格/收藏/加购），单规格也可先看清详情 */

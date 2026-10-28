@@ -318,6 +318,7 @@
     "favRemoveOk": "Removed from favorites",
     "favFail": "Failed to update favorite",
     "emptyCat": "No items in this category",
+    "emptySearch": "No items found for \"{k}\"",
     "overallScore": "Overall rating",
     "totalReviews": "{n} reviews in total",
     "goodRate": "{n}% positive",

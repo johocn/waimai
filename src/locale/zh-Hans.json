@@ -318,6 +318,7 @@
     "favRemoveOk": "已取消收藏",
     "favFail": "收藏失败，请稍后重试",
     "emptyCat": "该分类暂无商品",
+    "emptySearch": "没有找到与「{k}」相关的商品",
     "overallScore": "综合评分",
     "totalReviews": "共 {n} 条评价",
     "goodRate": "好评率 {n}%",

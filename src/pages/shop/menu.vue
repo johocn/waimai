@@ -249,7 +249,16 @@
                     </view>
                     </template>
                     <view class="scroll-pad"></view>
-                    <EmptyState v-if="!goodsOf(activeCat).length" :text="$t('menu.emptyCat')" />
+                    <!-- 搜索无结果：空白态 + 热搜兜底，点词直接换关键词 -->
+                    <view class="suggest" v-if="keyword.trim() && !goodsOf(activeCat).length && hotWords.length">
+                        <view class="suggest__group">
+                            <view class="suggest__head"><text>{{ $t('menu.hotSearch') }}</text></view>
+                            <view class="suggest__chips">
+                                <text v-for="w in hotWords" :key="'e-' + w" class="suggest__chip suggest__chip--hot" @tap="applyKeyword(w)">{{ w }}</text>
+                            </view>
+                        </view>
+                    </view>
+                    <EmptyState v-if="!goodsOf(activeCat).length" :text="keyword.trim() ? $t('menu.emptySearch').replace('{k}', keyword.trim()) : $t('menu.emptyCat')" />
                 </scroll-view>
             </view>
         </view>

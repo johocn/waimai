@@ -84,8 +84,10 @@
             <PriceTag :price="order.totalWithTax" />
           </view>
         </view>
-        <!-- 快捷操作：配送中可直接看骑手地图，已完成/已取消可再来一单，已支付未开票可开票 -->
-        <view class="order-card__quick" v-if="canTrack(order) || canReorder(order) || canInvoice(order)">
+        <!-- 快捷操作：可催单、送达 24h 内可申请售后；配送中看骑手地图；已结束可再来一单；未开票可开票 -->
+        <view class="order-card__quick" v-if="canUrge(order) || canApplyAfterSale(order) || canTrack(order) || canReorder(order) || canInvoice(order)">
+          <text v-if="canUrge(order)" class="quick-btn" @click.stop="onUrge(order)">{{ $t('orderDetail.urgeBtn') }}</text>
+          <text v-if="canApplyAfterSale(order)" class="quick-btn" @click.stop="goAfterSaleCreate(order)">{{ $t('orderDetail.afterSaleBtn') }}</text>
           <text v-if="canTrack(order)" class="quick-btn" @click.stop="goTracking(order)">{{ $t('orders.trackBtn') }}</text>
           <text v-if="canInvoice(order)" class="quick-btn" @click.stop="goInvoice(order)">{{ $t('orders.invoiceBtn') }}</text>
           <text v-if="canReorder(order)" class="quick-btn quick-btn--primary" @click.stop="goReorder(order)">{{ $t('orders.reorderShort') }}</text>
@@ -133,6 +135,7 @@ import { onShow, onHide, onUnload, onReachBottom, onPullDownRefresh } from '@dcl
 import { getOrdersForChannel } from '../../api/queries/order';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
+import { urgeOrder } from '../../api/mutations/campus';
 import { getMyReviews } from '../../api/queries/review';
 import { fulfillmentBadge } from '../../utils/order-badge';
 import { orderEta, clockHM } from '../../utils/order-eta';
@@ -281,6 +284,40 @@ function goTracking(order: any) {
 function goReorder(order: any) {
     if (!order?.code) return;
     uni.navigateTo({ url: '/pkg-order/pages/order-detail?code=' + order.code + '&reorder=1' });
+}
+/** 可催单：校园履约单未送达/未异常，且本单未催过（与详情页 canUrge 同口径） */
+function canUrge(order: any): boolean {
+    const cf = order.customFields || {};
+    return !!cf.deliveryStatus && !['delivered', 'exception'].includes(String(cf.deliveryStatus)) && !cf.urged;
+}
+/** 列表直达催单：成功后本地打标，按钮立即消失 */
+function onUrge(order: any) {
+    uni.showModal({
+        title: locale.t('orderDetail.urgeTitle'),
+        content: locale.t('orderDetail.urgeConfirm'),
+        success: async (r: any) => {
+            if (!r.confirm) return;
+            try {
+                await urgeOrder(String(order.id));
+                order.customFields = { ...(order.customFields || {}), urged: true };
+                uni.showToast({ title: locale.t('orderDetail.urgedOk'), icon: 'success' });
+            } catch (e: any) {
+                uni.showToast({ title: e?.response?.errors?.[0]?.message || e?.message || locale.t('orderDetail.urgeFail'), icon: 'none' });
+            }
+        },
+    });
+}
+/** 可申请售后：已送达 24h 内、无进行中售后单（有售后单时走上方标记直达详情） */
+function canApplyAfterSale(order: any): boolean {
+    const cf = order.customFields || {};
+    if (String(cf.deliveryStatus ?? '') !== 'delivered') return false;
+    if (afterSaleOf(order)) return false;
+    const t = cf.deliveredAt ? new Date(cf.deliveredAt).getTime() : 0;
+    return !!t && Date.now() - t <= 24 * 60 * 60 * 1000 && String(order.state ?? '') !== 'Cancelled';
+}
+function goAfterSaleCreate(order: any) {
+    if (!order?.code) return;
+    uni.navigateTo({ url: '/pkg-order/pages/after-sale-create?code=' + order.code });
 }
 function goGuestOrder() {
     uni.navigateTo({ url: '/pkg-order/pages/guest-order' });

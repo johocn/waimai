@@ -733,8 +733,23 @@ const storeStateText = computed(() => {
 // —— 预计送达（第 38 轮）：营业中按「当前时刻 + 配送时长」给出送达区间，30 秒刷新 ——
 const nowTick = ref(Date.now());
 let etaTimer: ReturnType<typeof setInterval> | null = null;
+/** 上一次营业状态类别（open/closing 视为「营业中」，closed 单独）：跨边界时回读后端 openNow */
+let lastClosedState: boolean | null = null;
+/** 营业时间自动开关门：门店停留期间跨过开门/打烊边界时回读店铺状态，避免仍显示旧状态 */
+async function refreshStoreInfo(): Promise<void> {
+    try {
+        const list: any[] = await fetchStoreList();
+        const hit = list.find((s: any) => s.channelToken === shopToken.value) ?? null;
+        if (hit) storeInfo.value = hit;
+    } catch { /* 静默重试下一轮 */ }
+}
 onLoad(() => {
-    etaTimer = setInterval(() => { nowTick.value = Date.now(); }, 30000);
+    etaTimer = setInterval(() => {
+        nowTick.value = Date.now();
+        const closed = getStoreStatus(storeInfo.value?.businessHours).state === 'closed';
+        if (lastClosedState !== null && closed !== lastClosedState) void refreshStoreInfo();
+        lastClosedState = closed;
+    }, 30000);
 });
 onUnload(() => {
     if (etaTimer) {

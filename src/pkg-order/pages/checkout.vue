@@ -476,6 +476,7 @@ import { ADDRESS_LABELS, addressLabelKey } from '../../utils/addressLabel';
 import { useFavoritesStore } from '../../stores/favorites';
 import { nextPromoHint, yuan } from '../../utils/promo';
 import { readDeliveryPref, writeDeliveryPref, readDeliveryPrefNote, type DeliveryPrefKey } from '../../utils/delivery-prefs';
+import { track } from '../../utils/telemetry';
 import { readTasteProfile, writeTasteProfile, tasteNoteParts, tasteLabels } from '../../utils/taste-profile';
 import { getMyCoupons } from '../../api/queries/coupon';
 import { applyCouponToOrder, clearCouponFromOrder } from '../../api/mutations/coupon';
@@ -1745,9 +1746,13 @@ async function submitOrder() {
         });
         // Transition to ArrangingPayment
         await transitionOrderToState('ArrangingPayment');
+        // P4-4 下单埋点（订单已成立，进入支付环节）
+        track('submit_order', { method: selectedPayment.value, code: cart.order?.code || '' });
         const pay = await payCurrentOrder(selectedPayment.value);
         // fail = 支付未完成（取消/失败/addPaymentToOrder 报错），不得伪装成功
         if (pay.status === 'fail' || !pay.code) { ui.showToast(locale.t('checkout.payIncomplete')); return; }
+        // P4-4 支付成功埋点（success=已结算；pending=已调起收银台待回调）
+        track('pay_success', { method: selectedPayment.value, code: pay.code, state: pay.status });
         recordRecentItems();
         uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(pay.code)}&status=${pay.status}` });
     } catch (e: any) { ui.showToast(e?.response?.errors?.[0]?.message || e.message); }

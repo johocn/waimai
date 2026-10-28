@@ -2,6 +2,7 @@ import { GraphQLClient } from 'graphql-request';
 import { getGraphQLClient, getShopApiUrl, getSessionToken } from '../client';
 import { useAuthStore } from '../../stores/auth';
 import { CART_FRAGMENT } from '../fragments';
+import { track } from '../../utils/telemetry';
 
 /** 加料选择引用（与 utils/addon-fee.ts AddonSelection 对齐） */
 export interface AddonSelectionInput {
@@ -23,7 +24,12 @@ export async function addItemToOrder(productVariantId: string, quantity: number,
         mutation AddToCart($productVariantId: ID!, $quantity: Int!) { addItemToOrder(productVariantId: $productVariantId, quantity: $quantity) { ... on Order { ...CartInfo } ... on ErrorResult { errorCode message } } }`;
     const variables: Record<string, any> = { productVariantId, quantity };
     if (hasAddons) variables.customFields = { waimaiAddons: JSON.stringify(addons) };
-    return client.request(mutation, variables);
+    const res: any = await client.request(mutation, variables);
+    // P4-4 加购埋点：仅成功（非 ErrorResult）才记
+    if (res?.addItemToOrder && !res.addItemToOrder.errorCode) {
+        track('add_to_cart', { variantId: productVariantId, quantity, addons: hasAddons ? addons!.length : 0 });
+    }
+    return res;
 }
 
 /** 跨店加购：收藏商品一键加购用，独立客户端固定 vendure-token 指向商品所属店铺渠道 */
@@ -35,7 +41,12 @@ export async function addItemToOrderInChannel(channelToken: string, productVaria
     const client = new GraphQLClient(getShopApiUrl(), { headers });
     const mutation = `${CART_FRAGMENT}
         mutation AddToCart($productVariantId: ID!, $quantity: Int!) { addItemToOrder(productVariantId: $productVariantId, quantity: $quantity) { ... on Order { ...CartInfo } ... on ErrorResult { errorCode message } } }`;
-    return client.request(mutation, { productVariantId, quantity });
+    const res: any = await client.request(mutation, { productVariantId, quantity });
+    // P4-4 加购埋点（跨店）：记录所属店铺渠道，便于按店铺分析
+    if (res?.addItemToOrder && !res.addItemToOrder.errorCode) {
+        track('add_to_cart', { variantId: productVariantId, quantity, channel: channelToken });
+    }
+    return res;
 }
 
 export async function adjustOrderLine(orderLineId: string, quantity: number) {

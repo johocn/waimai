@@ -66,6 +66,7 @@
 import { ref, computed, watch } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { createReview, createFollowUpReview } from '../../api/queries/review';
+import { track } from '../../utils/telemetry';
 import { rateRider } from '../../api/queries/support';
 import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
@@ -272,6 +273,8 @@ async function submit() {
         tags: picked.value.length ? picked.value : undefined,
         isAnonymous: anonymous.value,
       });
+      // P4-4 评价提交埋点（评分分布 + 是否带图 + 是否匿名）
+      track('review_submit', { productId: productId.value, rating: rating.value, images: images.value.length, anonymous: anonymous.value });
       uni.showToast({ title: locale.t('reviewCreate.reviewDone'), icon: 'none' });
     }
     setTimeout(() => uni.navigateBack(), 1200);

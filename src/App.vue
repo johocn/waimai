@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { onLaunch } from '@dcloudio/uni-app';
+import { onLaunch, onHide } from '@dcloudio/uni-app';
 import { useTenantStore } from './stores/tenant';
 import { useAuthStore } from './stores/auth';
 import { openTenantGate } from './api/client';
 import { initTheme } from './utils/theme';
+import { flush, installTelemetry } from './utils/telemetry';
 
 onLaunch(async () => {
+    // P4-4 埋点/错误上报：尽早在启动阶段装好，后续导航与异常都能采到
+    installTelemetry();
     // 品牌色运行时注入（一处换肤）
     // #ifdef H5
     const brand = (import.meta.env.VITE_BRAND_COLOR as string) || '#ff6600';
@@ -19,6 +22,11 @@ onLaunch(async () => {
     } finally {
         openTenantGate();
     }
+});
+
+// 切后台时把队列冲掉（H5 只在前台保活，放在 onHide 最稳）
+onHide(() => {
+    flush();
 });
 </script>
 <style>

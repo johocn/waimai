@@ -2,6 +2,7 @@ import { createSSRApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import { useLocaleStore } from './stores/locale';
+import { reportError } from './utils/telemetry';
 
 // #ifdef H5
 // 腾讯地图 Key 注入：uni-app H5 的 <map> 在挂载时读取 window.__uniConfig.qqMapKey，
@@ -25,5 +26,7 @@ export function createApp() {
     const localeStore = useLocaleStore();
     app.config.globalProperties.$t = (key: string) => localeStore.t(key);
     try { localeStore.ensure(); } catch { /* 非 H5 端 uni API 异常不阻断启动 */ }
+    // P4-4 组件内未捕获异常也统一上报（与 window 级监听互补）
+    app.config.errorHandler = (err) => reportError(err);
     return { app };
 }

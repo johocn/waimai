@@ -42,6 +42,18 @@ export async function fetchProductList(): Promise<any[]> {
     return res?.products?.items ?? [];
 }
 
+/** 菜品每日限量/每人限购（§68）：当前渠道有限量配置商品的当日额度（未登录 my* 为 null） */
+const DAILY_STOCK_QUERY = `
+    query CampusProductDailyStock {
+        campusProductDailyStock { productId dailyLimit perUserLimit soldToday remaining myToday myRemaining }
+    }
+`;
+
+export async function fetchDailyStock(): Promise<any[]> {
+    const res: any = await getGraphQLClient().request(DAILY_STOCK_QUERY);
+    return res?.campusProductDailyStock ?? [];
+}
+
 /**
  * 指定渠道商品（再来一单校验可售用）。
  * 独立 GraphQLClient：避免 ShopClient 用当前 tenant token 覆盖 vendure-token 头。

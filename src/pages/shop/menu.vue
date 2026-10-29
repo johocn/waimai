@@ -203,6 +203,7 @@
                                 <text v-if="isNewGood(g)" class="good-tag good-tag--new">{{ $t('menu.newTag') }}</text>
                                 <text v-if="isSharedGood(g)" class="good-tag good-tag--shared">{{ $t('menu.dishFromFriend') }}</text>
                                 <text v-if="goodSoldOut(g)" class="good-tag good-tag--sold">{{ $t('menu.soldOut') }}</text>
+                                <text v-else-if="goodLeft(g) != null" class="good-tag good-tag--left">{{ $t('menu.leftCount').replace('{n}', String(goodLeft(g))) }}</text>
                                 <text v-else-if="goodLowStock(g)" class="good-tag good-tag--low">{{ $t('menu.lowStock') }}</text>
                             </view>
                             <text class="good-desc">{{ plainDescription(g.description) }}</text>
@@ -503,7 +504,7 @@ import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
 import { useFavoritesStore } from '../../stores/favorites';
 import { useLocaleStore } from '../../stores/locale';
-import { fetchProductList, fetchStoreList } from '../../api/queries/waimai';
+import { fetchProductList, fetchStoreList, fetchDailyStock } from '../../api/queries/waimai';
 import { getProductCoupons } from '../../api/queries/coupon';
 import { getChannelReviews, getChannelReviewStats } from '../../api/queries/review';
 import { plainDescription, routeText, routeDetail } from '../../utils/store-display';
@@ -1172,6 +1173,7 @@ onLoad(async (q: any) => {
         if (active?.activeOrder) cart.setOrder(active.activeOrder);
         products.value = await fetchProductList();
         menuReady = true;
+        void loadDailyStock();
         cats.value = buildCats(products.value);
         loadProductCoupons(goodsOf(activeCat.value));
         void loadCombo();
@@ -1395,11 +1397,74 @@ function variantAvailable(v: any): boolean {
     return !!v && v.enabled !== false && v.stockLevel !== 'OUT_OF_STOCK';
 }
 
-/** 售罄 = 商家一键沽清（waimaiSoldOut）或全部规格无可售库存 */
+/** 售罄 = 商家一键沽清（waimaiSoldOut）、当日限量售完（remaining=0）或全部规格无可售库存 */
 function goodSoldOut(g: any): boolean {
     if (g?.customFields?.waimaiSoldOut === true) return true;
+    const rem = goodRemaining(g);
+    if (rem != null && rem <= 0) return true;
     const variants: any[] = g?.variants ?? [];
     return !variants.some(v => variantAvailable(v));
+}
+
+// —— 每日限量/每人限购（§68）：按商品 id 索引当日额度，仅「有限量配置」的商品有数据 ——
+const dailyStock = ref<Map<string, any>>(new Map());
+let dailyBusy = false;
+async function loadDailyStock(): Promise<void> {
+    if (dailyBusy) return;
+    dailyBusy = true;
+    try {
+        const list = await fetchDailyStock();
+        const m = new Map<string, any>();
+        (list ?? []).forEach((it: any) => m.set(String(it.productId), it));
+        dailyStock.value = m;
+    } catch {
+        // 静默：额度展示失败不影响点单，下单闸门仍有服务端兜底
+    } finally {
+        dailyBusy = false;
+    }
+}
+function stockOf(g: any): any | null {
+    return dailyStock.value.get(String(g?.id ?? '')) || null;
+}
+/** 全店剩余份数；null=不限 */
+function goodRemaining(g: any): number | null {
+    const s = stockOf(g);
+    return s && s.remaining != null ? Number(s.remaining) : null;
+}
+/** 「仅剩 N 份」标签的展示阈值：剩余不多才提示，避免大额限量也刷成噪音 */
+const LEFT_TAG_MAX = 10;
+function goodLeft(g: any): number | null {
+    const rem = goodRemaining(g);
+    return rem != null && rem > 0 && rem <= LEFT_TAG_MAX ? rem : null;
+}
+/** 加购前本地额度校验（服务端闸门仍会在结算时二次校验） */
+function limitBlocked(g: any, qty: number): boolean {
+    const s = stockOf(g);
+    if (!s) return false;
+    const mine = s.myRemaining != null ? Number(s.myRemaining) : null;
+    if (mine != null && qty > mine) {
+        uni.showToast({
+            title: locale.t('menu.perLimitToast')
+                .replace('{n}', String(s.perUserLimit ?? 0))
+                .replace('{m}', String(mine)),
+            icon: 'none',
+        });
+        return true;
+    }
+    const rem = s.remaining != null ? Number(s.remaining) : null;
+    if (rem != null && qty > rem) {
+        uni.showToast({ title: locale.t('menu.leftToast').replace('{n}', String(rem)), icon: 'none' });
+        return true;
+    }
+    return false;
+}
+/** 加购成功后本地扣减额度，避免连点超出剩余份数 */
+function consumeStock(g: any, qty: number): void {
+    const s = stockOf(g);
+    if (!s) return;
+    if (s.remaining != null) s.remaining = Math.max(0, Number(s.remaining) - qty);
+    if (s.myRemaining != null) s.myRemaining = Math.max(0, Number(s.myRemaining) - qty);
+    dailyStock.value = new Map(dailyStock.value);
 }
 
 // —— 售罄实时同步：商家沽清/恢复后，回到菜单或加购被拒时静默回填，不重建分类、不打断滚动 ——
@@ -1425,6 +1490,8 @@ async function syncSoldOut(): Promise<void> {
                 v.enabled = nv.enabled;
             });
         });
+        // 额度随时间/下单变化，回前台顺带刷新一次「仅剩 N 份」
+        void loadDailyStock();
     } catch {
         // 静默失败：下次回前台/下次加购被拒时再试
     } finally {
@@ -1486,6 +1553,14 @@ function findVariant(variantId: string): any {
     return null;
 }
 
+/** 由规格 id 反查所属商品，供限量/限购校验使用 */
+function findProductByVariant(variantId: string): any {
+    for (const p of products.value) {
+        if ((p.variants ?? []).some((v: any) => String(v.id) === String(variantId))) return p;
+    }
+    return null;
+}
+
 function toastSoldOut() {
     uni.showToast({ title: locale.t('menu.soldOutToast'), icon: 'none' });
     // 加购被拒多为商家刚沽清：顺手同步一次，避免用户反复点同一个已售罄商品
@@ -1521,12 +1596,18 @@ function rememberView(g: any) {
 async function doAddItem(variantId: string, quantity: number, addons?: { g: string; n: string }[]) {
     const target = findVariant(variantId);
     if (target && !variantAvailable(target)) { toastSoldOut(); return false; }
+    const p = findProductByVariant(variantId);
+    if (p && limitBlocked(p, quantity)) return false;
     const res: any = await addItemToOrder(variantId, quantity, addons);
     if (res?.addItemToOrder?.errorCode) {
+        const msg = String(res.addItemToOrder.message || '');
+        // 服务端额度兜底拦截：刷新额度，让「仅剩 N 份」立刻反映真实余量
+        if (/限量|限购|left today|Limit/i.test(msg)) void loadDailyStock();
         uni.showToast({ title: res.addItemToOrder.message || locale.t('menu.addFail'), icon: 'none' });
         return false;
     }
     cart.setOrder(res.addItemToOrder);
+    if (p) consumeStock(p, quantity);
     return true;
 }
 
@@ -1879,6 +1960,7 @@ function goCheckout() {
 .good-tag { flex-shrink: 0; font-size: 20rpx; line-height: 1; padding: 4rpx 10rpx; border-radius: 6rpx; }
 .good-tag--sold { color: var(--w-surface); background: var(--w-text-muted); }
 .good-tag--low { color: var(--w-brand-text); background: var(--w-brand-soft); }
+.good-tag--left { color: var(--w-warn-text, #b45309); background: var(--w-warn-soft, #fef3c7); }
 .good-tag--shared { color: #fff; background: $brand; }
 .good-tag--new { color: #fff; background: linear-gradient(135deg, #ff6600, #ff9500); }
 .good--hl { background: var(--w-brand-soft); border-radius: $radius; box-shadow: inset 0 0 0 2rpx $brand; }

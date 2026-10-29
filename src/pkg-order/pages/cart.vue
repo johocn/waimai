@@ -289,6 +289,9 @@ interface CartGroup {
   deliveryMinutes?: number | null;
   freeShipping?: number | null;
   businessHours?: string | null;
+  /** 今日休业（§70 营业日历）：后端 closedToday，当日禁止下单 */
+  closedToday?: boolean;
+  closureNote?: string | null;
   promoText?: string;
   order: any;
 }
@@ -800,6 +803,8 @@ async function load() {
           deliveryMinutes: s.deliveryMinutes,
           freeShipping: s.freeShippingThreshold,
           businessHours: s.businessHours,
+          closedToday: !!s.closedToday,
+          closureNote: s.closureNote ?? null,
           promoText: s.promoText,
           order,
         } as CartGroup;
@@ -969,8 +974,12 @@ function applyOrder(g: CartGroup, order: any) {
     }
 }
 
-/** 打烊提示：仅 closed 才拦截提交，closing 由店铺页提示 */
+/** 打烊提示：仅 closed 才拦截提交，closing 由店铺页提示；今日休业（§70）优先展示 */
 function closedText(g: CartGroup): string {
+  if (g.closedToday) {
+    const note = g.closureNote ? `（${g.closureNote}）` : '';
+    return locale.t('menu.closedTodayByCalendar').replace('{note}', note);
+  }
   const st = getStoreStatus(g.businessHours);
   if (st.state !== 'closed') return '';
   const key = st.nextOpenDayOffset === 1 ? 'menu.closedTomorrow' : 'menu.closedToday';
@@ -979,6 +988,7 @@ function closedText(g: CartGroup): string {
 
 /** 购物车头部窄条用的短文案，避免 300rpx 内被截断 */
 function closedTag(g: CartGroup): string {
+  if (g.closedToday) return locale.t('cart.closedTagToday');
   const st = getStoreStatus(g.businessHours);
   if (st.state !== 'closed') return '';
   return locale.t('cart.closedTag').replace('{t}', st.nextOpenHM);

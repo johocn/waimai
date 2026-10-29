@@ -714,14 +714,21 @@ const storeStatus = computed(() => getStoreStatus(storeInfo.value?.businessHours
 const backendOpen = computed<boolean | null>(
     () => (typeof storeInfo.value?.openNow === 'boolean' ? storeInfo.value.openNow : null),
 );
-/** 营业时间内但后端判打烊 = 商家手动暂停营业 */
+/** 今日休业（§70 营业日历）：后端 closedToday 为准，当日禁止下单 */
+const storeClosedToday = computed(() => !!storeInfo.value?.closedToday);
+const storeClosureNote = computed(() => storeInfo.value?.closureNote || '');
+/** 营业时间内但后端判打烊 = 商家手动暂停营业（今日休业走单独文案） */
 const storePaused = computed(
-    () => backendOpen.value === false && storeStatus.value.state !== 'closed',
+    () => !storeClosedToday.value && backendOpen.value === false && storeStatus.value.state !== 'closed',
 );
 const storeClosed = computed(
     () => (backendOpen.value === null ? storeStatus.value.state === 'closed' : !backendOpen.value),
 );
 const storeStateText = computed(() => {
+    if (storeClosedToday.value) {
+        return locale.t('menu.closedTodayByCalendar')
+            .replace('{note}', storeClosureNote.value ? `（${storeClosureNote.value}）` : '');
+    }
     if (storePaused.value) return locale.t('menu.storePaused');
     const st = storeStatus.value;
     if (storeClosed.value || st.state === 'closed') {
@@ -736,6 +743,8 @@ const nowTick = ref(Date.now());
 let etaTimer: ReturnType<typeof setInterval> | null = null;
 /** 上一次营业状态类别（open/closing 视为「营业中」，closed 单独）：跨边界时回读后端 openNow */
 let lastClosedState: boolean | null = null;
+/** 上一次校园日（UTC+8）：跨天时回读，休业日历在 0 点切换 */
+let lastDayKey: string | null = null;
 /** 营业时间自动开关门：门店停留期间跨过开门/打烊边界时回读店铺状态，避免仍显示旧状态 */
 async function refreshStoreInfo(): Promise<void> {
     try {
@@ -748,8 +757,11 @@ onLoad(() => {
     etaTimer = setInterval(() => {
         nowTick.value = Date.now();
         const closed = getStoreStatus(storeInfo.value?.businessHours).state === 'closed';
-        if (lastClosedState !== null && closed !== lastClosedState) void refreshStoreInfo();
+        const dayKey = new Date(nowTick.value + 8 * 3600_000).toISOString().slice(0, 10);
+        if ((lastClosedState !== null && closed !== lastClosedState)
+            || (lastDayKey !== null && dayKey !== lastDayKey)) void refreshStoreInfo();
         lastClosedState = closed;
+        lastDayKey = dayKey;
     }, 30000);
 });
 onUnload(() => {

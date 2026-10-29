@@ -8,6 +8,7 @@ export const WAIMAI_STORE_LIST = gql`
     query waimaiStoreList {
         waimaiStoreList {
             channelId channelToken name logo tags monthlySales promoText paused openNow routesEnabled businessHours
+            closedToday closureNote
             deliveryMinutes minOrderAmount deliveryFee storeAddress storePhone storeNotice errandBaseFee freeShippingThreshold
             deliveryFeeTiers
             foodLicenseNo foodLicenseImage foodLicenseExpiry foodSafetyGrade foodSafetyCommitmentImage kitchenLiveUrl kitchenLiveEnabled

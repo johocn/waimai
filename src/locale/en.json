@@ -1316,6 +1316,18 @@
     "improvePacking": "Damaged packaging",
     "improveValue": "Not good value"
   },
+  "reviewTrust": {
+    "title": "Trust signature",
+    "real": "Verified review",
+    "scoreUnit": "pts",
+    "goodRate": "Positive rate {n}%",
+    "quality": "Quality",
+    "qualityText": "Fresh ingredients, steady output",
+    "service": "Service",
+    "serviceText": "Not satisfied? Contact us anytime",
+    "time": "Time",
+    "timeText": "On-time prep even at peak"
+  },
   "myReviews": {
     "loading": "Loading…",
     "empty": "No reviews yet; you can review after orders complete",

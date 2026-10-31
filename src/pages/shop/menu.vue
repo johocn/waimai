@@ -266,6 +266,13 @@
 
         <!-- 评论：A 版式（摘要卡 + 筛选 chips + 评论列表，首切加载） -->
         <scroll-view scroll-y class="panel solo" v-show="tab === 'reviews'" @scrolltolower="loadMoreReviews">
+            <!-- 信任签名卡：质量 → 服务 → 时间 固定顺序；有统计时带平均分/好评率徽章 -->
+            <TrustSignatureCard
+                class="rv-trust"
+                v-if="reviewStats"
+                :average-rating="trustAvg"
+                :good-rate="trustGoodRate"
+            />
             <view class="rv-summary" v-if="reviewStats && reviewStats.totalCount > 0">
                 <view class="rv-sum-top">
                     <view class="rv-score">
@@ -526,6 +533,7 @@ import { fetchLockerInfo, type LockerStation, type UnmannedChannel } from '../..
 import VImage from '../../components/VImage.vue';
 import PriceTag from '../../components/PriceTag.vue';
 import EmptyState from '../../components/EmptyState.vue';
+import TrustSignatureCard from '../../components/TrustSignatureCard.vue';
 import SkuSheet from '../../components/SkuSheet.vue';
 import { recordFootprint } from '../../utils/footprint';
 import { rememberVariant, resolvePreferredVariant } from '../../utils/sku-memory';
@@ -1063,6 +1071,11 @@ const reviewLoading = ref(false);
 const reviewLoadingMore = ref(false);
 const reviewLoaded = ref(false);
 const reviewHasMore = computed(() => reviewList.value.length < reviewTotal.value);
+/** 无评价时不展示「0 分 / 0%」，徽章缺数据即隐藏（只留「真实评价」） */
+const trustAvg = computed(() =>
+    (reviewStats.value?.totalCount > 0 ? reviewStats.value?.averageRating : null));
+const trustGoodRate = computed(() =>
+    (reviewStats.value?.totalCount > 0 ? reviewStats.value?.goodRate : null));
 
 function switchTab(t: 'goods' | 'reviews' | 'merchant') {
     tab.value = t;

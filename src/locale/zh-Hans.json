@@ -1316,6 +1316,18 @@
     "improvePacking": "包装破损",
     "improveValue": "性价比低"
   },
+  "reviewTrust": {
+    "title": "信任签名",
+    "real": "真实评价",
+    "scoreUnit": "分",
+    "goodRate": "好评率 {n}%",
+    "quality": "质量",
+    "qualityText": "食材新鲜，出品稳定",
+    "service": "服务",
+    "serviceText": "口味不合心意可随时联系商家",
+    "time": "时间",
+    "timeText": "高峰期准时出餐，不拖延"
+  },
   "myReviews": {
     "loading": "加载中…",
     "empty": "还没有评价，订单完成后可以去评价",

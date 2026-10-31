@@ -1,5 +1,7 @@
 <template>
   <view class="my-reviews">
+    <!-- 信任签名卡（只读）：我的评价页无统计口径，只带「真实评价」徽章 -->
+    <TrustSignatureCard />
     <view v-if="loading" class="hint">{{ $t('myReviews.loading') }}</view>
     <view v-else-if="!list.length" class="hint">{{ $t('myReviews.empty') }}</view>
     <template v-else>
@@ -95,6 +97,7 @@ import { getMyReviews, deleteReview, appealReview } from '../../api/queries/revi
 import { uploadCustomerAsset } from '../../api/mutations/upload';
 import { useLocaleStore } from '../../stores/locale';
 import VImage from '../../components/VImage.vue';
+import TrustSignatureCard from '../../components/TrustSignatureCard.vue';
 
 const FILTERS = [
   { key: 'all', labelKey: 'filterAll' },

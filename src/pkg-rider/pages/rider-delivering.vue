@@ -495,7 +495,9 @@ async function contactCustomer(o: any) {
             return;
         }
         const tip = c.protected ? locale.t('riderDelivering.contactProtectedTip') : '';
-        const modalContent = [c.display, tip, c.note || ''].filter(Boolean).join('\n');
+        // 不可拨（脱敏降级）：明确告知无法直拨，避免骑手反复点「拨打」或私下索号
+        const maskedTip = c.callable ? '' : locale.t('riderDelivering.contactMaskedTip');
+        const modalContent = [c.display, maskedTip, tip, c.note || ''].filter(Boolean).join('\n');
         if (c.callable) {
             uni.showModal({
                 title: locale.t('riderDelivering.contactTitle'),

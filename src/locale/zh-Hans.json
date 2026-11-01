@@ -106,6 +106,7 @@
     "contactCustomer": "📞 联系顾客",
     "contactTitle": "联系顾客",
     "contactProtectedTip": "号码保护中，请勿向他人透露该号码",
+    "contactMaskedTip": "当前为脱敏号，暂不可直接拨打；如需联系顾客，请通过站内消息或平台客服转接",
     "contactCall": "拨打",
     "contactKnown": "知道了",
     "contactNoPhone": "顾客未留手机号，请通过在线客服联系",

@@ -300,9 +300,10 @@ async function submitAppeal() {
     &__n { font-size: 20rpx; }
   }
 }
-.hint { text-align: center; color: #8a919c; font-size: 26rpx; padding: 120rpx 0; }
+.hint { text-align: center; color: #8a919c; font-size: 24rpx; padding: 120rpx 0; }
+/* §116 评价版式基线：卡片 白底 / 圆角 16rpx / 内边距 24rpx / 间距 24rpx；正文 26rpx·1.6；辅助 22rpx；星级 24rpx */
 .card {
-  background: $surface; border-radius: 16rpx; padding: 24rpx; margin-bottom: 24rpx;
+  background: $surface; border-radius: $radius-lg; padding: 24rpx; margin-bottom: 24rpx;
   display: flex; flex-direction: column; gap: 16rpx;
 }
 .head { display: flex; justify-content: space-between; align-items: center; }
@@ -311,7 +312,7 @@ async function submitAppeal() {
   font-size: 20rpx; color: $text-color-placeholder; background: $bg-color;
   border-radius: 6rpx; padding: 2rpx 10rpx;
 }
-.stars { color: #f59e0b; font-size: 28rpx; .off { color: #e3e6ea; } }
+.stars { color: #f59e0b; font-size: 24rpx; letter-spacing: 2rpx; .off { color: #e3e6ea; } }
 .status {
   font-size: 22rpx; border-radius: 999rpx; padding: 4rpx 16rpx;
   &.st-pending { color: #b45309; background: #fdf3e0; }
@@ -331,8 +332,8 @@ async function submitAppeal() {
 .imgs--fu { margin-top: 12rpx; }
 .imgs__more { font-size: 22rpx; color: #8a919c; }
 .reply {
-  background: #f5f6f8; border-radius: 12rpx; padding: 16rpx;
-  font-size: 24rpx; color: #8a919c;
+  background: #f5f6f8; border-radius: $radius-md; padding: 16rpx;
+  font-size: 24rpx; color: #8a919c; line-height: 1.6;
   &__who { color: #16a34a; margin-right: 12rpx; }
 }
 .foot { display: flex; justify-content: space-between; align-items: center; }
@@ -345,11 +346,11 @@ async function submitAppeal() {
 /* 申诉留痕与入口 */
 .appeal {
   display: flex; flex-direction: column; gap: 6rpx;
-  background: #f5f6f8; border-radius: 12rpx; padding: 16rpx;
+  background: #f5f6f8; border-radius: $radius-md; padding: 16rpx;
   font-size: 22rpx; color: #8a919c;
   &__tag { color: #b45309; }
-  &__reason { font-size: 24rpx; color: #1f2329; line-height: 1.5; }
-  &__result { line-height: 1.5; }
+  &__reason { font-size: 24rpx; color: #1f2329; line-height: 1.6; }
+  &__result { line-height: 1.6; }
   &--approved { background: #e6f5ec; .appeal__tag { color: #16a34a; } }
   &--rejected { background: #f5f6f8; }
 }

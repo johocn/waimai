@@ -310,7 +310,7 @@
                 </view>
                 <text class="rv-content">{{ r.content }}</text>
                 <view v-if="r.images?.length" class="rv-imgs">
-                    <VImage v-for="(img, i) in r.images" :key="i" :src="img" width="150rpx" height="150rpx" @tap="previewReviewImages(r.images, i)" />
+                    <VImage v-for="(img, i) in r.images" :key="i" :src="img" width="140rpx" height="140rpx" @tap="previewReviewImages(r.images, i)" />
                 </view>
                 <view v-if="r.tags?.length" class="rv-tags">
                     <text v-for="(t, i) in r.tags" :key="i" class="rv-tag">{{ t }}</text>
@@ -319,7 +319,7 @@
                 <view v-for="fu in r.followUps ?? []" :key="fu.id" class="rv-reply">
                     <text class="rv-reply__who">{{ $t('menu.followUp') }}</text>{{ fu.content }}
                     <view v-if="fu.images?.length" class="rv-imgs">
-                        <VImage v-for="(img, i) in fu.images" :key="i" :src="img" width="130rpx" height="130rpx" @tap="previewReviewImages(fu.images, i)" />
+                        <VImage v-for="(img, i) in fu.images" :key="i" :src="img" width="120rpx" height="120rpx" @tap="previewReviewImages(fu.images, i)" />
                     </view>
                 </view>
             </view>
@@ -2066,18 +2066,18 @@ function goCheckout() {
 .rv-chips { display: flex; gap: 16rpx; padding: 24rpx 24rpx 0; flex-wrap: wrap; }
 .rv-chip { font-size: 24rpx; color: var(--w-text-muted); background: var(--w-surface); border: 1rpx solid var(--w-border); border-radius: 999rpx; padding: 10rpx 28rpx; }
 .rv-chip.on { color: var(--w-brand-text); background: var(--w-brand-soft); border-color: transparent; font-weight: 600; }
-.rv-item { background: var(--w-surface); border-radius: $radius-card; margin: 20rpx 24rpx 0; padding: 24rpx; display: flex; flex-direction: column; gap: 16rpx; }
+.rv-item { background: var(--w-surface); border-radius: $radius-card; margin: 24rpx 24rpx 0; padding: 24rpx; display: flex; flex-direction: column; gap: 16rpx; }
 .rv-head { display: flex; align-items: center; gap: 16rpx; }
 .rv-avatar { width: 64rpx; height: 64rpx; border-radius: 999rpx; background: var(--w-brand-soft); color: var(--w-brand-text); font-size: 26rpx; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .rv-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
 .rv-name { font-size: 26rpx; color: var(--w-text); font-weight: 500; }
-.rv-stars { font-size: 22rpx; color: #f59e0b; .off { color: var(--w-border); } }
+.rv-stars { font-size: 24rpx; color: #f59e0b; letter-spacing: 2rpx; .off { color: var(--w-border); } }
 .rv-date { font-size: 22rpx; color: var(--w-text-muted); flex-shrink: 0; }
 .rv-content { font-size: 26rpx; color: var(--w-text); line-height: 1.6; }
 .rv-imgs { display: flex; gap: 12rpx; flex-wrap: wrap; }
 .rv-tags { display: flex; gap: 12rpx; flex-wrap: wrap; }
-.rv-tag { font-size: 20rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 8rpx; padding: 4rpx 12rpx; }
-.rv-reply { background: var(--w-surface-muted); border-radius: 12rpx; padding: 16rpx; font-size: 24rpx; color: var(--w-text-muted); line-height: 1.5; }
+.rv-tag { font-size: 22rpx; color: var(--w-brand-text); background: var(--w-brand-soft); border-radius: 999rpx; padding: 4rpx 16rpx; }
+.rv-reply { background: var(--w-surface-muted); border-radius: $radius-md; padding: 16rpx; font-size: 24rpx; color: var(--w-text-muted); line-height: 1.6; }
 .rv-reply__who { color: var(--w-brand-text); margin-right: 12rpx; font-weight: 500; }
 .rv-reply .rv-imgs { margin-top: 10rpx; }
 .rv-more { text-align: center; font-size: 24rpx; color: var(--w-text-muted); padding: 32rpx 0 0; }

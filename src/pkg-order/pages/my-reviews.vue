@@ -1,7 +1,7 @@
 <template>
   <view class="my-reviews">
-    <!-- 信任签名卡（只读）：我的评价页无统计口径，只带「真实评价」徽章 -->
-    <TrustSignatureCard />
+    <!-- 信任签名卡（只读）：均分/好评率按本人已通过评价在前端聚合（§120），无数据则只留「真实评价」徽章 -->
+    <TrustSignatureCard :average-rating="statAvg" :good-rate="statGoodRate" />
     <view v-if="loading" class="hint">{{ $t('myReviews.loading') }}</view>
     <view v-else-if="!list.length" class="hint">{{ $t('myReviews.empty') }}</view>
     <template v-else>
@@ -133,6 +133,24 @@ const counts = computed<Record<string, number>>(() => {
 const filtered = computed(() =>
   tab.value === 'all' ? list.value : list.value.filter((r: any) => r.status === tab.value),
 );
+
+/**
+ * 个人维度统计（§120）：只计已通过（公开展示）的主评——被驳回/审核中的评价不对外可见，不计入均分与好评率。
+ * 口径与后端整店统计一致（均分保留 1 位小数、好评率保留 1 位小数）；无样本返回 null 让徽章隐藏。
+ */
+const statRows = computed(() => list.value.filter((r: any) => r.status === 'approved'));
+const statAvg = computed(() => {
+  const rows = statRows.value;
+  if (!rows.length) return null;
+  const sum = rows.reduce((s: number, r: any) => s + (Number(r.rating) || 0), 0);
+  return Math.round((sum / rows.length) * 10) / 10;
+});
+const statGoodRate = computed(() => {
+  const rows = statRows.value;
+  if (!rows.length) return null;
+  const good = rows.filter((r: any) => (Number(r.rating) || 0) >= 4).length;
+  return Math.round((good / rows.length) * 1000) / 10;
+});
 
 onShow(async () => {
   loading.value = true;

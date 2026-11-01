@@ -2907,11 +2907,13 @@
   "locker": {
     "brief": "{n} 个智能取餐柜可用",
     "briefUnmanned": "无人配送已开通",
+    "briefUnmannedPending": "无人配送未接入",
     "title": "智能取餐柜 · 无人配送",
     "loading": "加载中…",
     "empty": "本校区暂未开放取餐柜",
     "cells": "可用 {a} / 共 {t} 格",
     "unmannedOn": "{p} 已开通，下单后可选择无人配送",
+    "unmannedPending": "{p} 尚未接入，暂不可选择无人配送",
     "tip": "取餐柜由平台运营维护；柜机停用或不在开放时段时，请以实际取餐指引为准。"
   },
   "circle": {

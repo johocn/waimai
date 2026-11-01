@@ -491,7 +491,7 @@
                     </view>
                     <view v-if="unmanned && unmanned.enabled" class="lk-unmanned">
                         <text class="lk-unmanned__ico">🚗</text>
-                        <text class="lk-unmanned__txt">{{ $t('locker.unmannedOn').replace('{p}', unmanned.providerName) }}</text>
+                        <text class="lk-unmanned__txt">{{ unmannedText }}</text>
                     </view>
                     <text class="fs-tip">{{ $t('locker.tip') }}</text>
                 </scroll-view>
@@ -562,10 +562,18 @@ const lockerLoading = ref(false);
 const lockers = ref<LockerStation[]>([]);
 const unmanned = ref<UnmannedChannel | null>(null);
 const hasLocker = computed(() => lockers.value.length > 0 || !!unmanned.value?.enabled);
+/** 仅 mock 模拟通道能真正受理；真实厂商未接入（服务端返回 unsupported），不宣称已开通 */
+const unmannedReady = computed(() => !!unmanned.value?.enabled && unmanned.value.provider === 'mock');
+const unmannedText = computed(() => {
+    const u = unmanned.value;
+    if (!u) return '';
+    const key = u.provider === 'mock' ? 'locker.unmannedOn' : 'locker.unmannedPending';
+    return locale.t(key).replace('{p}', u.providerName);
+});
 const lockerBrief = computed(() =>
     lockers.value.length
         ? locale.t('locker.brief').replace('{n}', String(lockers.value.length))
-        : locale.t('locker.briefUnmanned')
+        : locale.t(unmannedReady.value ? 'locker.briefUnmanned' : 'locker.briefUnmannedPending')
 );
 const foodGradeKey = computed(() => {
     const g = String(storeInfo.value?.foodSafetyGrade || '').trim().toUpperCase();

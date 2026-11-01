@@ -22,6 +22,11 @@
           <text class="status" :class="'st-' + r.status">{{ statusLabel(r.status) }}</text>
         </view>
         <text class="content">{{ r.content }}</text>
+        <!-- 好评送礼回显：所选礼包 + 发放状态（未选礼包的主评不展示） -->
+        <view v-if="giftText(r)" class="gift-line">
+          <text class="gift-line__tag">{{ $t('myReviews.giftLabel') }}</text>
+          <text>{{ giftText(r) }}</text>
+        </view>
         <view v-if="r.tags?.length" class="tags">
           <text class="tag" v-for="t in r.tags" :key="t">{{ t }}</text>
         </view>
@@ -152,6 +157,24 @@ function statusLabel(s: string) {
 }
 function formatDate(d: string) {
   return d ? new Date(d).toLocaleDateString('zh-CN') : '';
+}
+
+/** 好评送礼：礼包名 · 发放状态（未选礼包或追评不展示） */
+function giftText(r: any): string {
+  if (!r?.giftChoice || r.parentId) return '';
+  const names: Record<string, string> = {
+    quality: locale.t('myReviews.giftQuality'),
+    service: locale.t('myReviews.giftService'),
+    time: locale.t('myReviews.giftTime'),
+  };
+  const name = names[r.giftChoice];
+  if (!name) return '';
+  const state = r.giftGranted
+    ? locale.t('myReviews.giftIssued')
+    : r.status === 'pending'
+      ? locale.t('myReviews.giftPending')
+      : locale.t('myReviews.giftNotIssued');
+  return `${name} · ${state}`;
 }
 
 /** 图片点击大图预览：主评与追评共用（urls 为该组图片全集） */
@@ -297,6 +320,8 @@ async function submitAppeal() {
   &.st-hidden { color: #8a919c; background: #f5f6f8; }
 }
 .content { font-size: 26rpx; color: #1f2329; line-height: 1.6; }
+.gift-line { display: flex; align-items: center; gap: 8rpx; font-size: 22rpx; color: $brand-color; }
+.gift-line__tag { font-weight: 600; }
 .tags { display: flex; flex-wrap: wrap; gap: 12rpx; }
 .tag {
   font-size: 22rpx; color: $brand-color; background: #fff7f2;

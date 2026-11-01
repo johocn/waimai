@@ -4,7 +4,7 @@ import { getGraphQLClient } from '../client';
 const REVIEW_FIELDS = `
     id customerId customerName productId variantId orderLineId parentId
     rating content images tags isAnonymous status reply repliedAt helpfulCount
-    createdAt reviewedAt appealStatus appealReason appealResult
+    createdAt reviewedAt appealStatus appealReason appealResult giftChoice giftGranted
 `;
 
 /** 追评嵌套字段（主评下挂的 approved 追评，正序） */
@@ -67,6 +67,8 @@ export async function createReview(input: {
     images?: string[];
     tags?: string[];
     isAnonymous?: boolean;
+    /** 好评送礼所选礼包：quality / service / time（仅 ≥4 星主评有效） */
+    giftChoice?: string;
 }) {
     const client = getGraphQLClient();
     const query = `

@@ -125,7 +125,7 @@ function tagLabel(t: string): string { return locale.t(`reviewCreate.${TAG_LABEL
 const LABELS: Record<number, string> = { 5: 'r5', 4: 'r4', 3: 'r3', 2: 'r2', 1: 'r1' };
 
 // ── 改进项（仅 1-3 星出现）与好评送礼（仅 4-5 星出现）──
-// 改进项值为提交后端的业务 tag，展示走 i18n；好评送礼三项为纯前端展示，后端无对应字段
+// 改进项值为提交后端的业务 tag，展示走 i18n；好评送礼三项提交英文枚举（quality/service/time）
 const IMPROVE_TAGS = ['口味一般', '分量不足', '配送慢', '包装破损', '性价比低'];
 const IMPROVE_LABELS: Record<string, string> = {
   '口味一般': 'improveTaste',
@@ -136,9 +136,9 @@ const IMPROVE_LABELS: Record<string, string> = {
 };
 function improveLabel(t: string): string { return locale.t(`reviewCreate.${IMPROVE_LABELS[t]}`); }
 const GIFT_OPTIONS = [
-  { value: '质量', labelKey: 'reviewCreate.giftQuality' },
-  { value: '服务', labelKey: 'reviewCreate.giftService' },
-  { value: '时间', labelKey: 'reviewCreate.giftTime' },
+  { value: 'quality', labelKey: 'reviewCreate.giftQuality' },
+  { value: 'service', labelKey: 'reviewCreate.giftService' },
+  { value: 'time', labelKey: 'reviewCreate.giftTime' },
 ];
 const improvePicked = ref<string[]>([]);
 const giftChoice = ref('');
@@ -355,6 +355,8 @@ async function submit() {
         images: images.value.length ? images.value : undefined,
         tags: submitTags(),
         isAnonymous: anonymous.value,
+        // 好评才可选礼包；后端对非法值报错、对 ≤3 星忽略
+        giftChoice: rating.value >= 4 && giftChoice.value ? giftChoice.value : undefined,
       });
       // P4-4 评价提交埋点（评分分布 + 是否带图 + 是否匿名）
       track('review_submit', { productId: productId.value, rating: rating.value, images: images.value.length, anonymous: anonymous.value });

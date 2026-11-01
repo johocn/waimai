@@ -3,7 +3,8 @@ import { riderClient } from './rider';
 import { fetchStoreList } from './waimai';
 
 // schema 校准（hall-shop.resolver.ts / hall-grab.service.ts / rider-task.service.ts）：
-// campusHallAll → [CampusHallOrder!]!（F5 聚合大厅：全渠道 open 单一次带回，含 channelId/channelToken/channelName；
+// campusHallAll → [CampusHallOrder!]!（F5 聚合大厅：全渠道 open 单一次带回，含 channelId/channelName；
+//   M1：列表不再下发 channelToken，token 由 fetchHall 按 channelId 从店铺列表回填）
 //   后端范围=有履约配置+非默认渠道+未暂停，加急置顶+小费降序；匿名/非骑手被 assertApprovedRider 拒绝）
 // campusGrabOrder(orderId) → Order!：成功返回订单；失败抛 GraphQL 错误
 //   （'手慢了，该订单已被抢' / '不能抢自己的订单' / 信用分不足 Forbidden）
@@ -24,7 +25,7 @@ const CAMPUS_HALL_ALL = gql`
     query campusHallAll {
         campusHallAll {
             id code total shipping createdAt
-            channelId channelToken channelName
+            channelId channelName
             customFields { hallStatus hallEnteredAt tip fulfillmentRoute campusZone buildingId deliverySlotText routeGroupId }
         }
     }
@@ -54,17 +55,27 @@ const CAMPUS_BUILDINGS = gql`
     query campusBuildings($zoneId: ID) { campusBuildings(zoneId: $zoneId) { id name zoneId } }
 `;
 
-/** 营业中店铺渠道（暂停店铺不参与大厅/任务） */
+/** 营业中店铺渠道（暂停店铺不参与大厅/任务）；大厅轮询频繁，短期缓存减少店铺列表请求 */
+let channelsMemo: { at: number; list: any[] } | null = null;
+const CHANNELS_MEMO_MS = 60_000;
+
 async function activeChannels(): Promise<any[]> {
-    return (await fetchStoreList().catch(() => [] as any[])).filter((s: any) => !s.paused);
+    if (channelsMemo && Date.now() - channelsMemo.at < CHANNELS_MEMO_MS) return channelsMemo.list;
+    const list = (await fetchStoreList().catch(() => [] as any[])).filter((s: any) => !s.paused);
+    channelsMemo = { at: Date.now(), list };
+    return list;
 }
 
-/** 大厅：campusHallAll 一次带回全渠道 open 单（失败静默降级为空，不拖垮整厅） */
+/** 大厅：campusHallAll 一次带回全渠道 open 单（token 按 channelId 回填，列表不再下发） */
 export async function fetchHall(): Promise<ChannelOrder[]> {
-    const r = await riderClient().request(CAMPUS_HALL_ALL)
-        .then((r: any) => (r.campusHallAll ?? []) as ChannelOrder[])
-        .catch(() => [] as ChannelOrder[]);
-    return r;
+    const [rows, stores] = await Promise.all([
+        riderClient().request(CAMPUS_HALL_ALL)
+            .then((r: any) => (r.campusHallAll ?? []) as ChannelOrder[])
+            .catch(() => [] as ChannelOrder[]),
+        activeChannels(),
+    ]);
+    const tokenOf = new Map(stores.map((s: any) => [String(s.channelId ?? ''), String(s.channelToken ?? '')]));
+    return rows.map(o => ({ ...o, channelToken: tokenOf.get(String(o.channelId ?? '')) ?? '' }));
 }
 
 export async function grabOrder(orderId: string, channelToken?: string) {

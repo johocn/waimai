@@ -99,10 +99,15 @@ def order_money(pg):
 
 def wait_threshold(fen, tries=20):
     for _ in range(tries):
-        r = requests.post(API, json={"query": "{ waimaiStoreList { channelToken freeShippingThreshold } }"},
+        r = requests.post(API, json={"query": "{ waimaiStoreList { channelId freeShippingThreshold } }"},
                           headers={"Content-Type": "application/json"}, timeout=15)
         for s in r.json()["data"]["waimaiStoreList"]:
-            if s["channelToken"] == CHANNEL and s["freeShippingThreshold"] == fen:
+            # 列表不再下发 token：按 channelId 单店换取后比对店铺
+            e = requests.post(API, json={
+                "query": "query($id:ID!){campusStoreEntry(channelId:$id){channelToken}}",
+                "variables": {"id": s["channelId"]},
+            }, headers={"Content-Type": "application/json"}, timeout=15).json()
+            if ((e.get("data") or {}).get("campusStoreEntry") or {}).get("channelToken") == CHANNEL and s["freeShippingThreshold"] == fen:
                 return True
         time.sleep(1.5)
     return False

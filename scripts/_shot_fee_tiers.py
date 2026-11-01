@@ -140,10 +140,15 @@ def first_coupon_id():
 def wait_tiers(expect, tries=20):
     """expect: 期望档位列表（按门槛升序）或 None；按解析后的 JSON 比较，容忍键顺序差异。"""
     for _ in range(tries):
-        r = requests.post(API, json={"query": "{ waimaiStoreList { channelToken deliveryFeeTiers } }"},
+        r = requests.post(API, json={"query": "{ waimaiStoreList { channelId deliveryFeeTiers } }"},
                           headers={"Content-Type": "application/json"}, timeout=15)
         for s in r.json()["data"]["waimaiStoreList"]:
-            if s["channelToken"] != CHANNEL:
+            # 列表不再下发 token：按 channelId 单店换取后比对店铺
+            e = requests.post(API, json={
+                "query": "query($id:ID!){campusStoreEntry(channelId:$id){channelToken}}",
+                "variables": {"id": s["channelId"]},
+            }, headers={"Content-Type": "application/json"}, timeout=15).json()
+            if ((e.get("data") or {}).get("campusStoreEntry") or {}).get("channelToken") != CHANNEL:
                 continue
             raw = s["deliveryFeeTiers"]
             got = None

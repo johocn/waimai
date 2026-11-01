@@ -3,11 +3,12 @@ import { GraphQLClient } from 'graphql-request';
 import { getGraphQLClient, getShopApiUrl, getSessionToken } from '../client';
 import { useAuthStore } from '../../stores/auth';
 
-/** 字段以 campus-delivery-plugin shop-api schema 为准（lib/src/campus-delivery.plugin.js） */
+/** 字段以 campus-delivery-plugin shop-api schema 为准（lib/src/campus-delivery.plugin.js）
+ * 列表不再下发 channelToken（服务端已移除该字段）；进店/跨店操作按 channelId 调 campusStoreEntry 换取。 */
 export const WAIMAI_STORE_LIST = gql`
     query waimaiStoreList {
         waimaiStoreList {
-            channelId channelToken name logo tags monthlySales promoText paused openNow routesEnabled businessHours
+            channelId name logo tags monthlySales promoText paused openNow routesEnabled businessHours
             closedToday closureNote
             deliveryMinutes minOrderAmount deliveryFee storeAddress storePhone storeNotice errandBaseFee freeShippingThreshold
             deliveryFeeTiers
@@ -16,6 +17,61 @@ export const WAIMAI_STORE_LIST = gql`
         }
     }
 `;
+
+/** 单店进店换取渠道 token（服务端限流：每 IP 每分钟 120 次） */
+const CAMPUS_STORE_ENTRY = gql`
+    query CampusStoreEntry($channelId: ID!) {
+        campusStoreEntry(channelId: $channelId) { channelId channelToken }
+    }
+`;
+
+const STORE_TOKEN_KEY = 'waimai_store_tokens_v2';
+const STORE_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
+let storeTokenCache: Record<string, { token: string; at: number }> | null = null;
+const storeTokenInFlight = new Map<string, Promise<string>>();
+
+function loadStoreTokenCache(): Record<string, { token: string; at: number }> {
+    if (storeTokenCache) return storeTokenCache;
+    try {
+        const raw = uni.getStorageSync(STORE_TOKEN_KEY);
+        storeTokenCache = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {};
+    } catch {
+        storeTokenCache = {};
+    }
+    return storeTokenCache!;
+}
+
+function saveStoreTokenCache() {
+    try {
+        uni.setStorageSync(STORE_TOKEN_KEY, JSON.stringify(storeTokenCache ?? {}));
+    } catch {
+        /* 存储失败不影响本次进店 */
+    }
+}
+
+/** 按 channelId 换取并缓存单店 token；并发去重，失败返回空串（由调用方按无 token 处理） */
+async function storeTokenOf(channelId: string): Promise<string> {
+    if (!channelId) return '';
+    const cache = loadStoreTokenCache();
+    const hit = cache[channelId];
+    if (hit?.token && Date.now() - hit.at < STORE_TOKEN_TTL_MS) return hit.token;
+    const existing = storeTokenInFlight.get(channelId);
+    if (existing) return existing;
+    const task = getGraphQLClient()
+        .request(CAMPUS_STORE_ENTRY, { channelId })
+        .then((res: any) => {
+            const token = res?.campusStoreEntry?.channelToken ? String(res.campusStoreEntry.channelToken) : '';
+            if (token) {
+                cache[channelId] = { token, at: Date.now() };
+                saveStoreTokenCache();
+            }
+            return token;
+        })
+        .catch(() => '')
+        .finally(() => storeTokenInFlight.delete(channelId));
+    storeTokenInFlight.set(channelId, task);
+    return task;
+}
 
 /** 店铺菜单商品列表（当前渠道全部在售商品，take 100 覆盖单店菜单规模） */
 const PRODUCT_LIST_QUERY = `
@@ -35,7 +91,13 @@ const PRODUCT_LIST_QUERY = `
 
 export async function fetchStoreList(): Promise<any[]> {
     const res = await getGraphQLClient().request(WAIMAI_STORE_LIST);
-    return res?.waimaiStoreList ?? [];
+    const stores: any[] = res?.waimaiStoreList ?? [];
+    // 兼容既有页面：逐店换取 token 后回填 channelToken（并发去重 + 6h 本地缓存）
+    await Promise.all(stores.map(async (s: any) => {
+        const token = await storeTokenOf(String(s.channelId ?? ''));
+        if (token) s.channelToken = token;
+    }));
+    return stores;
 }
 
 export async function fetchProductList(): Promise<any[]> {

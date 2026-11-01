@@ -106,6 +106,7 @@
     "contactCustomer": "📞 Contact customer",
     "contactTitle": "Contact customer",
     "contactProtectedTip": "Number is protected — do not share it with others",
+    "contactMaskedTip": "Masked number — not directly dialable. Reach the customer via in-app message or platform support",
     "contactCall": "Call",
     "contactKnown": "Got it",
     "contactNoPhone": "Customer has no phone number, please use online support",

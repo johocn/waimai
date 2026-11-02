@@ -10,10 +10,10 @@ export const LOCKER_STATIONS_QUERY = gql`
     }
 `;
 
-/** 无人配送通道状态（P2-4 接口占位）：enabled=false 时入口只做说明 */
+/** 无人配送通道状态（P2-4 接口占位）：enabled=false 时入口只做说明；integrated=false 表示所选厂商尚未接入 */
 export const UNMANNED_CHANNEL_QUERY = gql`
     query CampusUnmannedDeliveryChannel {
-        campusUnmannedDeliveryChannel { enabled provider providerName }
+        campusUnmannedDeliveryChannel { enabled provider providerName integrated }
     }
 `;
 
@@ -33,6 +33,8 @@ export interface UnmannedChannel {
     enabled: boolean;
     provider: string;
     providerName: string;
+    /** 服务端是否已实现下发（false=未接入，调用返回 unsupported） */
+    integrated: boolean;
 }
 
 export interface LockerInfo {

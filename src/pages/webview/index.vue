@@ -1,5 +1,6 @@
 <template>
-  <web-view :src="url"></web-view>
+  <web-view v-if="url" :src="url"></web-view>
+  <view v-else class="wv-empty">{{ $t('webview.invalidLink') }}</view>
 </template>
 
 <script setup lang="ts">
@@ -39,9 +40,14 @@ onLoad((query: any) => {
     const target = decodeURIComponent(query?.url || '');
     if (!isAllowed(target)) {
         uni.showToast({ title: locale.t('webview.invalidLink'), icon: 'none' });
-        uni.navigateBack();
+        // 仅在有上一页时返回；直接打开（无历史）保持当前页，由下方空态文案兜底，避免白屏
+        if (getCurrentPages().length > 1) uni.navigateBack();
         return;
     }
     url.value = target;
 });
 </script>
+
+<style scoped>
+.wv-empty { padding: 160rpx 40rpx; text-align: center; font-size: 26rpx; color: $text-color-placeholder; }
+</style>

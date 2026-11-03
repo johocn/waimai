@@ -410,11 +410,13 @@ async function bootGame() {
         scene: [TeahouseScene],
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
         render: { antialias: true },
-        preBoot: (g: any) => {
-            g.registry.set('world', world);
-            g.registry.set('hooks', hooks);
-            g.registry.set('tool', tool.value);
-            g.registry.set('art', hasArt);
+        callbacks: {
+            preBoot: (g: any) => {
+                g.registry.set('world', world);
+                g.registry.set('hooks', hooks);
+                g.registry.set('tool', tool.value);
+                g.registry.set('art', hasArt);
+            }
         }
     });
 }

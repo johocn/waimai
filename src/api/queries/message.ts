@@ -21,7 +21,7 @@ export interface MyMessage {
 
 export async function getMyMessages(options?: { take?: number; skip?: number }) {
     const client = getGraphQLClient();
-    const query = `query MyMessages($options: JSON) {
+    const query = `query MyMessages($options: MyMessageListOptions) {
         myMessages(options: $options) {
             totalItems
             items { ${MY_MESSAGE_FIELDS} }

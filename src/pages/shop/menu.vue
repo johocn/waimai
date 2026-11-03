@@ -1206,7 +1206,8 @@ onLoad(async (q: any) => {
     } catch (e: any) {
         // 切渠道失败（token 无效）→ 提示并返回首页
         uni.showToast({ title: locale.t('menu.shopNotFound'), icon: 'none' });
-        setTimeout(() => uni.redirectTo({ url: '/pages/home/index' }), 800);
+        // 首页是 tabBar 页，redirectTo 会失败（can not redirectTo a tabbar page），改 switchTab
+        setTimeout(() => uni.switchTab({ url: '/pages/home/index', fail: () => uni.reLaunch({ url: '/pages/home/index' }) }), 800);
     }
 });
 

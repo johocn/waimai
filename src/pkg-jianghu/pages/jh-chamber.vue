@@ -53,6 +53,7 @@ import type { SceneWorld } from '../scene/world';
 import { moveBlock } from '../scene/world';
 import {
     createHQChamberWorld,
+    blockOf,
     doorOf,
     dialsOf,
     trapOf,
@@ -394,11 +395,13 @@ async function bootGame() {
         scene: [ChamberScene],
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
         render: { antialias: true },
-        preBoot: (g: any) => {
-            g.registry.set('world', world);
-            g.registry.set('hooks', hooks);
-            g.registry.set('tool', tool.value);
-            g.registry.set('art', hasArt);
+        callbacks: {
+            preBoot: (g: any) => {
+                g.registry.set('world', world);
+                g.registry.set('hooks', hooks);
+                g.registry.set('tool', tool.value);
+                g.registry.set('art', hasArt);
+            }
         }
     });
 }

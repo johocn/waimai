@@ -10,10 +10,11 @@ export const LOCKER_STATIONS_QUERY = gql`
     }
 `;
 
-/** 无人配送通道状态（P2-4 接口占位）：enabled=false 时入口只做说明；integrated=false 表示所选厂商尚未接入 */
+/** 无人配送通道状态（P2-4 接口占位）：enabled=false 时入口只做说明
+ *  注：integrated 字段当前生产 schema 尚未下发，先不请求，按未接入处理（避免整条查询 400） */
 export const UNMANNED_CHANNEL_QUERY = gql`
     query CampusUnmannedDeliveryChannel {
-        campusUnmannedDeliveryChannel { enabled provider providerName integrated }
+        campusUnmannedDeliveryChannel { enabled provider providerName }
     }
 `;
 
@@ -51,6 +52,8 @@ export async function fetchLockerInfo(): Promise<LockerInfo> {
     ]);
     return {
         stations: (stations?.campusLockerStations ?? []) as LockerStation[],
-        unmanned: (channel?.campusUnmannedDeliveryChannel ?? null) as UnmannedChannel | null,
+        unmanned: (channel?.campusUnmannedDeliveryChannel
+            ? { ...channel.campusUnmannedDeliveryChannel, integrated: false }
+            : null) as UnmannedChannel | null,
     };
 }

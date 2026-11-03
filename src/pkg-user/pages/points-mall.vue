@@ -32,7 +32,7 @@
       <view v-else-if="!filtered.length" class="pm-tip">{{ $t('pointsMall.empty') }}</view>
 
       <view class="pm-card" v-for="p in filtered" :key="p.id">
-        <image class="pm-card__img" :src="p.image || ''" mode="aspectFill" />
+        <image class="pm-card__img" :src="p.image || ''" mode="aspectFill" @error="p.image = ''" />
         <view class="pm-card__body">
           <text class="pm-card__name">{{ p.name }}</text>
           <view class="pm-card__tags">
@@ -62,7 +62,7 @@
           <text class="pm-sheet__close" @tap="closeExchange">✕</text>
         </view>
         <view class="pm-sheet__product">
-          <image class="pm-sheet__img" :src="current?.image || ''" mode="aspectFill" />
+          <image class="pm-sheet__img" :src="current?.image || ''" mode="aspectFill" @error="current.image = ''" />
           <view class="pm-sheet__info">
             <text class="pm-sheet__name">{{ current?.name }}</text>
             <text class="pm-sheet__meta">{{ current?.deliveryType === 'virtual' ? $t('pointsMall.virtual') : $t('pointsMall.physical') }}</text>

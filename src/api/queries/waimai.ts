@@ -89,6 +89,38 @@ const PRODUCT_LIST_QUERY = `
     }
 `;
 
+/**
+ * 轻量兜底查询：服务端 HardenPlugin 复杂度上限收紧时（返回 “Query is too complex”），
+ * 去掉 optionGroups / variant.options / collections 等列表嵌套后重试，保证菜单与随机抽取可用。
+ */
+const PRODUCT_LIST_LITE_QUERY = `
+    query MenuProductsLite {
+        products(options: { take: 100, sort: { name: ASC } }) {
+            items {
+                id name slug description createdAt
+                featuredAsset { preview }
+                variants { id name priceWithTax stockLevel enabled }
+                customFields { reviewRating reviewCount waimaiMonthlySales waimaiSoldOut waimaiPackingFee waimaiAddonGroups waimaiCombo }
+            }
+        }
+    }
+`;
+
+function isComplexityError(e: any): boolean {
+    return /too complex/i.test(String(e?.message ?? e ?? ''));
+}
+
+async function requestProductItems(client: GraphQLClient): Promise<any[]> {
+    try {
+        const res: any = await client.request(PRODUCT_LIST_QUERY);
+        return res?.products?.items ?? [];
+    } catch (e) {
+        if (!isComplexityError(e)) throw e;
+        const res: any = await client.request(PRODUCT_LIST_LITE_QUERY);
+        return res?.products?.items ?? [];
+    }
+}
+
 export async function fetchStoreList(): Promise<any[]> {
     const res = await getGraphQLClient().request(WAIMAI_STORE_LIST);
     const stores: any[] = res?.waimaiStoreList ?? [];
@@ -101,8 +133,7 @@ export async function fetchStoreList(): Promise<any[]> {
 }
 
 export async function fetchProductList(): Promise<any[]> {
-    const res: any = await getGraphQLClient().request(PRODUCT_LIST_QUERY);
-    return res?.products?.items ?? [];
+    return requestProductItems(getGraphQLClient());
 }
 
 /** 菜品每日限量/每人限购（§68）：当前渠道有限量配置商品的当日额度（未登录 my* 为 null） */
@@ -127,6 +158,5 @@ export async function fetchProductListForChannel(channelToken: string): Promise<
     const bearer = authStore.token || getSessionToken();
     if (bearer) headers['Authorization'] = 'Bearer ' + bearer;
     const client = new GraphQLClient(getShopApiUrl(), { headers });
-    const res: any = await client.request(PRODUCT_LIST_QUERY);
-    return res?.products?.items ?? [];
+    return requestProductItems(client);
 }

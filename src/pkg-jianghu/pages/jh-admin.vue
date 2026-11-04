@@ -51,6 +51,8 @@
             <EmptyState v-if="!reviewClues.length" text="本分类暂无线索" />
 
             <!-- 自定义技能审核（UGC）：pending 待审 / approved 已入库 / rejected 已驳回 -->
+            <!-- 后端暂无 jianghuListCustomSkills / jianghuAuditCustomSkill，默认隐藏，避免空列表误判（见 src/config/features.ts） -->
+            <template v-if="FEATURE_JIANGHU_SKILL_AUDIT">
             <view class="sec"><text class="sec-h">自定义技能审核</text><text class="sec-m">{{ skillPendingCount }} 条待处理 / 共 {{ jh.adminSkills.length }} 条</text></view>
             <view class="tabs">
                 <view class="tab" :class="{ on: skillFilter === 'pending' }" @tap="setSkillFilter('pending')">待审<text v-if="skillPendingCount" class="dot">{{ skillPendingCount }}</text></view>
@@ -71,6 +73,7 @@
                 </view>
             </view>
             <EmptyState v-if="!reviewSkills.length" text="本分类暂无技能" />
+            </template>
 
             <!-- 发布新事件 -->
             <view class="sec"><text class="sec-h">发布江湖事件</text><text class="sec-m">将成为最新当前事件</text></view>
@@ -133,6 +136,7 @@ import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useJianghuStore } from '../../stores/jianghu';
 import { jianghuAuditClue, jianghuCreateEvent } from '../../api/admin/jianghu';
+import { FEATURE_JIANGHU_SKILL_AUDIT } from '../../config/features';
 import { SKILL_CATEGORIES } from '../scene/world';
 import EmptyState from '../../components/EmptyState.vue';
 import type { JianghuEventInput } from '../../types/jianghu';
@@ -217,7 +221,12 @@ const form = ref<JianghuEventInput>({ name: '', desc: '', total: undefined, perP
 onShow(async () => {
     loading.value = true;
     try {
-        await Promise.all([jh.loadEventDetail(), jh.loadEventClues(), jh.loadStory(), jh.loadAdminCustomSkills()]);
+        await Promise.all([
+            jh.loadEventDetail(),
+            jh.loadEventClues(),
+            jh.loadStory(),
+            FEATURE_JIANGHU_SKILL_AUDIT ? jh.loadAdminCustomSkills() : Promise.resolve(),
+        ]);
     } catch {
         uni.showToast({ title: '江湖事件暂未开放', icon: 'none' });
     } finally {

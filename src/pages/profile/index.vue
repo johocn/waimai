@@ -58,9 +58,11 @@
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/distribution')"><text>{{ $t('profile.distribution') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/bill-pay')"><text>{{ $t('profile.billPay') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/checkin')"><text>{{ $t('profile.checkin') }}</text><text class="menu-arrow">></text></view>
-      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/vouchers')"><text>{{ $t('profile.vouchers') }}</text><text class="menu-arrow">></text></view>
+      <!-- 券包入口：后端 voucher-plugin 未部署，默认隐藏（见 src/config/features.ts） -->
+      <view class="menu-item" v-if="logged && FEATURE_VOUCHER" @click="nav('/pkg-user/pages/vouchers')"><text>{{ $t('profile.vouchers') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/circle')"><text>{{ $t('profile.circle') }}</text><text class="menu-arrow">></text></view>
-      <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/subscriptions')"><text>{{ $t('profile.subscriptions') }}</text><text class="menu-arrow">></text></view>
+      <!-- 订阅入口：后端 subscription-plugin 未部署，默认隐藏（见 src/config/features.ts） -->
+      <view class="menu-item" v-if="logged && FEATURE_SUBSCRIPTION" @click="nav('/pkg-user/pages/subscriptions')"><text>{{ $t('profile.subscriptions') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/meal-plan')"><text>{{ $t('profile.mealPlan') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/spending')"><text>{{ $t('profile.spending') }}</text><text class="menu-arrow">></text></view>
       <view class="menu-item" v-if="logged" @click="nav('/pkg-user/pages/favorites')"><text>{{ $t('profile.favorites') }}</text><text class="menu-arrow">></text></view>
@@ -107,6 +109,7 @@ import { logout } from '../../api/mutations/auth';
 import { fetchMyRiderProfile } from '../../api/mutations/campus';
 import { useLocaleStore } from '../../stores/locale';
 import { useMessagesStore } from '../../stores/messages';
+import { FEATURE_SUBSCRIPTION, FEATURE_VOUCHER } from '../../config/features';
 
 const authStore = useAuthStore();
 const cartStore = useCartStore();

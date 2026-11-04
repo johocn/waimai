@@ -2748,6 +2748,7 @@
     "tabUsed": "已使用",
     "tabExpired": "已过期",
     "tabRefunded": "已退款",
+    "featureOff": "功能暂未开放",
     "needLogin": "登录后查看我的提货券",
     "login": "去登录",
     "loading": "加载中…",
@@ -2772,6 +2773,7 @@
   "subscription": {
     "title": "周期购订阅",
     "sub": "一次开通，按周期自动配送",
+    "featureOff": "功能暂未开放",
     "needLogin": "登录后查看我的订阅",
     "login": "去登录",
     "mineTitle": "我的订阅",

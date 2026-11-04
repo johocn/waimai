@@ -2748,6 +2748,7 @@
     "tabUsed": "Used",
     "tabExpired": "Expired",
     "tabRefunded": "Refunded",
+    "featureOff": "This feature is not available yet",
     "needLogin": "Log in to view your vouchers",
     "login": "Log in",
     "loading": "Loading…",
@@ -2772,6 +2773,7 @@
   "subscription": {
     "title": "Subscriptions",
     "sub": "Subscribe once, get deliveries on schedule",
+    "featureOff": "This feature is not available yet",
     "needLogin": "Log in to view your subscriptions",
     "login": "Log in",
     "mineTitle": "My subscriptions",

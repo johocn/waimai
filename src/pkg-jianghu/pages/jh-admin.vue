@@ -2,7 +2,7 @@
     <view class="jh">
         <view class="top">
             <text class="title">江湖运营后台</text>
-            <text class="sub">发布江湖事件 · 审核线索与自定义技能</text>
+            <text class="sub">发布江湖事件 · 审核线索</text>
         </view>
         <text class="hint">内部运营工具：复用 admin 接口的 jianghuCreateEvent / jianghuAuditClue。生产需运营 admin token（VITE_ADMIN_TOKEN），开发期走 mock。</text>
 

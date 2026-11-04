@@ -4,20 +4,18 @@ import { getGraphQLClient } from '../client';
 export function updateCustomerProfile(input: { firstName?: string; phoneNumber?: string; avatarUrl?: string }) {
     const customFields: any = {};
     if (input.avatarUrl !== undefined) customFields.avatarUrl = input.avatarUrl;
-    return getGraphQLClient().request(`mutation UpdateCustomerProfile($firstName: String, $phoneNumber: String, $customFields: JSON) {
+    return getGraphQLClient().request(`mutation UpdateCustomerProfile($firstName: String, $phoneNumber: String, $customFields: UpdateCustomerCustomFieldsInput) {
         updateCustomer(input: { firstName: $firstName, phoneNumber: $phoneNumber, customFields: $customFields }) {
-            ...on Customer { id }
-            ...on ErrorResult { errorCode message }
+            id
         }
     }`, { firstName: input.firstName, phoneNumber: input.phoneNumber, customFields });
 }
 
 /** 发票抬头保存（整列表写回，Task 8 消费） */
 export function updateInvoiceTitles(titlesJson: string) {
-    return getGraphQLClient().request(`mutation UpdateInvoiceTitles($customFields: JSON) {
+    return getGraphQLClient().request(`mutation UpdateInvoiceTitles($customFields: UpdateCustomerCustomFieldsInput) {
         updateCustomer(input: { customFields: $customFields }) {
-            ...on Customer { id customFields { invoiceTitles } }
-            ...on ErrorResult { errorCode message }
+            id customFields { invoiceTitles }
         }
     }`, { customFields: { invoiceTitles: titlesJson } });
 }

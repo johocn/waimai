@@ -55,7 +55,7 @@ export async function setCustomerForOrder(input: any) {
 export async function setOrderCustomFields(customFields: Record<string, any>) {
     const client = getGraphQLClient();
     return client.request(`${ORDER_FRAGMENT}
-        mutation SetOrderNote($customFields: JSON!) { setOrderCustomFields(customFields: $customFields) { ... on Order { ...OrderDetail } ... on ErrorResult { errorCode message } } }`, { customFields });
+        mutation SetOrderNote($customFields: UpdateOrderCustomFieldsInput!) { setOrderCustomFields(input: { customFields: $customFields }) { ... on Order { ...OrderDetail } ... on ErrorResult { errorCode message } } }`, { customFields });
 }
 
 export async function setOrderPickupLocation(pickupLocationId: string, pickupType: string) {

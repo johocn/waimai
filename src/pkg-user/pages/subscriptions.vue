@@ -1,10 +1,5 @@
 <template>
   <view class="sb-page">
-    <!-- 后端 subscription-plugin 未部署时，直链访问给出明确提示，且不发起订阅相关查询 -->
-    <view v-if="!FEATURE_SUBSCRIPTION" class="sb-empty">
-      <text class="sb-empty__text">{{ $t('subscription.featureOff') }}</text>
-    </view>
-    <template v-else>
     <view class="sb-hero">
       <text class="sb-hero__ico">🔁</text>
       <text class="sb-hero__title">{{ $t('subscription.title') }}</text>
@@ -82,7 +77,6 @@
 
       <view class="sb-note">{{ $t('subscription.note') }}</view>
     </template>
-    </template>
 
     <!-- 开通弹层：选起始日期 -->
     <view class="sb-mask" v-if="planTarget" @tap="closeSheet">
@@ -117,7 +111,6 @@ import {
   createSubscription,
   confirmRenewal,
 } from '../../api/queries/subscription';
-import { FEATURE_SUBSCRIPTION } from '../../config/features';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
 
@@ -194,8 +187,8 @@ async function load() {
   loading.value = true;
   try {
     const [s, p] = await Promise.all([
-      getMySubscriptions().catch(() => []),
-      getAvailablePlans().catch(() => []),
+      getMySubscriptions().catch((e) => { console.warn('[subscription] mySubscriptions failed', e); return []; }),
+      getAvailablePlans().catch((e) => { console.warn('[subscription] availablePlans failed', e); return []; }),
     ]);
     subs.value = s || [];
     plans.value = (p || []).filter((x: any) => x.enabled !== false);
@@ -263,7 +256,7 @@ async function submitSubscribe() {
   }
 }
 
-onShow(() => { if (!FEATURE_SUBSCRIPTION) { loading.value = false; return; } void load(); });
+onShow(() => { void load(); });
 </script>
 
 <style scoped lang="scss">

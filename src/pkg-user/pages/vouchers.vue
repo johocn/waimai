@@ -1,10 +1,5 @@
 <template>
   <view class="vc-page">
-    <!-- 后端 voucher-plugin 未部署时，直链访问给出明确提示，且不发起 myVouchers 查询 -->
-    <view v-if="!FEATURE_VOUCHER" class="vc-empty">
-      <text class="vc-empty__text">{{ $t('voucher.featureOff') }}</text>
-    </view>
-    <template v-else>
     <view class="vc-hero">
       <text class="vc-hero__ico">🎫</text>
       <text class="vc-hero__title">{{ $t('voucher.title') }}</text>
@@ -43,7 +38,6 @@
     </view>
 
     <view class="vc-note">{{ $t('voucher.note') }}</view>
-    </template>
   </view>
 </template>
 
@@ -51,7 +45,6 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getMyVouchers } from '../../api/queries/voucher';
-import { FEATURE_VOUCHER } from '../../config/features';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
 
@@ -128,7 +121,7 @@ function copyCode(code: string) {
   });
 }
 
-onShow(() => { if (!FEATURE_VOUCHER) { loading.value = false; return; } void load(); });
+onShow(() => { void load(); });
 </script>
 
 <style scoped lang="scss">

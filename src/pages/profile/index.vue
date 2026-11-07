@@ -104,7 +104,7 @@ import { getMyReviews } from '../../api/queries/review';
 import { fetchStoreList } from '../../api/queries/waimai';
 import { useAuthStore } from '../../stores/auth';
 import { useCartStore } from '../../stores/cart';
-import { getSessionToken } from '../../api/client';
+import { useFavoritesStore } from '../../stores/favorites';
 import { logout } from '../../api/mutations/auth';
 import { fetchMyRiderProfile } from '../../api/mutations/campus';
 import { useLocaleStore } from '../../stores/locale';
@@ -113,6 +113,7 @@ import { FEATURE_SUBSCRIPTION, FEATURE_VOUCHER } from '../../config/features';
 
 const authStore = useAuthStore();
 const cartStore = useCartStore();
+const favoritesStore = useFavoritesStore();
 const locale = useLocaleStore();
 const messages = useMessagesStore();
 const customer = ref<any>(null);
@@ -124,7 +125,8 @@ type OrderBadgeKey = 'waitPay' | 'waitReceive' | 'waitReview';
 const EMPTY_ORDER_BADGES: Record<OrderBadgeKey, number> = { waitPay: 0, waitReceive: 0, waitReview: 0 };
 const orderBadges = ref<Record<OrderBadgeKey, number>>({ ...EMPTY_ORDER_BADGES });
 
-const logged = computed(() => !!(authStore.token || getSessionToken()));
+// 登录态只看显式登录（token + 客户 id）；匿名 session token 不能算已登录
+const logged = computed(() => authStore.isLoggedIn);
 const avatarUrl = computed(() => customer.value?.customFields?.avatarUrl || '');
 // 无姓名的邮箱注册用户退回邮箱前缀，避免已登录仍显示「未登录」
 const displayName = computed(() => {
@@ -248,10 +250,18 @@ async function goRiderCenter() {
     } catch (e) { authStore.requireLogin(); }
 }
 async function doLogout() {
-    try { await logout(); } catch (e) {}
+    try { await logout(); } catch (e) { /* 后端注销失败不阻断本地清理 */ }
     authStore.logout();
+    // 清理用户私有缓存：购物车（含未购买暂存行）、消息、收藏/常买/常逛
     cartStore.clearCart();
-    uni.reLaunch({ url: '/pages/login/index' });
+    cartStore.clearPendingLines();
+    messages.clear();
+    favoritesStore.clearLocal();
+    customer.value = null;
+    unusedCouponCount.value = 0;
+    orderBadges.value = { ...EMPTY_ORDER_BADGES };
+    afterSaleActive.value = 0;
+    uni.showToast({ title: locale.t('profile.logoutOk'), icon: 'none' });
 }
 function doLogin() { authStore.requireLogin(); }
 

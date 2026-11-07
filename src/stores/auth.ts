@@ -10,7 +10,9 @@ export const useAuthStore = defineStore('auth', () => {
     const userInfo = ref<any>(null);
     const inviteCode = ref('');
 
-    const isLoggedIn = computed(() => !!token.value);
+    // 「已登录」= 显式登录令牌 + 后端返回的客户 id 都存在。
+    // 匿名会话 token（vendure_session_token）不算登录态；token 残留但无 userId 也不可信。
+    const isLoggedIn = computed(() => !!token.value && !!userId.value);
 
     function setAuth(newToken: string, newUserId: string) {
         token.value = newToken;
@@ -41,6 +43,9 @@ export const useAuthStore = defineStore('auth', () => {
         uni.removeStorageSync('auth_userId');
         uni.removeStorageSync('auth_inviteCode');
         uni.removeStorageSync('auth_openid');
+        // 会话令牌同样属于登录态：不清会让后续请求继续以「已登录会话」运行，
+        // 匿名会话被续签后又会被误判成已登录（见 api/client.ts customFetch）。
+        uni.removeStorageSync('vendure_session_token');
         uni.$emit(LOGOUT_EVENT);
     }
 

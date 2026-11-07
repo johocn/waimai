@@ -965,7 +965,53 @@ function goReceipt() {
     if (!order.value?.code) return;
     uni.navigateTo({ url: `/pkg-order/pages/receipt?code=${encodeURIComponent(order.value.code)}` });
 }
-function confirmReceive() { uni.showModal({ title: locale.t('orderDetail.receiveBtn'), content: locale.t('orderDetail.receiveConfirm'), success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation { transitionOrderToState(state: "Delivered") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`); uni.showToast({ title: locale.t('orderDetail.received') }); order.value.state = 'Delivered'; } catch (e: any) { uni.showToast({ title: e.message, icon: 'none' }); } } } }); }
+/**
+ * 确认收货：Vendure 的 transitionOrderToState 返回 union（Order | ErrorResult），
+ * 后端拒绝（如 INELIGIBLE_FOR_TRANSITION）不会抛异常，只在 data 里给 errorCode。
+ * 因此必须显式判 errorCode；失败不改 UI 状态并回滚，成功也要重新拉单确认 state 真的变成 Delivered。
+ */
+function confirmReceive() {
+    uni.showModal({
+        title: locale.t('orderDetail.receiveBtn'),
+        content: locale.t('orderDetail.receiveConfirm'),
+        success: async (r: any) => {
+            if (!r.confirm) return;
+            const prevState = order.value?.state;
+            try {
+                const client = getGraphQLClient();
+                const res: any = await client.request(`mutation { transitionOrderToState(state: "Delivered") { ... on Order { id state } ... on ErrorResult { errorCode message } } }`);
+                const ret = res?.transitionOrderToState;
+                if (ret?.errorCode) {
+                    // 后端明确拒绝：不乐观改状态，重置为服务端真实状态并提示原因
+                    if (order.value?.state !== prevState) order.value.state = prevState;
+                    uni.showToast({ title: ret.message || locale.t('orderDetail.receiveFail'), icon: 'none' });
+                    await reloadOrder();
+                    return;
+                }
+                if (ret?.state !== 'Delivered') {
+                    // 没有 errorCode 但状态不是 Delivered：同样不能当成功
+                    if (order.value?.state !== prevState) order.value.state = prevState;
+                    uni.showToast({ title: locale.t('orderDetail.receiveSyncFail'), icon: 'none' });
+                    await reloadOrder();
+                    return;
+                }
+                // 成功：先以服务端最新数据为准，再确认状态确实持久化
+                await reloadOrder();
+                if (order.value?.state !== 'Delivered') {
+                    if (order.value?.state !== prevState) order.value.state = prevState;
+                    uni.showToast({ title: locale.t('orderDetail.receiveSyncFail'), icon: 'none' });
+                    return;
+                }
+                uni.showToast({ title: locale.t('orderDetail.received'), icon: 'success' });
+            } catch (e: any) {
+                // 网络/GraphQL 异常：不乐观改状态，重新拉单对齐真实状态
+                if (order.value?.state !== prevState) order.value.state = prevState;
+                await reloadOrder();
+                uni.showToast({ title: e?.response?.errors?.[0]?.message || e.message || locale.t('orderDetail.receiveFail'), icon: 'none' });
+            }
+        }
+    });
+}
 function cancelOrder() { uni.showModal({ title: locale.t('orderDetail.cancelBtn'), content: locale.t('orderDetail.cancelConfirm'), success: async (r: any) => { if (r.confirm) { try { const client = getGraphQLClient(); await client.request(`mutation CancelMyOrder($orderId: ID!) { cancelMyOrder(orderId: $orderId) { id state } }`, { orderId: order.value.id }); uni.showToast({ title: locale.t('orderDetail.cancelled') }); order.value.state = 'Cancelled'; stopRiderPolling(); } catch (e: any) { uni.showToast({ title: e?.response?.errors?.[0]?.message || e.message, icon: 'none' }); } } } }); }
 // 去评价：默认带第一个商品行（同一行同一客户只能评一次，后端防重）
 function goReview() {

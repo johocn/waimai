@@ -356,9 +356,21 @@ export const useFavoritesStore = defineStore('favorites', () => {
         persistItems();
     }
 
+    /** 退出登录：收藏/常买/常逛均为用户私有数据，连同本地缓存一起清空 */
+    function clearLocal() {
+        ids.value = [];
+        recents.value = [];
+        variantItems.value = [];
+        recentItems.value = [];
+        uni.removeStorageSync(FAV_KEY);
+        uni.removeStorageSync(RECENT_KEY);
+        uni.removeStorageSync(VARIANT_KEY);
+        uni.removeStorageSync(ITEM_KEY);
+    }
+
     return {
         ids, recents, variantItems, recentItems, syncing,
         isFavorite, isVariantFavorite, toggle, toggleVariant,
-        loadRemote, hydrateVariantMeta, refreshVariantPrices, touchRecent, touchRecentItem,
+        loadRemote, hydrateVariantMeta, refreshVariantPrices, touchRecent, touchRecentItem, clearLocal,
     };
 });

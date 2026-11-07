@@ -484,6 +484,7 @@ import { estimateDiscountFen, pickBestCoupon, couponUnavailableReason, type Coup
 import { lineNoteViews, lineNoteSegments, composeNote, clearStoreNotes, type LineNoteView } from '../../utils/line-notes';
 import { etaRange, etaClockText } from '../../utils/delivery-eta';
 import { ADDON_FEE_SKU, quoteAddonFeePerLine } from '../../utils/addon-fee';
+import { classifyPayOutcome } from '../../utils/pay-status';
 
 type ShippingCategory = 'shipping' | 'store-pickup';
 type TabKey = 'campus' | ShippingCategory;
@@ -1646,25 +1647,38 @@ async function prepareOrderAddressAndShipping(): Promise<boolean> {
     return true;
 }
 
+/** 查询订单真实状态；失败返回空串（由调用方按“未知”处理，绝不伪造成成功） */
+async function fetchOrderState(code: string): Promise<string> {
+    try {
+        const res: any = await getOrderByCode(code);
+        return String(res?.orderByCode?.state ?? '');
+    } catch (e) {
+        console.warn('[checkout] query order state failed', e);
+        return '';
+    }
+}
+
 /**
- * 轮询订单是否已结算（JSAPI 支付 ok 后微信异步回调有延迟，轻量探测 2 次 × 1.5s）
+ * 轮询订单是否已结算：微信异步回调有延迟，窗口不能太短。
+ * 指数退避 1s → 2s → 4s → 5s → 5s → 5s（约 22s，最多 6 次），避免高频请求打爆接口。
  */
 async function pollOrderSettled(code: string): Promise<boolean> {
-    for (let i = 0; i < 2; i++) {
-        await new Promise(r => setTimeout(r, 1500));
-        try {
-            const res: any = await getOrderByCode(code);
-            if (res?.orderByCode?.state === 'PaymentSettled') return true;
-        } catch (e) { console.warn('[checkout] poll order failed', e); }
+    let delay = 1000;
+    for (let i = 0; i < 6; i++) {
+        await new Promise(r => setTimeout(r, delay));
+        const state = await fetchOrderState(code);
+        if (state === 'PaymentSettled') return true;
+        delay = Math.min(delay * 2, 5000);
     }
     return false;
 }
 
 /**
  * 对当前 active order 提交支付
- * 返回 { code, status }：success=已确认结算 / pending=已调起待回调确认 / fail=未完成
+ * 返回 { code, status }：success=已确认结算 / pending=已调起待回调确认（处理中）
+ * / unpaid=轮询超时后确认仍未支付 / fail=用户取消或提交失败
  */
-async function payCurrentOrder(method: string): Promise<{ code: string; status: 'success' | 'pending' | 'fail' }> {
+async function payCurrentOrder(method: string): Promise<{ code: string; status: 'success' | 'pending' | 'unpaid' | 'fail' }> {
     // Build payment metadata (wechatpay JSAPI requires openid)
     const paymentMetadata: Record<string, any> = {};
     if (method === 'wechatpay') {
@@ -1689,7 +1703,14 @@ async function payCurrentOrder(method: string): Promise<{ code: string; status: 
         });
         if (result.success) {
             const settled = await pollOrderSettled(order.code);
-            return { code: order.code, status: settled ? 'success' : 'pending' };
+            if (settled) return { code: order.code, status: 'success' };
+            // 轮询超时不能停在“确认中”：再查一次真实订单状态，按真实状态归类
+            const finalState = await fetchOrderState(order.code);
+            const outcome = classifyPayOutcome([finalState]);
+            if (outcome === 'success') return { code: order.code, status: 'success' };
+            if (outcome === 'pending') return { code: order.code, status: 'pending' };
+            // ArrangingPayment / Cancelled / 查询失败：未支付，允许用户回到结果页重新支付
+            return { code: order.code, status: 'unpaid' };
         }
         // 用户取消/失败：取消该笔 payment 让订单回到可支付状态（失败不阻断，仅提示）
         try { await cancelPayment(lastPayment.id); } catch (e) { console.warn('[checkout] cancelPayment failed', e); }
@@ -1754,7 +1775,7 @@ async function submitOrder() {
         // P4-4 支付成功埋点（success=已结算；pending=已调起收银台待回调）
         track('pay_success', { method: selectedPayment.value, code: pay.code, state: pay.status });
         recordRecentItems();
-        uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(pay.code)}&status=${pay.status}` });
+        uni.redirectTo({ url: `/pkg-order/pages/pay-result?code=${encodeURIComponent(pay.code)}&status=${pay.status}&token=${encodeURIComponent(storeMeta.value.channelToken || tenantStore.token || '')}` });
     } catch (e: any) { ui.showToast(e?.response?.errors?.[0]?.message || e.message); }
     ui.hideLoading();
     submitting.value = false;

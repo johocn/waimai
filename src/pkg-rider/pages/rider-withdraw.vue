@@ -7,6 +7,8 @@
                 <input class="ac-input" type="digit" v-model="amountYuan" :placeholder="$t('riderWithdraw.amountPh')" placeholder-class="ac-ph" />
             </view>
             <text class="ac-avail">{{ $t('riderWithdraw.available').replace('{n}', fmt(wallet?.available ?? 0)) }}<text class="ac-all" @tap="fillAll">{{ $t('riderWithdraw.all') }}</text></text>
+            <text class="ac-frozen" v-if="frozenFen > 0">{{ $t('riderWithdraw.frozen').replace('{n}', fmt(frozenFen)) }}</text>
+            <text class="ac-err" v-if="exceedHint">{{ exceedHint }}</text>
         </view>
 
         <view class="section">
@@ -35,6 +37,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { myRiderWallet, riderWithdraw } from '../../api/queries/wallet';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
+import { checkWithdrawAmount } from '../../utils/withdraw-guard';
 
 const auth = useAuthStore();
 const locale = useLocaleStore();
@@ -49,18 +52,22 @@ const channels = ['支付宝', '微信'];
 const channelLabel = (c: string) => locale.t(c === '支付宝' ? 'riderWithdraw.channelAlipay' : 'riderWithdraw.channelWechat');
 const accountPh = computed(() => locale.t(channel.value === '支付宝' ? 'riderWithdraw.accountAlipayPh' : 'riderWithdraw.accountWechatPh'));
 
-const canSubmit = computed(() => {
-    const fen = toFen(amountYuan.value);
-    return fen >= 1000 && !!channel.value && !!account.value.trim();
+/** 可用余额（分）；钱包未加载成功时为 null，此时不做过额拦截（服务端仍兜底） */
+const availableFen = computed<number | null>(() => {
+    const v = wallet.value?.available;
+    return v == null ? null : Number(v);
+});
+const frozenFen = computed(() => Math.max(0, Number(wallet.value?.frozen) || 0));
+const amountCheck = computed(() => checkWithdrawAmount(amountYuan.value, availableFen.value));
+/** 超出可用余额的即时提示（输入为空/未超时不显示） */
+const exceedHint = computed(() => {
+    if (!amountYuan.value.trim()) return '';
+    const c = amountCheck.value;
+    return !c.ok && c.reason === 'exceed' ? locale.t('riderWithdraw.exceed').replace('{n}', fmt(c.maxFen)) : '';
 });
 
-// 金额元→分：字符串按小数位直接解析，避免浮点误差（如 26.9*100=floor 2689 丢 1 分）；
-// 非法输入（非数字/超 2 位小数）返回 0 使 canSubmit 为 false
-function toFen(v: string) {
-    const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec((v || '').trim());
-    if (!m) return 0;
-    return parseInt(m[1], 10) * 100 + (m[2] ? parseInt(m[2].padEnd(2, '0'), 10) : 0);
-}
+const canSubmit = computed(() => amountCheck.value.ok && !!channel.value && !!account.value.trim());
+
 function fmt(fen: number) { return ((fen ?? 0) / 100).toFixed(2); }
 
 function fillAll() {
@@ -75,8 +82,16 @@ onShow(async () => {
 });
 
 async function submit() {
-    const fen = toFen(amountYuan.value);
-    if (fen < 1000) return uni.showToast({ title: locale.t('riderWithdraw.minAmount'), icon: 'none' });
+    const c = checkWithdrawAmount(amountYuan.value, availableFen.value);
+    if (!c.ok) {
+        return uni.showToast({
+            title: c.reason === 'exceed'
+                ? locale.t('riderWithdraw.exceed').replace('{n}', fmt(c.maxFen))
+                : locale.t('riderWithdraw.minAmount'),
+            icon: 'none',
+        });
+    }
+    const fen = c.fen;
     submitting.value = true;
     try {
         await riderWithdraw({ amount: fen, channel: channel.value, account: account.value.trim() });
@@ -101,6 +116,8 @@ async function submit() {
 .ac-ph { color: $text-color-placeholder; font-weight: 400; }
 .ac-avail { display: block; font-size: 24rpx; color: $text-muted; margin-top: 16rpx; }
 .ac-all { color: $brand-color; margin-left: 16rpx; }
+.ac-frozen { display: block; font-size: 24rpx; color: $text-muted; margin-top: 8rpx; }
+.ac-err { display: block; font-size: 24rpx; color: #e54d42; margin-top: 8rpx; }
 .section { margin-top: 32rpx; }
 .sec-title { display: block; font-size: 26rpx; color: $text-muted; margin-bottom: 16rpx; }
 .channels { display: flex; gap: 20rpx; }

@@ -201,6 +201,8 @@
     "submitting": "Submitting…",
     "note": "Balance freezes on submit; paid after approval; auto-refunded if rejected",
     "minAmount": "Min withdrawal ¥10",
+    "exceed": "Exceeds available balance ¥{n}",
+    "frozen": "Under review ¥{n}",
     "submitted": "Submitted — awaiting review",
     "submitFail": "Submit failed, please retry"
   },

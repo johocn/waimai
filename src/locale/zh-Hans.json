@@ -1792,7 +1792,7 @@
     "notActive": "活动不在可预订时间",
     "fail": "预订失败，请稍后重试",
     "note": "预售订单按下单顺序发货，定金/尾款规则以活动说明为准",
-    "releaseAt": "预计到货 {d}",
+    "releaseAt": "预计到货 {d}（门店时间）",
     "dayUnit": "天"
   },
   "distribution": {

@@ -22,6 +22,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getOrderByCode } from '../../api/queries/order';
@@ -42,10 +43,7 @@ function fen(v: any): string {
 }
 
 function fmtDate(raw?: string): string {
-  const d = new Date(String(raw ?? ''));
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return fmtUser(raw, 'datetime').replace(/-/g, '.');
 }
 
 /** 单行截断：超出宽度补省略号 */

@@ -160,6 +160,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser, userDayKey } from '../../utils/datetime';
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useFavoritesStore } from '../../stores/favorites';
@@ -205,7 +206,7 @@ const weekDays = computed(() => {
     return {
       date: d,
       num: d.getDate(),
-      isToday: d.toDateString() === n.toDateString(),
+      isToday: userDayKey(d) === userDayKey(n),
       hasPlan: plans.value.some(p => planHits(p, d)),
     };
   });
@@ -224,8 +225,8 @@ const weekCount = computed(() => weekPlanCount(plans.value, weekDays.value[0]?.d
 const dayTitle = computed(() => {
   const d = selDate.value;
   const n = new Date(nowTick.value);
-  const prefix = d.toDateString() === n.toDateString() ? t('mealPlan.today') : '';
-  const md = `${d.getMonth() + 1}/${d.getDate()}`;
+  const prefix = userDayKey(d) === userDayKey(n) ? t('mealPlan.today') : '';
+  const md = fmtUser(d, 'md').replace('-', '/');
   return `${prefix ? prefix + ' · ' : ''}${md} ${dowLabel(isoWeekday(d))}`;
 });
 

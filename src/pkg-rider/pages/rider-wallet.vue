@@ -71,6 +71,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref } from 'vue';
 import { onShow, onReachBottom } from '@dcloudio/uni-app';
 import { myRiderWallet, riderBalanceHistory, riderWithdrawRequests } from '../../api/queries/wallet';
@@ -109,8 +110,7 @@ function statusLabel(s: string) {
 function fmt(fen: number) { return ((fen ?? 0) / 100).toFixed(2); }
 
 function fmtTime(v: any) {
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? String(v ?? '') : d.toLocaleString('zh-CN', { hour12: false });
+    return fmtUser(v, 'datetime');
 }
 
 function switchTab(t: 'history' | 'withdraw') {

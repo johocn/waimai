@@ -379,6 +379,7 @@
   <LoadingSkeleton v-else type="card" :count="2" />
 </template>
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getOrderByCode, getOrdersForChannel } from '../../api/queries/order';
 import { getPaymentSchedule } from '../../api/queries/paymentSchedule';
@@ -938,7 +939,7 @@ async function selfRedeem() {
         uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('orderDetail.redeemFail'), icon: 'none' });
     }
 }
-function formatTime(t: string) { return t ? new Date(t).toLocaleString('zh-CN') : ''; }
+function formatTime(t: string) { return fmtUser(t, 'datetime'); }
 function copyCode() { uni.setClipboardData({ data: order.value.code }); uni.showToast({ title: locale.t('orderDetail.copied'), icon: 'success' }); }
 
 /** 取餐凭证：大字码 + 自提点信息，支持分享给同学代取 */

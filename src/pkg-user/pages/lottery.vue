@@ -74,6 +74,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getLotteryOverview, getMyLotteryRecords, drawLottery } from '../../api/queries/activity';
@@ -105,10 +106,7 @@ const costHint = computed(() => {
 });
 
 function formatTime(v: string) {
-  if (!v) return '';
-  const d = new Date(v);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return fmtUser(v, 'datetime');
 }
 
 async function load() {

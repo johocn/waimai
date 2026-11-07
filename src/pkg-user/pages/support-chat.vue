@@ -67,6 +67,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed, onUnmounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { useLocaleStore } from '../../stores/locale';
@@ -265,10 +266,7 @@ async function restart() {
 }
 
 function formatTime(d: string) {
-  if (!d) return '';
-  const date = new Date(d);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return fmtUser(d, 'mdhm');
 }
 </script>
 

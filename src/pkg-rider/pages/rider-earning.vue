@@ -36,6 +36,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { myRiderProfile } from '../../api/queries/rider';
@@ -53,8 +54,7 @@ const weekTotal = computed(() => sumOf(rows.value, 7));
 function fmt(fen: number) { return (fen / 100).toFixed(2); }
 
 function fmtTime(v: any) {
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? String(v ?? '') : d.toLocaleString('zh-CN', { hour12: false });
+    return fmtUser(v, 'datetime');
 }
 
 function sumOf(list: any[], days: number) {

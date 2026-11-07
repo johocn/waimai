@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser, userDayKey } from '../../utils/datetime';
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getOrdersForChannel } from '../../api/queries/order';
@@ -111,12 +112,9 @@ function yuan(fen: any): string {
 
 function timeText(at: number): string {
     if (!at) return '';
-    const d = new Date(at);
-    const now = new Date();
-    const sameDay = d.toDateString() === now.toDateString();
-    const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    if (sameDay) return locale.t('history.today').replace('{t}', hm);
-    return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, '0')} ${hm}`;
+    const hm = fmtUser(at, 'hm');
+    if (userDayKey(at) === userDayKey()) return locale.t('history.today').replace('{t}', hm);
+    return fmtUser(at, 'mdhm');
 }
 
 function clearAll() {

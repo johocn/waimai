@@ -1,7 +1,9 @@
 /**
  * 店铺营业状态：解析后端 businessHours 文本（如 "10:00-21:00"、"10:00–14:00, 17:00–21:00"），
- * 结合当前时间给出 营业中 / 即将打烊 / 已打烊 / 未知。纯函数，SSR 与 H5 通用。
+ * 结合**门店当地时间**给出 营业中 / 即将打烊 / 已打烊 / 未知。纯函数，SSR 与 H5 通用。
  */
+import { fmtStore } from './datetime';
+
 export type StoreOpenState = 'open' | 'closing' | 'closed' | 'unknown';
 
 export interface StoreStatus {
@@ -57,7 +59,8 @@ export function parseBusinessHours(raw?: string | null): Range[] {
 export function getStoreStatus(raw?: string | null, now: Date = new Date()): StoreStatus {
     const ranges = parseBusinessHours(raw);
     if (!ranges.length) return UNKNOWN;
-    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const [storeH, storeM] = fmtStore(now, 'hm').split(':');
+    const nowMin = Number(storeH) * 60 + Number(storeM);
     for (const r of ranges) {
         // 当日窗口；跨零点窗口同时按 toNow + 1440 判断凌晨时段
         for (const offset of [0, 1440]) {

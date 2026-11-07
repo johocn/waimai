@@ -95,6 +95,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getPaymentSchedule, paySchedulePeriod, cancelSchedule } from '../../api/queries/paymentSchedule';
@@ -191,11 +192,7 @@ function itemStatusLabel(status: string) {
   return k ? locale.t(`paymentSchedule.${k}`) : status || '';
 }
 function fmtDate(v: string) {
-  if (!v) return '';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => (n < 10 ? '0' + n : String(n));
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return fmtUser(v, 'datetime');
 }
 function canPay(it: any) {
   return ['payable', 'overdue', 'locked'].includes(it.status) && schedule.value?.status !== 'cancelled';

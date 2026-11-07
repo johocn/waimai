@@ -450,6 +450,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser, storeDayKey } from '../../utils/datetime';
 import { ref, computed, onMounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import PickupLocationSheet from '../../components/PickupLocationSheet.vue';
@@ -697,9 +698,8 @@ const routeText = computed(() => {
 const slotsWithRemain = computed(() => slots.value.filter(s => s.capacity - s.lockedCount > 0));
 
 // ===== 预约日期（plan 3.1）：日期 tab → 时段 chips 两级选择 =====
-const fmtDate = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-const todayStr = fmtDate(new Date());
-const tomorrowStr = fmtDate(new Date(Date.now() + 86_400_000));
+const todayStr = storeDayKey(new Date());
+const tomorrowStr = storeDayKey(new Date(Date.now() + 86_400_000));
 const slotDates = computed(() => [...new Set(slotsWithRemain.value.map(s => s.slotDate))].sort());
 const slotsOfDate = computed(() => slotsWithRemain.value.filter(s => s.slotDate === slotDate.value));
 const selectedSlotFuture = computed(() => {
@@ -1414,8 +1414,7 @@ function csYuan(fen: number): string {
 }
 
 function csDate(s: string): string {
-    const d = new Date(s);
-    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    return fmtUser(s, 'date').replace(/-/g, '.');
 }
 
 async function loadMyCoupons() {

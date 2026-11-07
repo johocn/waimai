@@ -57,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { fetchMyAfterSales } from '../../api/queries/afterSale';
@@ -136,11 +137,7 @@ function fen(v: any): string {
   return (Number(v || 0) / 100).toFixed(2);
 }
 function fmtTime(v?: string | null): string {
-  if (!v) return '';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return fmtUser(v, 'datetime');
 }
 /** 详情描述首行（创建时写入「整单退款」或「部分退款：…」） */
 function descLine(r: AfterSaleRequest): string {

@@ -4,6 +4,7 @@
  * 纯函数，SSR 与 H5 通用。
  */
 import { getStoreStatus } from './store-status';
+import { fmtStore } from './datetime';
 
 export type MealSlotKey = 'breakfast' | 'lunch' | 'tea' | 'dinner' | 'night';
 
@@ -26,9 +27,9 @@ const SLOTS: MealSlot[] = [
     { key: 'night', tags: ['夜宵'], filterTag: '夜宵', icon: '🌙', hours: [21, 2] },
 ];
 
-/** 当前时段：06–10 早餐、10–14 午餐、14–17 下午茶、17–21 晚餐、21–02 夜宵 */
+/** 当前时段（按门店当地时间）：06–10 早餐、10–14 午餐、14–17 下午茶、17–21 晚餐、21–02 夜宵 */
 export function currentMealSlot(now: Date = new Date()): MealSlot {
-    const h = now.getHours();
+    const h = Number(fmtStore(now, 'hm').split(':')[0]);
     if (h >= 21 || h < 2) return SLOTS[4];
     if (h < 6) return SLOTS[4];
     if (h < 10) return SLOTS[0];

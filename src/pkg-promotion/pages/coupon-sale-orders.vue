@@ -89,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import {
@@ -155,10 +156,7 @@ function money(fen: any): string {
 }
 
 function fmtDateTime(s: string | null): string {
-  if (!s) return '';
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return fmtUser(s, 'datetime').replace(/-/g, '.');
 }
 
 function typeText(o: any): string {

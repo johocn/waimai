@@ -6,6 +6,7 @@
  * 打烊时返回下一次开门后的送达时段；无营业时间配置时按营业中处理（与 store-status 一致）。
  */
 import { getStoreStatus } from './store-status';
+import { fmtStore } from './datetime';
 
 /** 店铺未配置 deliveryMinutes 时的兜底时长（分钟） */
 export const DEFAULT_DELIVERY_MIN = 30;
@@ -67,7 +68,8 @@ export function etaRange(input: EtaInput = {}): EtaResult {
     const now = input.now ?? new Date();
     const minutes = normalizeMinutes(input.deliveryMinutes);
     const windowMin = Math.max(0, Math.round(Number(input.windowMin ?? ETA_WINDOW_MIN)) || 0);
-    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const storeHM = fmtStore(now, 'hm').split(':');
+    const nowMin = Number(storeHM[0]) * 60 + Number(storeHM[1]);
     const status = getStoreStatus(input.businessHours, now);
 
     let base: number;

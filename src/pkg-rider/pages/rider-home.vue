@@ -74,6 +74,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { computed, ref } from 'vue';
 import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchHall, grabOrder, grabOrders, fetchBuildingMap } from '../../api/queries/hall';
@@ -114,20 +115,12 @@ const compDetail = computed(() => {
 });
 
 function shortDay(v?: string): string {
-    if (!v) return '';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return '';
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return fmtUser(v, 'date');
 }
 
 /** 评价时间显示为 MM-DD HH:mm（列表只展示最近 5 条，无需完整年份） */
 function shortDate(v?: string): string {
-    if (!v) return '';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return '';
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    return fmtUser(v, 'mdhm');
 }
 const tasks = ref<any[]>([]);
 const loading = ref(true);

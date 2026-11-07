@@ -102,6 +102,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import {
@@ -155,11 +156,7 @@ function money(fen: number) {
   return (Number(fen || 0) / 100).toFixed(2);
 }
 function fmtDate(v: string) {
-  if (!v) return '';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => (n < 10 ? '0' + n : String(n));
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return fmtUser(v, 'date');
 }
 /** 下一次配送日：排期里第一个未过期且已生成订单之外仍是最近的日期 */
 function nextDate(s: any) {

@@ -66,6 +66,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getCircleFeed, getMyCirclePosts, toggleCircleFavorite, toggleCircleLike, type CirclePost } from '../../api/queries/circle';
@@ -90,10 +91,7 @@ function timeText(iso: string) {
     if (diff < 3600 * 1000) return locale.t('circle.minutesAgo').replace('{n}', String(Math.floor(diff / 60000)));
     if (diff < 86400 * 1000) return locale.t('circle.hoursAgo').replace('{n}', String(Math.floor(diff / 3600000)));
     if (diff < 7 * 86400 * 1000) return locale.t('circle.daysAgo').replace('{n}', String(Math.floor(diff / 86400000)));
-    const d = new Date(iso);
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${d.getFullYear()}-${mm}-${dd}`;
+    return fmtUser(iso, 'date');
 }
 
 async function fetchPage(skip: number) {

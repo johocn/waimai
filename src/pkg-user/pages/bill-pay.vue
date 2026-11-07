@@ -139,6 +139,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import {
@@ -203,10 +204,7 @@ function money(fen: number) {
   return (Number(fen || 0) / 100).toFixed(2);
 }
 function fmtDate(v: string) {
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => (n < 10 ? '0' + n : String(n));
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return fmtUser(v, 'mdhm');
 }
 /** 阈值/会员折扣文案为 LocalizedText（string | {locale: text}），逐级回退 */
 function localizeLabel(label: any): string {

@@ -79,6 +79,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useJianghuStore } from '../../stores/jianghu';
@@ -101,10 +102,7 @@ function isUnlocked(ch: JianghuChapter): boolean {
 }
 
 function fmt(iso: string): string {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '';
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    return fmtUser(iso, 'mdhm');
 }
 
 onShow(async () => {

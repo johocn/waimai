@@ -42,6 +42,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getMyVouchers } from '../../api/queries/voucher';
@@ -86,11 +87,7 @@ function statusLabel(s: string) {
   return k ? locale.t(`voucher.${k}`) : s;
 }
 function fmtDate(v: string) {
-  if (!v) return '';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => (n < 10 ? '0' + n : String(n));
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return fmtUser(v, 'date');
 }
 function expireText(v: any) {
   if (v.usedAt) return locale.t('voucher.usedAt').replace('{t}', fmtDate(v.usedAt));

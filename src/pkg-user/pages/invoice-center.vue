@@ -88,6 +88,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { getMyInvoices, downloadInvoicePdf, applyOrderInvoice } from '../../api/queries/invoice';
@@ -181,11 +182,7 @@ function money(cents: number | string): string {
 }
 
 function fmtTime(raw?: string): string {
-  if (!raw) return '';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => (n < 10 ? '0' + n : String(n));
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return fmtUser(raw, 'datetime');
 }
 
 /** 从订单列表/详情带入的订单号：加载完成后自动打开该单开票弹层 */

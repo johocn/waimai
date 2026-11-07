@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { lookupGuestOrder, isGuestOrderNotFound } from '../../api/queries/guest-order';
@@ -148,10 +149,7 @@ function money(cents: number | string): string {
 }
 
 function fmtTime(raw: string): string {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return '';
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return fmtUser(raw, 'datetime');
 }
 
 /** 大字取餐凭证：游客无登录态，全部参数随链接带入，接收者无需登录即可查看 */

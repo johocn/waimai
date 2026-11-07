@@ -74,6 +74,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useAuthStore } from '../../stores/auth';
@@ -223,9 +224,7 @@ function stateText(s: string): string {
 }
 
 function fmtDate(s: string | null): string {
-    if (!s) return '';
-    const d = new Date(s);
-    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    return fmtUser(s, 'date').replace(/-/g, '.');
 }
 
 async function load(status: string) {

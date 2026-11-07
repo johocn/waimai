@@ -64,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { fetchMyRiderAppeals, createRiderAppeal } from '../../api/queries/support';
@@ -89,11 +90,7 @@ function statusLabel(s: string): string {
   return locale.t('riderAppeal.statusPending');
 }
 function fmtTime(raw: string): string {
-  if (!raw) return '';
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => (n < 10 ? '0' + n : String(n));
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return fmtUser(raw, 'datetime');
 }
 function preview(urls: string[], idx: number) {
   if (urls?.length) uni.previewImage({ current: idx, urls });

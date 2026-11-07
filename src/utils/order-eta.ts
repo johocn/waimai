@@ -1,3 +1,5 @@
+import { fmtUser } from './datetime';
+
 /**
  * 订单预计送达：待配送/配送中订单按「下单时间 + 店铺配送时长」估算，
  * 预约单（customFields.deliverySlotText）不参与倒计时，避免与时段冲突。
@@ -29,6 +31,5 @@ export function orderEta(order: any, deliveryMinutes?: number | null, now: numbe
 }
 
 export function clockHM(ts: number): string {
-    const d = new Date(ts);
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return fmtUser(ts, 'hm');
 }

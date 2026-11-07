@@ -92,6 +92,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useMessagesStore } from '../../stores/messages';
@@ -201,11 +202,7 @@ function iconOf(m: MyMessage): string {
 }
 
 function timeText(at?: string | null): string {
-  if (!at) return '';
-  const d = new Date(at);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => (n < 10 ? '0' + n : String(n));
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return fmtUser(at, 'mdhm');
 }
 
 async function openMessage(m: MyMessage) {

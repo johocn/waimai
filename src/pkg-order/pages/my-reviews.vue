@@ -89,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getMyReviews, deleteReview, appealReview } from '../../api/queries/review';
@@ -148,7 +149,7 @@ function statusLabel(s: string) {
   return k ? locale.t(`myReviews.${k}`) : s;
 }
 function formatDate(d: string) {
-  return d ? new Date(d).toLocaleDateString('zh-CN') : '';
+  return fmtUser(d, 'date');
 }
 
 /** 图片点击大图预览：主评与追评共用（urls 为该组图片全集） */

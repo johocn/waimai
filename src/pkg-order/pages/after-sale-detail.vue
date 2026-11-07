@@ -67,6 +67,7 @@
   <LoadingSkeleton v-else type="card" :count="2" />
 </template>
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed, onUnmounted } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import {
@@ -151,7 +152,7 @@ async function refresh() {
     } catch (e) { /* 网络抖动静默重试 */ }
 }
 
-function fmtTime(t?: string | null) { return t ? new Date(t).toLocaleString('zh-CN') : ''; }
+function fmtTime(t?: string | null) { return fmtUser(t, 'datetime'); }
 function preview(url: string) { uni.previewImage({ urls: [url] }); }
 
 function doCancel() {

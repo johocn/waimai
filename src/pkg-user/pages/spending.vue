@@ -85,6 +85,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
@@ -175,9 +176,9 @@ function compactMoney(fen: number): string {
 }
 
 function dateText(at: number): string {
-  const d = new Date(at || 0);
-  if (!Number.isFinite(d.getTime())) return '';
-  return locale.t('spending.dateFmt').replace('{m}', String(d.getMonth() + 1)).replace('{d}', String(d.getDate()));
+  const md = fmtUser(at, 'md').split('-');
+  if (!md[0]) return '';
+  return locale.t('spending.dateFmt').replace('{m}', String(Number(md[0]))).replace('{d}', String(Number(md[1])));
 }
 
 /**

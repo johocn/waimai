@@ -497,6 +497,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser, storeDayKey, userDayKey } from '../../utils/datetime';
 import { ref, computed, watch, onUnmounted, nextTick } from 'vue';
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app';
 import { useTenantStore } from '../../stores/tenant';
@@ -696,8 +697,7 @@ function openKitchenLive() {
 /** 首次进店每日自动弹一次公告：同店同一天只弹一次 */
 function maybeAutoNotice() {
     if (!storeNotice.value) return;
-    const d = new Date();
-    const key = `store_notice_seen_${shopToken.value || storeInfo.value?.channelId || shopName.value}_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    const key = `store_notice_seen_${shopToken.value || storeInfo.value?.channelId || shopName.value}_${userDayKey()}`;
     try {
         if (uni.getStorageSync(key)) return;
         uni.setStorageSync(key, '1');
@@ -765,7 +765,7 @@ onLoad(() => {
     etaTimer = setInterval(() => {
         nowTick.value = Date.now();
         const closed = getStoreStatus(storeInfo.value?.businessHours).state === 'closed';
-        const dayKey = new Date(nowTick.value + 8 * 3600_000).toISOString().slice(0, 10);
+        const dayKey = storeDayKey(nowTick.value);
         if ((lastClosedState !== null && closed !== lastClosedState)
             || (lastDayKey !== null && dayKey !== lastDayKey)) void refreshStoreInfo();
         lastClosedState = closed;
@@ -1133,7 +1133,7 @@ function displayName(r: any, nameOnly = false) {
 }
 
 function formatDate(d: string) {
-    return d ? new Date(d).toLocaleDateString('zh-CN') : '';
+    return fmtUser(d, 'date');
 }
 
 /** 评价图片大图预览（第 39 轮）：主评与追评共用，index 决定初始图 */

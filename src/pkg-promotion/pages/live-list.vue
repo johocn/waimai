@@ -49,6 +49,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow, onLoad } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
@@ -78,10 +79,7 @@ function statusLabel(s: string) {
 }
 function fmtDate(v: string) {
   if (!v) return locale.t('live.toBeConfirmed');
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return locale.t('live.toBeConfirmed');
-  const p = (n: number) => (n < 10 ? '0' + n : String(n));
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return fmtUser(v, 'mdhm') || locale.t('live.toBeConfirmed');
 }
 
 async function load() {

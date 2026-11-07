@@ -121,6 +121,7 @@
 </template>
 
 <script setup lang="ts">
+import { userDayKey } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import {
@@ -180,7 +181,7 @@ const weekDays = computed(() => {
     d.setDate(d.getDate() - i);
     const idx = 6 - i;
     days.push({
-      key: d.toISOString().slice(0, 10),
+      key: userDayKey(d),
       label: String(d.getDate()),
       on: idx >= start && idx < end,
       today: i === 0,

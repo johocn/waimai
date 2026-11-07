@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed, onMounted } from 'vue';
 import EmptyState from '../../components/EmptyState.vue';
 import { useAuthStore } from '../../stores/auth';
@@ -135,9 +136,7 @@ function windowText(t: any): string {
 }
 
 function fmtDate(s: string | null): string {
-  if (!s) return '';
-  const d = new Date(s);
-  return `${d.getMonth() + 1}.${String(d.getDate()).padStart(2, '0')}`;
+  return fmtUser(s, 'md').replace('-', '.');
 }
 
 function canClaim(t: any): boolean {

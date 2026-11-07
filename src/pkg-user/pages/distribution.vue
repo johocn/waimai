@@ -146,6 +146,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { computed, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import {
@@ -209,11 +210,7 @@ function rateText(bp: number | string): string {
 }
 
 function fmtDate(at?: string) {
-  if (!at) return '';
-  const d = new Date(at);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => (n < 10 ? '0' + n : String(n));
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return fmtUser(at, 'date');
 }
 
 function commissionStatus(s: string) {

@@ -50,6 +50,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtStore } from '../../utils/datetime';
 import { ref, onUnmounted } from 'vue';
 import { onShow, onLoad } from '@dcloudio/uni-app';
 import { fetchStoreList } from '../../api/queries/waimai';
@@ -89,10 +90,9 @@ function countdown(endAt: string) {
 function releaseText(a: any): string {
   const at = a.releaseAt || a.tailStartAt;
   if (!at) return '';
-  const d = new Date(at);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => (n < 10 ? '0' + n : String(n));
-  return locale.t('preSale.releaseAt').replace('{d}', `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+  const day = fmtStore(at, 'date');
+  if (!day) return '';
+  return locale.t('preSale.releaseAt').replace('{d}', day);
 }
 
 async function load() {

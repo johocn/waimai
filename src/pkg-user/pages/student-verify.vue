@@ -58,6 +58,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { fetchMyStudentVerification, applyStudentVerification } from '../../api/queries/student';
@@ -151,10 +152,7 @@ function goLogin() {
 }
 
 function fmtTime(raw: string): string {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return '';
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    return fmtUser(raw, 'date');
 }
 </script>
 

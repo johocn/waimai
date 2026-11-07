@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { computed, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { getOrderPackages, getOrderTracks, type LogisticsTrack, type OrderPackage } from '../../api/queries/package';
@@ -116,11 +117,7 @@ function money(fen: number) {
 }
 
 function timeText(at?: string | null) {
-    if (!at) return '';
-    const d = new Date(at);
-    if (Number.isNaN(d.getTime())) return '';
-    const pad = (n: number) => (n < 10 ? '0' + n : String(n));
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return fmtUser(at, 'datetime');
 }
 
 type Node = { desc: string; time: string };

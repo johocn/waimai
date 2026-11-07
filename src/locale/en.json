@@ -1792,7 +1792,7 @@
     "notActive": "Campaign is not open for reservation",
     "fail": "Reservation failed, please retry",
     "note": "Pre-sale orders ship in order sequence; deposit rules follow the campaign terms",
-    "releaseAt": "Expected {d}",
+    "releaseAt": "Expected {d} (store time)",
     "dayUnit": "d"
   },
   "distribution": {

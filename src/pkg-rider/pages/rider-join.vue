@@ -44,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+import { fmtUser } from '../../utils/datetime';
 import { ref, reactive, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { applyRider, myRiderProfile } from '../../api/queries/rider';
@@ -68,11 +69,7 @@ const compLevel = computed(() => {
 });
 
 function dateText(v?: string | null): string {
-    if (!v) return '';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return '';
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return fmtUser(v, 'date');
 }
 
 onLoad(async () => {

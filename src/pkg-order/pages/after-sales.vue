@@ -125,7 +125,9 @@ async function load() {
 
 function stateLabel(state: string): string {
   const k = STATE_LABEL_KEY[state];
-  return k ? locale.t(`afterSaleDetail.${k}`) : state;
+  if (k) return locale.t(`afterSaleDetail.${k}`);
+  // 未知枚举：可读兜底 + 原始状态码，避免后续新增状态时显示空白
+  return state ? locale.t('afterSaleDetail.stUnknown').replace('{s}', state) : '';
 }
 function typeLabel(type: string): string {
   return type === 'refund_only' ? locale.t('afterSalesList.typeRefundOnly') : type;

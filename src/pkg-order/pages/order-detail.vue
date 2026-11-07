@@ -435,8 +435,8 @@ const riderMarkers = computed(() => {
     }];
 });
 // 状态展示映射：值存 i18n 键（enum → labelKey 模式）
-const statusMap: Record<string, string> = { Created:'stCreated', PaymentAuthorized:'stToShip', PaymentSettled:'stToShip', Delivered:'stToReceive', PartiallyDelivered:'stToReceive', Shipped:'stToReceive', Cancelled:'stCancelled', Modified:'stModified' };
-const statusHintMap: Record<string, string> = { Created:'hintPayNow', PaymentAuthorized:'hintProcessing', PaymentSettled:'hintProcessing', Delivered:'hintConfirmReceive', Shipped:'hintDelivering' };
+const statusMap: Record<string, string> = { Created:'stCreated', ArrangingPayment:'stCreated', PaymentAuthorized:'stToShip', PaymentSettled:'stToShip', Shipped:'stToReceive', PartiallyDelivered:'stPartiallyDelivered', Delivered:'stDelivered', Completed:'stCompleted', Modifying:'stModifying', Modified:'stModified', Cancelled:'stCancelled' };
+const statusHintMap: Record<string, string> = { Created:'hintPayNow', ArrangingPayment:'hintPayNow', PaymentAuthorized:'hintProcessing', PaymentSettled:'hintProcessing', Shipped:'hintDelivering', PartiallyDelivered:'hintPartiallyDelivered', Delivered:'hintDelivered', Completed:'hintCompleted' };
 const statusLabel = computed(() => {
     const k = statusMap[order.value?.state];
     return k ? locale.t(`orderDetail.${k}`) : order.value?.state || '';
@@ -476,8 +476,11 @@ const asStateLabels: Record<string, string> = {
     RefundFailed: 'asRefundFailed', Rejected: 'asRejected', Appealed: 'asAppealed', Closed: 'asClosed',
 };
 const asStateLabel = computed(() => {
-    const k = asStateLabels[afterSale.value?.state ?? ''];
-    return k ? locale.t(`orderDetail.${k}`) : '';
+    const state = afterSale.value?.state ?? '';
+    if (!state) return '';
+    const k = asStateLabels[state];
+    // 未知状态不再隐藏标签：展示可读兜底 + 原始状态码，便于后续枚举扩展
+    return k ? locale.t(`orderDetail.${k}`) : locale.t('orderDetail.asUnknown').replace('{s}', state);
 });
 const deliveredAt = computed(() => order.value?.customFields?.deliveredAt ?? null);
 const withinAfterSaleWindow = computed(() => {

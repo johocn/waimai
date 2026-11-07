@@ -97,12 +97,17 @@ const STATE_MAP: Record<string, { labelKey: string; hintKey: string }> = {
     Closed:       { labelKey: 'stClosed', hintKey: 'hintClosed' },
 };
 const stateLabel = computed(() => {
-    const m = STATE_MAP[req.value?.state ?? ''];
-    return m ? locale.t(`afterSaleDetail.${m.labelKey}`) : req.value?.state ?? '';
+    const state = req.value?.state ?? '';
+    if (!state) return '';
+    const m = STATE_MAP[state];
+    // 未知枚举：可读兜底 + 原始状态码（便于排查/后续扩展），不再显示空白
+    return m ? locale.t(`afterSaleDetail.${m.labelKey}`) : locale.t('afterSaleDetail.stUnknown').replace('{s}', state);
 });
 const stateHint = computed(() => {
-    const m = STATE_MAP[req.value?.state ?? ''];
-    return m ? locale.t(`afterSaleDetail.${m.hintKey}`) : '';
+    const state = req.value?.state ?? '';
+    if (!state) return '';
+    const m = STATE_MAP[state];
+    return m ? locale.t(`afterSaleDetail.${m.hintKey}`) : locale.t('afterSaleDetail.hintUnknown');
 });
 
 // 四段步骤条：提交申请 → 商家审核 → 平台仲裁 → 完成

@@ -105,7 +105,10 @@ const STATE_KEYS: Record<string, string> = {
     PaymentAuthorized: 'orders.stAwaitShip',
     PaymentSettled: 'orders.stAwaitShip',
     Shipped: 'orders.stAwaitReceive',
-    Delivered: 'orders.stAwaitReceive',
+    PartiallyDelivered: 'orders.stPartiallyDelivered',
+    Delivered: 'orders.stDelivered',
+    Completed: 'orders.stCompleted',
+    Modifying: 'orders.stModifying',
     Cancelled: 'orders.stCancelled',
 };
 

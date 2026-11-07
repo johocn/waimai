@@ -443,11 +443,11 @@ async function loadAfterSales() {
 }
 const tabs = [
     { value: '', label: 'orders.tabAll' }, { value: 'ArrangingPayment', label: 'orders.stAwaitPay' },
-    { value: 'PaymentAuthorized,PaymentSettled', label: 'orders.stAwaitShip' }, { value: 'Delivered', label: 'orders.stAwaitReceive' },
+    { value: 'PaymentAuthorized,PaymentSettled', label: 'orders.stAwaitShip' }, { value: 'Delivered', label: 'orders.stDelivered' },
     { value: 'Cancelled', label: 'orders.stCancelled' },
 ];
 // 值为 i18n 键（rider 样式：label 存键不存中文），经 locale.t 解析展示
-const statusMap: Record<string, string> = { ArrangingPayment:'orders.stAwaitPay', Created:'orders.stAwaitPay', PaymentAuthorized:'orders.stAwaitShip', PaymentSettled:'orders.stAwaitShip', Delivered:'orders.stAwaitReceive', Shipped:'orders.stAwaitReceive', Cancelled:'orders.stCancelled' };
+const statusMap: Record<string, string> = { ArrangingPayment:'orders.stAwaitPay', Created:'orders.stAwaitPay', PaymentAuthorized:'orders.stAwaitShip', PaymentSettled:'orders.stAwaitShip', Shipped:'orders.stAwaitReceive', PartiallyDelivered:'orders.stPartiallyDelivered', Delivered:'orders.stDelivered', Completed:'orders.stCompleted', Modifying:'orders.stModifying', Cancelled:'orders.stCancelled' };
 // 订单落在各渠道（vendure myOrders 按 activeChannel 过滤），聚合 = 站点渠道 + 全部店铺渠道。
 // 渠道身份归一：空 token 与 vendure 内建 '__default_channel__' 是同一渠道，须去重（店铺可挂在默认渠道上）。
 const PLATFORM_TOKEN = (import.meta.env.VITE_CHANNEL_TOKEN as string) || '__default_channel__';

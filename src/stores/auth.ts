@@ -64,7 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     function requireLogin(redirect?: string): boolean {
-        if (token.value) return true;
+        if (isLoggedIn.value) return true;
         const url = redirect
             ? '/pages/login/index?redirect=' + encodeURIComponent(redirect)
             : '/pages/login/index';

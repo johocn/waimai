@@ -76,9 +76,10 @@ export const CART_FRAGMENT = `
             id quantity linePriceWithTax unitPriceWithTax
             featuredAsset { preview }
             customFields { waimaiAddons }
-            productVariant { id name enabled stockLevel options { name } product { id customFields { waimaiAddonGroups waimaiCombo } } }
+            productVariant { id name enabled stockLevel options { name } product { id customFields { waimaiPackingFee waimaiAddonGroups waimaiCombo } } }
         }
         couponCodes
         discounts { description amountWithTax }
+        surcharges { id description sku priceWithTax }
     }
 `;

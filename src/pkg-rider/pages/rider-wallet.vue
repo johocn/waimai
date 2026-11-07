@@ -2,19 +2,25 @@
     <view class="wallet">
         <view class="balance-card">
             <text class="bc-label">{{ $t('riderWallet.availableLabel') }}</text>
-            <text class="bc-amount">¥{{ fmt(wallet?.available ?? 0) }}</text>
+            <text class="bc-amount">{{ wallet ? '¥' + fmt(wallet.available) : '--' }}</text>
             <view class="bc-subs">
                 <view class="bc-sub">
-                    <text class="bc-sub-num">¥{{ fmt(wallet?.frozen ?? 0) }}</text>
+                    <text class="bc-sub-num">{{ wallet ? '¥' + fmt(wallet.frozen) : '--' }}</text>
                     <text class="bc-sub-label">{{ $t('riderWallet.frozen') }}</text>
                 </view>
                 <view class="bc-sub">
-                    <text class="bc-sub-num">¥{{ fmt(wallet?.totalEarned ?? 0) }}</text>
+                    <text class="bc-sub-num">{{ wallet ? '¥' + fmt(wallet.totalEarned) : '--' }}</text>
                     <text class="bc-sub-label">{{ $t('riderWallet.totalEarned') }}</text>
                 </view>
             </view>
-            <button class="bc-btn" :disabled="wallet?.available < 1000" @tap="goWithdraw">{{ $t('riderWallet.withdraw') }}</button>
-            <text class="bc-tip" v-if="(wallet?.available ?? 0) < 1000">{{ $t('riderWallet.minTip') }}</text>
+            <button class="bc-btn" :disabled="!wallet || wallet.available < 1000" @tap="goWithdraw">{{ $t('riderWallet.withdraw') }}</button>
+            <text class="bc-tip" v-if="wallet && wallet.available < 1000">{{ $t('riderWallet.minTip') }}</text>
+        </view>
+
+        <!-- 钱包加载失败：明确提示 + 重试，不把失败显示成余额 0 -->
+        <view class="load-err" v-if="walletError">
+            <text class="le-txt">{{ walletError }}</text>
+            <text class="le-retry" @tap="retryAll">{{ $t('riderWallet.retry') }}</text>
         </view>
 
         <view class="tabs">
@@ -22,9 +28,15 @@
             <text class="tab" :class="{ on: tab === 'withdraw' }" @tap="switchTab('withdraw')">{{ $t('riderWallet.tabWithdraw') }}</text>
         </view>
 
+        <!-- 列表加载失败：与“确实没有流水/申请”区分 -->
+        <view class="load-err" v-if="listError">
+            <text class="le-txt">{{ listError }}</text>
+            <text class="le-retry" @tap="loadMore">{{ $t('riderWallet.retry') }}</text>
+        </view>
+
         <template v-if="tab === 'history'">
-            <EmptyState v-if="!history.length" :text="$t('riderWallet.emptyHistory')" />
-            <view v-else class="list">
+            <EmptyState v-if="!history.length && !listError" :text="$t('riderWallet.emptyHistory')" />
+            <view v-else-if="history.length" class="list">
                 <view v-for="r in history" :key="r.id" class="row">
                     <view class="row-main">
                         <text class="row-title">{{ typeLabel(r.type) }}</text>
@@ -39,8 +51,8 @@
         </template>
 
         <template v-else>
-            <EmptyState v-if="!withdraws.length" :text="$t('riderWallet.emptyWithdraw')" />
-            <view v-else class="list">
+            <EmptyState v-if="!withdraws.length && !listError" :text="$t('riderWallet.emptyWithdraw')" />
+            <view v-else-if="withdraws.length" class="list">
                 <view v-for="r in withdraws" :key="r.id" class="row">
                     <view class="row-main">
                         <text class="row-title">{{ $t('riderWallet.withdrawTo').replace('{c}', r.channel) }}</text>
@@ -69,6 +81,8 @@ import EmptyState from '../../components/EmptyState.vue';
 const auth = useAuthStore();
 const locale = useLocaleStore();
 const wallet = ref<any>(null);
+const walletError = ref('');
+const listError = ref('');
 const tab = ref<'history' | 'withdraw'>('history');
 const history = ref<any[]>([]);
 const withdraws = ref<any[]>([]);
@@ -108,15 +122,43 @@ function switchTab(t: 'history' | 'withdraw') {
 async function loadMore() {
     if (tab.value === 'history') {
         if (historyDone.value) return;
-        const rows = await riderBalanceHistory(history.value.length, PAGE).catch(() => []);
-        history.value.push(...rows);
-        historyDone.value = rows.length < PAGE;
+        try {
+            const rows = await riderBalanceHistory(history.value.length, PAGE);
+            history.value.push(...rows);
+            historyDone.value = rows.length < PAGE;
+            listError.value = '';
+        } catch {
+            // 失败不能伪装成“没有更多流水”
+            listError.value = locale.t('riderWallet.loadFail');
+        }
     } else {
         if (withdrawDone.value) return;
-        const rows = await riderWithdrawRequests(withdraws.value.length, PAGE).catch(() => []);
-        withdraws.value.push(...rows);
-        withdrawDone.value = rows.length < PAGE;
+        try {
+            const rows = await riderWithdrawRequests(withdraws.value.length, PAGE);
+            withdraws.value.push(...rows);
+            withdrawDone.value = rows.length < PAGE;
+            listError.value = '';
+        } catch {
+            listError.value = locale.t('riderWallet.loadFail');
+        }
     }
+}
+
+async function loadWallet() {
+    try {
+        wallet.value = await myRiderWallet();
+        walletError.value = '';
+    } catch {
+        // 失败时余额显示 -- 而不是 ¥0.00
+        wallet.value = null;
+        walletError.value = locale.t('riderWallet.loadFail');
+    }
+}
+
+async function retryAll() {
+    await loadWallet();
+    listError.value = '';
+    await loadMore();
 }
 
 onShow(async () => {
@@ -127,7 +169,8 @@ onShow(async () => {
     withdraws.value = [];
     historyDone.value = false;
     withdrawDone.value = false;
-    wallet.value = await myRiderWallet().catch(() => null);
+    listError.value = '';
+    await loadWallet();
     await loadMore();
 });
 
@@ -136,6 +179,9 @@ onReachBottom(loadMore);
 
 <style scoped lang="scss">
 .wallet { padding: 24rpx; }
+.load-err { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 20rpx; padding: 20rpx 24rpx; border-radius: $radius-card; background: #fdf3e0; }
+.le-txt { flex: 1; font-size: 24rpx; color: #b45309; }
+.le-retry { font-size: 24rpx; color: $brand-color; font-weight: 600; padding: 4rpx 8rpx; }
 .balance-card { background: $brand-color; border-radius: $radius-card; padding: 40rpx 32rpx; color: #fff; }
 .bc-label { display: block; font-size: 24rpx; opacity: .85; }
 .bc-amount { display: block; font-size: 64rpx; font-weight: 700; margin-top: 8rpx; }

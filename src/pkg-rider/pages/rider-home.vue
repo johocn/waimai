@@ -42,8 +42,13 @@
             <text class="jh-go">{{ $t('riderHome.jhGo') }}</text>
         </navigator>
         <view class="hint" v-if="!on">{{ $t('riderHome.offlineHint') }}</view>
-        <EmptyState v-else-if="!tasks.length" :text="$t('riderHome.empty')" />
-        <view v-else class="tasks">
+        <!-- 加载失败要和“成功但为空”区分：失败时保留旧列表并明确提示，不伪装成暂无订单 -->
+        <view class="load-err" v-if="on && loadError">
+            <text class="le-txt">{{ loadError }}</text>
+            <text class="le-retry" @tap="refresh">{{ $t('riderHome.retry') }}</text>
+        </view>
+        <EmptyState v-if="on && !loadError && !loading && !tasks.length" :text="$t('riderHome.empty')" />
+        <view v-else-if="on && tasks.length" class="tasks">
             <view v-for="t in tasks" :key="t.id" class="task" :class="{ taken: takenIds.has(t.id), sel: picked.has(t.id) }" @tap="togglePick(t)">
                 <view class="task-head">
                     <view class="pick" :class="{ on: picked.has(t.id) }"><text v-if="picked.has(t.id)">✓</text></view>
@@ -76,6 +81,7 @@ import { myRiderProfile, riderOnline, riderHeartbeat } from '../../api/queries/r
 import { fetchMyRiderRating, fetchMyRiderReviews } from '../../api/queries/support';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
+import { classifyLoadError } from '../../utils/load-error';
 import EmptyState from '../../components/EmptyState.vue';
 
 const auth = useAuthStore();
@@ -124,6 +130,8 @@ function shortDate(v?: string): string {
     return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 const tasks = ref<any[]>([]);
+const loading = ref(true);
+const loadError = ref('');
 const grabbing = ref(false);
 const batching = ref(false);
 const picked = ref<Set<string>>(new Set());
@@ -179,14 +187,23 @@ function routeCount(t: any) {
 }
 
 async function refresh() {
+    if (!tasks.value.length) loading.value = true;
     try {
         tasks.value = await fetchHall();
+        loadError.value = '';
         // 勾选态跟着大厅刷新收敛：已被别人接走的单自动去掉，避免批量提交时整批失败
         if (picked.value.size) {
             const alive = new Set(tasks.value.map((t: any) => t.id));
             picked.value = new Set([...picked.value].filter((id) => alive.has(id)));
         }
-    } catch { /* 网络抖动静默重试 */ }
+    } catch (e: any) {
+        // 失败保留旧列表（不清空），并显式提示：权限失效/网络失败都不是“暂无订单”
+        loadError.value = locale.t(
+            classifyLoadError(e) === 'forbidden' ? 'riderHome.loadForbidden' : 'riderHome.loadFail',
+        );
+    } finally {
+        loading.value = false;
+    }
 }
 
 /* ===== P3-3 批量接单：勾选多单一次提交（同渠道 ≤10，逐单结果独立） ===== */
@@ -336,6 +353,9 @@ async function grab(t: any) {
 .jh-p { font-size: 22rpx; color: #cfc7b8; margin-top: 8rpx; line-height: 1.6; }
 .jh-go { font-size: 24rpx; color: #e3c877; }
 .hint { text-align: center; color: $text-muted; font-size: 26rpx; margin-top: 120rpx; }
+.load-err { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 24rpx; padding: 20rpx 24rpx; border-radius: $radius-card; background: #fdf3e0; }
+.le-txt { flex: 1; font-size: 24rpx; color: #b45309; }
+.le-retry { font-size: 24rpx; color: $brand-color; font-weight: 600; padding: 4rpx 8rpx; }
 .tasks { display: flex; flex-direction: column; gap: 20rpx; }
 .task { background: $surface; border-radius: $radius-card; padding: 24rpx; border: 2rpx solid transparent; }
 .task.taken { opacity: .45; }

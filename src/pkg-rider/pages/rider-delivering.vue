@@ -1,6 +1,11 @@
 <template>
     <view class="delivering">
-        <EmptyState v-if="!tasks.length" :text="$t('riderDelivering.empty')" />
+        <!-- 加载失败要和“成功但为空”区分：失败时保留旧列表并明确提示 -->
+        <view class="load-err" v-if="loadError">
+            <text class="le-txt">{{ loadError }}</text>
+            <text class="le-retry" @tap="refresh">{{ $t('riderDelivering.retry') }}</text>
+        </view>
+        <EmptyState v-if="!loadError && !loading && !tasks.length" :text="$t('riderDelivering.empty')" />
 
         <!-- plan 3.3 路线任务组卡（方案 A）：同 routeGroupId ≥2 单聚合为一张组卡 -->
         <view v-for="g in groups" :key="g.gid" class="task-card group">
@@ -138,11 +143,14 @@ import { fetchRiderNav } from '../../api/queries/support';
 import { uploadCustomerAsset } from '../../api/mutations/upload';
 import { useAuthStore } from '../../stores/auth';
 import { useLocaleStore } from '../../stores/locale';
+import { classifyLoadError } from '../../utils/load-error';
 import EmptyState from '../../components/EmptyState.vue';
 
 const auth = useAuthStore();
 const locale = useLocaleStore();
 const tasks = ref<any[]>([]);   // plan 3.3：多任务列表（原单任务 ref task 改为列表）
+const loading = ref(true);
+const loadError = ref('');
 const buildingMap = ref<Record<string, string>>({});
 const checked = ref(new Set<string>());   // 组内勾选待送达子单（order id）
 const expanded = ref<string | null>();    // 展开单子单操作行的 order id
@@ -264,12 +272,23 @@ function reportLocation() {
 function fmt(fen: number) { return (fen / 100).toFixed(2); }
 
 async function refresh() {
-    const list = await fetchMyTasks().catch(() => []);
-    tasks.value = list;
-    // 勾选集清理：已不在活动列表的单移除勾选，避免幽灵计数
-    const alive = new Set(list.map(o => String(o.id)));
-    for (const id of [...checked.value]) {
-        if (!alive.has(id)) checked.value.delete(id);
+    if (!tasks.value.length) loading.value = true;
+    try {
+        const list = await fetchMyTasks();
+        tasks.value = list;
+        loadError.value = '';
+        // 勾选集清理：已不在活动列表的单移除勾选，避免幽灵计数
+        const alive = new Set(list.map(o => String(o.id)));
+        for (const id of [...checked.value]) {
+            if (!alive.has(id)) checked.value.delete(id);
+        }
+    } catch (e: any) {
+        // 失败保留旧列表（不清空），并明确提示，而不是显示“暂无任务”
+        loadError.value = locale.t(
+            classifyLoadError(e) === 'forbidden' ? 'riderDelivering.loadForbidden' : 'riderDelivering.loadFail',
+        );
+    } finally {
+        loading.value = false;
     }
 }
 
@@ -578,6 +597,9 @@ async function submitException() {
 
 <style scoped lang="scss">
 .delivering { padding: 24rpx; display: flex; flex-direction: column; gap: 20rpx; }
+.load-err { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 20rpx 24rpx; border-radius: $radius-card; background: #fdf3e0; }
+.le-txt { flex: 1; font-size: 24rpx; color: #b45309; }
+.le-retry { font-size: 24rpx; color: $brand-color; font-weight: 600; padding: 4rpx 8rpx; }
 .task-card { background: $surface; border-radius: $radius-card; padding: 32rpx; }
 
 /* 路线任务组卡（plan 3.3 方案 A） */

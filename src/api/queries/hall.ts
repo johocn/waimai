@@ -61,17 +61,18 @@ const CHANNELS_MEMO_MS = 60_000;
 
 async function activeChannels(): Promise<any[]> {
     if (channelsMemo && Date.now() - channelsMemo.at < CHANNELS_MEMO_MS) return channelsMemo.list;
-    const list = (await fetchStoreList().catch(() => [] as any[])).filter((s: any) => !s.paused);
+    // 失败必须向上抛：这里若吞成空数组，调用方会把“渠道加载失败”误当成“没有店铺/没有单”
+    const list = (await fetchStoreList()).filter((s: any) => !s.paused);
     channelsMemo = { at: Date.now(), list };
     return list;
 }
 
-/** 大厅：campusHallAll 一次带回全渠道 open 单（token 按 channelId 回填，列表不再下发） */
+/** 大厅：campusHallAll 一次带回全渠道 open 单（token 按 channelId 回填，列表不再下发）；
+ *  请求失败直接抛错，由页面区分“成功但为空”与“加载失败” */
 export async function fetchHall(): Promise<ChannelOrder[]> {
     const [rows, stores] = await Promise.all([
         riderClient().request(CAMPUS_HALL_ALL)
-            .then((r: any) => (r.campusHallAll ?? []) as ChannelOrder[])
-            .catch(() => [] as ChannelOrder[]),
+            .then((r: any) => (r.campusHallAll ?? []) as ChannelOrder[]),
         activeChannels(),
     ]);
     const tokenOf = new Map(stores.map((s: any) => [String(s.channelId ?? ''), String(s.channelToken ?? '')]));
@@ -88,14 +89,21 @@ export async function grabOrders(orderIds: string[], channelToken?: string) {
         .then((r: any) => (r.campusGrabOrders ?? []) as Array<{ orderId: string; ok: boolean; message?: string }>);
 }
 
-/** 我的任务：逐店铺渠道并行聚合 */
+/** 我的任务：逐店铺渠道并行聚合；全部渠道都失败时抛错（页面显示“加载失败 + 重试”），
+ *  部分渠道失败但拿到了数据则保留可用结果，避免整页不可用 */
 export async function fetchMyTasks(status?: string): Promise<ChannelOrder[]> {
     const stores = await activeChannels();
-    const res = await Promise.all(stores.map((s: any) =>
+    const settled = await Promise.allSettled(stores.map((s: any) =>
         riderClient(s.channelToken).request(MY_TASKS, { status })
-            .then((r: any) => (r.campusMyTasks ?? []).map((o: any) => ({ ...o, channelToken: s.channelToken, channelName: s.name })))
-            .catch(() => [] as ChannelOrder[])));
-    return res.flat();
+            .then((r: any) => (r.campusMyTasks ?? []).map((o: any) => ({ ...o, channelToken: s.channelToken, channelName: s.name })))));
+    const list: ChannelOrder[] = [];
+    let firstError: unknown = null;
+    for (const r of settled) {
+        if (r.status === 'fulfilled') list.push(...r.value);
+        else firstError = firstError ?? r.reason;
+    }
+    if (!list.length && firstError) throw firstError;
+    return list;
 }
 
 /** 楼栋 ID→名称映射：跨渠道聚合（楼栋 ID 全局唯一，各渠道楼栋合并一张表） */

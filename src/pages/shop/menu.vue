@@ -697,9 +697,18 @@ function openKitchenLive() {
 /** 首次进店每日自动弹一次公告：同店同一天只弹一次 */
 function maybeAutoNotice() {
     if (!storeNotice.value) return;
-    const key = `store_notice_seen_${shopToken.value || storeInfo.value?.channelId || shopName.value}_${userDayKey()}`;
+    const day = userDayKey();
+    const base = `store_notice_seen_${shopToken.value || storeInfo.value?.channelId || shopName.value}`;
+    const key = `${base}_${day}`;
+    // 兼容旧键：上线前用非补零的 YYYY-M-D，命中则迁移写回新键，避免已读用户重看公告
+    const [y, m, d] = day.split('-');
+    const legacyKey = `${base}_${Number(y)}-${Number(m)}-${Number(d)}`;
     try {
         if (uni.getStorageSync(key)) return;
+        if (legacyKey !== key && uni.getStorageSync(legacyKey)) {
+            uni.setStorageSync(key, '1');
+            return;
+        }
         uni.setStorageSync(key, '1');
     } catch {
         /* 存储不可用时仍弹一次 */

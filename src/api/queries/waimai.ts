@@ -8,7 +8,7 @@ import { useAuthStore } from '../../stores/auth';
 export const WAIMAI_STORE_LIST = gql`
     query waimaiStoreList {
         waimaiStoreList {
-            channelId name logo tags monthlySales promoText paused openNow routesEnabled businessHours
+            channelId name logo tags monthlySales promoText paused openNow routesEnabled r1Available businessHours
             closedToday closureNote
             deliveryMinutes minOrderAmount deliveryFee storeAddress storePhone storeNotice errandBaseFee freeShippingThreshold
             deliveryFeeTiers

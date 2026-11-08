@@ -741,7 +741,9 @@ async function loadStoreRoutes() {
         if (store?.minOrderAmount != null && minOrderFen.value == null) {
             minOrderFen.value = Number(store.minOrderAmount);
         }
-        const routes = filterCampusRoutes(store?.routesEnabled);
+        // A1：R1 需要可用交接点。渠道未配置交接点时即便 routesEnabled 含 R1 也不再展示（后端闸门同口径）
+        const enabled = filterCampusRoutes(store?.routesEnabled);
+        const routes = enabled.filter((r) => r !== 'R1' || store?.r1Available !== false);
         if (routes.length) {
             campusRoutes.value = routes;
             if (!routes.includes(routeChoice.value)) routeChoice.value = routes[0] as 'R3' | 'R1' | 'R2';

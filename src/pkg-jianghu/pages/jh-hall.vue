@@ -90,16 +90,6 @@
             </view>
         </view>
 
-        <!-- 运营后台（内部） -->
-        <view class="sec"><text class="sec-h">运营后台</text><text class="sec-m">内部 · 事件与线索治理</text></view>
-        <view class="entries">
-            <view class="entry" @tap="go('/pkg-jianghu/pages/jh-admin')">
-                <view class="ico gold">治</view>
-                <text class="entry-h">江湖运营后台</text>
-                <text class="entry-p">发布江湖事件 · 审核下线线索</text>
-            </view>
-        </view>
-
         <!-- 今日江湖榜 -->
         <view class="sec"><text class="sec-h">今日江湖榜</text><text class="sec-m">书院 · 东区</text></view>
         <view class="card board">

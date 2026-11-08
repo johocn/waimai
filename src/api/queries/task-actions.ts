@@ -38,6 +38,12 @@ const REJECT = gql`
     }
 `;
 
+const RESEND_HANDOVER_CODE = gql`
+    mutation campusRiderResendHandoverCode($orderId: ID!) {
+        campusRiderResendHandoverCode(orderId: $orderId)
+    }
+`;
+
 /** 开始取货；接力单（R1/R2 第一段已交接）必须传 4 位交接码 */
 export async function startTask(orderId: string, code?: string, channelToken?: string) {
     return riderClient(channelToken).request(START, { orderId, code }).then((r: any) => r.campusStartTask);
@@ -58,4 +64,11 @@ export async function transferTask(orderId: string, photos: string[], note?: str
 /** 拒单（仅被指派且未取货）：订单回大厅 + 骑手扣信用分（后端 campusRejectAssignment） */
 export async function rejectAssignment(orderId: string, channelToken?: string) {
     return riderClient(channelToken).request(REJECT, { orderId }).then((r: any) => r.campusRejectAssignment);
+}
+
+/** A3 骑手侧刷新交接码：仅已派单未取餐可用，同单 3 分钟限频；返回新 4 位码（旧码即刻失效） */
+export async function resendHandoverCode(orderId: string, channelToken?: string): Promise<string> {
+    return riderClient(channelToken)
+        .request(RESEND_HANDOVER_CODE, { orderId })
+        .then((r: any) => String(r.campusRiderResendHandoverCode ?? ''));
 }

@@ -41,6 +41,7 @@
                     <button class="act ghost small" @tap="contactCustomer(o)">{{ $t('riderDelivering.contactCustomer') }}</button>
                     <block v-if="o.customFields?.deliveryStatus === 'assigned'">
                         <button class="act ghost small" @tap="begin(o)">{{ $t('riderDelivering.startPick') }}</button>
+                        <button v-if="needsCode(o)" class="act ghost small" @tap="refreshHandoverCode(o)">{{ $t('riderDelivering.codeRefresh') }}</button>
                         <button class="act ghost small" @tap="transfer(o, false)">{{ $t('riderDelivering.transfer') }}</button>
                         <button class="act ghost small" @tap="reject(o)">{{ $t('riderDelivering.reject') }}</button>
                     </block>
@@ -73,6 +74,7 @@
             <view class="actions">
                 <block v-if="o.customFields?.deliveryStatus === 'assigned'">
                     <button class="act" :disabled="busy" @tap="begin(o)">{{ $t('riderDelivering.startSingle') }}</button>
+                    <button v-if="needsCode(o)" class="act ghost" :disabled="busy" @tap="refreshHandoverCode(o)">{{ $t('riderDelivering.codeRefresh') }}</button>
                     <button class="act ghost" :disabled="busy" @tap="transfer(o, false)">{{ $t('riderDelivering.transferNoPick') }}</button>
                     <button class="act ghost" :disabled="busy" @tap="reject(o)">{{ $t('riderDelivering.reject') }}</button>
                 </block>
@@ -137,7 +139,7 @@ import { ref, computed } from 'vue';
 import { onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { fetchMyTasks, fetchBuildingMap } from '../../api/queries/hall';
 import { riderCustomerContact } from '../../api/queries/rider';
-import { startTask, deliverTask, reportException, transferTask, rejectAssignment } from '../../api/queries/task-actions';
+import { startTask, deliverTask, reportException, transferTask, rejectAssignment, resendHandoverCode } from '../../api/queries/task-actions';
 import { riderReportLocation } from '../../api/mutations/campus';
 import { fetchRiderNav } from '../../api/queries/support';
 import { uploadCustomerAsset } from '../../api/mutations/upload';
@@ -371,6 +373,26 @@ async function begin(o: any) {
         uni.showToast({ title: locale.t('riderDelivering.started'), icon: 'none' });
     } catch (e: any) {
         uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.opFail'), icon: 'none' });
+    } finally {
+        busy.value = false;
+        await refresh();
+    }
+}
+
+/** A3：骑手主动刷新交接码（仅已派单未取餐的接力单）。新码 10 分钟内有效，旧码立即失效；
+ *  后端同单 3 分钟限频，超频会返回可读提示。刷新后直接弹窗展示新码，便于立刻核对取餐。 */
+async function refreshHandoverCode(o: any) {
+    if (!needsCode(o)) return;
+    busy.value = true;
+    try {
+        const code = await resendHandoverCode(o.id, o.channelToken);
+        uni.showModal({
+            title: locale.t('riderDelivering.codeRefreshed'),
+            content: locale.t('riderDelivering.codeRefreshedTip').replace('{code}', code),
+            showCancel: false,
+        });
+    } catch (e: any) {
+        uni.showToast({ title: e?.response?.errors?.[0]?.message || locale.t('riderDelivering.codeRefreshFail'), icon: 'none' });
     } finally {
         busy.value = false;
         await refresh();
